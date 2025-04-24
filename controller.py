@@ -9,16 +9,26 @@ from typing import Dict, List, Optional
 
 class SidebarItem(GObject.GObject):
     name = GObject.Property(type=str)
+    icon_name = GObject.Property(type=str)
 
-    def __init__(self, name):
+    def __init__(self, name, icon_name="applications-games-symbolic"):
         super().__init__()
         self.name = name
+        self.icon_name = icon_name
 
 
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "sidebar_row.ui"))
 class SidebarRow(Gtk.Box):
     __gtype_name__ = "SidebarRow"
     label: Gtk.Label = Gtk.Template.Child()
+    icon: Gtk.Image = Gtk.Template.Child()
+    selected_indicator: Gtk.Image = Gtk.Template.Child()
+    
+    def set_icon_name(self, icon_name):
+        self.icon.set_from_icon_name(icon_name)
+    
+    def set_selected(self, selected):
+        self.selected_indicator.set_visible(selected)
 
 
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "details_panel.ui"))
@@ -50,9 +60,11 @@ class GameShelfWindow(Adw.ApplicationWindow):
         self.controller = controller
 
         self.sidebar_store = Gio.ListStore(item_type=SidebarItem)
-        self.sidebar_store.append(SidebarItem("Games"))
+        self.sidebar_store.append(SidebarItem("Games", "view-grid-symbolic"))
+
         for runner in controller.get_runners():
-            self.sidebar_store.append(SidebarItem(runner.id))
+            icon_name = self._get_runner_icon(runner.id)
+            self.sidebar_store.append(SidebarItem(runner.id, icon_name))
 
         factory = Gtk.SignalListItemFactory()
         factory.connect("setup", self._setup_sidebar_item)
@@ -60,6 +72,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
 
         selection = Gtk.SingleSelection(model=self.sidebar_store)
         selection.connect("notify::selected", self._on_sidebar_selection)
+        selection.set_selected(0)
 
         self.sidebar_listview.set_model(selection)
         self.sidebar_listview.set_factory(factory)
@@ -71,6 +84,24 @@ class GameShelfWindow(Adw.ApplicationWindow):
         if isinstance(selection_model, Gtk.SingleSelection):
             selection_model.connect("notify::selected-item", self._on_game_selected)
 
+    def _get_runner_icon(self, runner_id):
+      icon_map = {
+        "steam": "steam-symbolic",
+        "wine": "wine-symbolic",
+        "native": "system-run-symbolic",
+        "browser": "web-browser-symbolic",
+        "emulator": "media-optical-symbolic",
+        # Add more mappings as needed
+      }
+
+      # Try to match beginning of runner name to known icons
+      for key, icon in icon_map.items():
+          if runner_id.lower().startswith(key):
+              return icon
+
+      # Default icon for unknown runners
+      return "application-x-executable-symbolic"
+
     def _setup_sidebar_item(self, factory, list_item):
         sidebar_row = SidebarRow()
         list_item.set_child(sidebar_row)
@@ -79,6 +110,12 @@ class GameShelfWindow(Adw.ApplicationWindow):
         row = list_item.get_child()
         item = list_item.get_item()
         row.label.set_label(item.name.capitalize())
+        row.set_icon_name(item.icon_name)
+
+        # Handle selection state
+        selection_model = self.sidebar_listview.get_model()
+        selected = selection_model.get_selected() == list_item.get_position()
+        row.set_selected(selected)
 
     def _on_game_selected(self, selection, param):
         selected_item = selection.get_selected_item()

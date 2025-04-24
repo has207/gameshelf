@@ -25,15 +25,32 @@
 
 .sidebar-row {
   border-radius: 8px;
-  padding: 6px;
-  transition: background-color 150ms ease;
+  padding: 8px;
+  margin: 4px 8px;
+  transition: all 200ms ease;
 }
 
-.sidebar-row:selected,
-.sidebar-row:focus,
-.sidebar-row:hover {
-  background-color: @accent_bg_color;
-  color: @accent_fg_color;
+.sidebar-label {
+  font-weight: normal;
+  font-size: 14px;
 }
 
+.sidebar-row:selected {
+  background-color: alpha(@accent_bg_color, 0.15);
+  color: @accent_color;
+}
 
+.sidebar-row:hover:not(:selected) {
+  background-color: alpha(@card_bg_color, 0.5);
+}
+
+/* Animate selection transitions */
+.sidebar-row:selected .sidebar-label {
+  font-weight: bold;
+  transition: font-weight 100ms ease;
+}
+
+/* Add a border to the sidebar */
+#sidebar_container {
+  border-right: 1px solid alpha(@borders, 0.5);
+}
