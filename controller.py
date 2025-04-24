@@ -2,9 +2,9 @@ import gi
 import os
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk, GObject
+from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk, GObject, GLib
 from data_handler import DataHandler, Game, Runner
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 
 class SidebarItem(GObject.GObject):
@@ -32,14 +32,69 @@ class GameDetailsContent(Gtk.Box):
     __gtype_name__ = "GameDetailsContent"
     title_label: Gtk.Label = Gtk.Template.Child()
     runner_label: Gtk.Label = Gtk.Template.Child()
+    id_label: Gtk.Label = Gtk.Template.Child() 
+    runner_icon: Gtk.Image = Gtk.Template.Child()
+    game_image: Gtk.Picture = Gtk.Template.Child()
+    play_button: Gtk.Button = Gtk.Template.Child()
+    
+    def __init__(self):
+        super().__init__()
+        self.game = None
+        self.controller = None
 
     @Gtk.Template.Callback()
     def on_close_details_clicked(self, button):
         self.get_ancestor(GameShelfWindow).details_panel.set_reveal_flap(False)
+    
+    @Gtk.Template.Callback()
+    def on_play_button_clicked(self, button):
+        if not self.game or not self.controller:
+            return
+            
+        # Get the runner for this game
+        runner = self.controller.get_runner(self.game.runner)
+        if runner and runner.command:
+            # In a real app, we'd launch the game here
+            print(f"Launching game: {self.game.title} with command: {runner.command}")
+            # For a production app, you would use subprocess.Popen here
+            # subprocess.Popen(runner.command.split() + [self.game.id], start_new_session=True)
 
+    def set_controller(self, controller):
+        self.controller = controller
+    
     def set_game(self, game: Game):
+        self.game = game
+        # Set title and ID
         self.title_label.set_text(game.title)
-        self.runner_label.set_text(game.runner)
+        self.id_label.set_text(game.id)
+        
+        # Set runner info
+        runner_name = game.runner.capitalize() if game.runner else "Unknown"
+        self.runner_label.set_text(runner_name)
+        
+        # Set runner icon if available
+        window = self.get_ancestor(GameShelfWindow)
+        if window:
+            icon_name = window._get_runner_icon(game.runner) 
+            self.runner_icon.set_from_icon_name(icon_name)
+        
+        # Set game image if available
+        if window and window.controller:
+            self.controller = window.controller
+            pixbuf = self.controller.get_game_pixbuf(game, width=280, height=380)
+            if pixbuf:
+                self.game_image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
+            else:
+                # Set a default image if none available
+                self.game_image.set_from_icon_name("applications-games-symbolic")
+                
+        # Enable/disable play button based on if we have a runner with a command
+        can_play = False
+        if self.controller:
+            runner = self.controller.get_runner(game.runner)
+            can_play = runner is not None and runner.command is not None
+        
+        self.play_button.set_sensitive(can_play)
 
 
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "window.ui"))
@@ -50,25 +105,29 @@ class GameShelfWindow(Adw.ApplicationWindow):
     details_panel: Adw.Flap = Gtk.Template.Child()
     details_content: GameDetailsContent = Gtk.Template.Child()
     sidebar_listview: Gtk.ListView = Gtk.Template.Child()
+    add_game_button: Gtk.Button = Gtk.Template.Child()
 
     def __init__(self, app, controller):
         super().__init__(application=app)
         self.controller = controller
         # Track the currently selected game to maintain state across filtering
         self.current_selected_game = None
+        
+        # Create add game dialog
+        self.add_game_dialog = None
     
         # Debug to see if the UI template is loaded correctly
         print("Sidebar ListView:", self.sidebar_listview)
         print("Games Grid:", self.games_grid)
         print("Details Panel:", self.details_panel)
-    
+        
         # Only continue if the template elements exist
         if hasattr(self, 'sidebar_listview') and self.sidebar_listview is not None:
             self.sidebar_store = Gio.ListStore(item_type=SidebarItem)
             self.sidebar_store.append(SidebarItem("Games", "view-grid-symbolic"))
         
             # Add runners with appropriate icons
-            for runner in controller.get_runners():
+            for runner in self.controller.get_runners():
                 icon_name = self._get_runner_icon(runner.id)
                 self.sidebar_store.append(SidebarItem(runner.id, icon_name))
 
@@ -81,10 +140,12 @@ class GameShelfWindow(Adw.ApplicationWindow):
 
             self.sidebar_listview.set_model(selection)
             self.sidebar_listview.set_factory(factory)
+            
+            selection.set_selected(0)
     
         # Only bind grid if it exists
         if hasattr(self, 'games_grid') and self.games_grid is not None:
-            controller.bind_gridview(self.games_grid)
+            self.controller.bind_gridview(self.games_grid)
         
         # Only setup details panel if it exists
         if hasattr(self, 'details_panel') and self.details_panel is not None:
@@ -95,6 +156,17 @@ class GameShelfWindow(Adw.ApplicationWindow):
                 selection_model = self.games_grid.get_model()
                 if isinstance(selection_model, Gtk.SingleSelection):
                     selection_model.connect("notify::selected-item", self._on_game_selected)
+        
+    @Gtk.Template.Callback()
+    def on_add_game_clicked(self, button):
+        # Lazy load the add game dialog only when needed
+        if not self.add_game_dialog:
+            self.add_game_dialog = AddGameDialog(self)
+            self.add_game_dialog.set_transient_for(self)
+            
+        # Populate runners list with fresh data
+        self.add_game_dialog.populate_runners(self.controller.get_runners())
+        self.add_game_dialog.show()
 
     def _get_runner_icon(self, runner_id):
       icon_map = {
@@ -191,6 +263,164 @@ class RunnerItem(Gtk.Box):
             self.image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
 
 
+@Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "add_game_dialog.ui"))
+class AddGameDialog(Adw.Window):
+    __gtype_name__ = "AddGameDialog"
+    
+    # UI elements from template
+    title_entry: Adw.EntryRow = Gtk.Template.Child()
+    runner_list: Gtk.ListBox = Gtk.Template.Child()
+    image_preview: Gtk.Picture = Gtk.Template.Child()
+    select_image_button: Gtk.Button = Gtk.Template.Child()
+    add_button: Gtk.Button = Gtk.Template.Child()
+    cancel_button: Gtk.Button = Gtk.Template.Child()
+    
+    def __init__(self, parent_window):
+        super().__init__()
+        self.parent_window = parent_window
+        self.selected_runner = None
+        self.selected_image_path = None
+        self.runners_data = []
+        
+        # Set up the UI
+        self.setup_ui()
+        
+    def setup_ui(self):
+        # Ensure add button updates when entry changes
+        self.title_entry.connect("notify::text", self.validate_form)
+    
+    def populate_runners(self, runners: List[Runner]):
+        # Remove existing rows
+        while True:
+            row = self.runner_list.get_first_child()
+            if row is None:
+                break
+            self.runner_list.remove(row)
+        
+        # Store runners list for reference when selected
+        self.runners_data = runners
+        
+        # Add new runner rows
+        for i, runner in enumerate(runners):
+            row = Gtk.ListBoxRow()
+            # Store the index to reference the runner later
+            row.runner_index = i
+            
+            box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            box.set_margin_top(8)
+            box.set_margin_bottom(8)
+            box.set_margin_start(12)
+            box.set_margin_end(12)
+            
+            # Runner icon
+            icon = Gtk.Image()
+            icon_name = self.parent_window._get_runner_icon(runner.id)
+            icon.set_from_icon_name(icon_name)
+            box.append(icon)
+            
+            # Runner name label
+            label = Gtk.Label(label=runner.title)
+            label.set_xalign(0)
+            label.set_hexpand(True)
+            box.append(label)
+            
+            row.set_child(box)
+            self.runner_list.append(row)
+    
+    @Gtk.Template.Callback()
+    def on_entry_changed(self, entry):
+        self.validate_form()
+    
+    @Gtk.Template.Callback()
+    def on_runner_selected(self, listbox):
+        selected_row = listbox.get_selected_row()
+        if selected_row and hasattr(selected_row, 'runner_index'):
+            # Get the runner from our stored data using the index
+            self.selected_runner = self.runners_data[selected_row.runner_index]
+        else:
+            self.selected_runner = None
+        self.validate_form()
+    
+    @Gtk.Template.Callback()
+    def on_select_image_clicked(self, button):
+        dialog = Gtk.FileChooserDialog(
+            title="Select Game Cover Image",
+            action=Gtk.FileChooserAction.OPEN,
+            transient_for=self,
+            modal=True
+        )
+        
+        # Add buttons
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        dialog.add_button("Select", Gtk.ResponseType.ACCEPT)
+        
+        # Add filters
+        filter_images = Gtk.FileFilter()
+        filter_images.set_name("Images")
+        filter_images.add_mime_type("image/jpeg")
+        filter_images.add_mime_type("image/png")
+        dialog.add_filter(filter_images)
+        
+        dialog.connect("response", self.on_file_dialog_response)
+        dialog.show()
+    
+    def on_file_dialog_response(self, dialog, response):
+        if response == Gtk.ResponseType.ACCEPT:
+            self.selected_image_path = dialog.get_file().get_path()
+            try:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                    self.selected_image_path, 200, 260, True)
+                self.image_preview.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
+            except GLib.Error as e:
+                print(f"Error loading image: {e}")
+                self.selected_image_path = None
+        
+        self.validate_form()
+        dialog.destroy()
+    
+    def validate_form(self, *args):
+        # Check if all required fields are filled
+        title = self.title_entry.get_text().strip()
+        has_title = len(title) > 0
+        has_runner = self.selected_runner is not None
+        
+        # Update the add button sensitivity
+        self.add_button.set_sensitive(has_title and has_runner)
+    
+    @Gtk.Template.Callback()
+    def on_cancel_clicked(self, button):
+        self.close()
+    
+    @Gtk.Template.Callback()
+    def on_add_clicked(self, button):
+        # Get the input values
+        title = self.title_entry.get_text().strip()
+        runner_id = self.selected_runner.id if self.selected_runner else None
+        
+        # Use the data handler to create and save the game with image
+        controller = self.parent_window.controller
+        data_handler = controller.data_handler
+        
+        # Create the game using the data handler
+        game = data_handler.create_game_with_image(
+            title=title,
+            runner_id=runner_id,
+            image_path=self.selected_image_path
+        )
+        
+        # Save the game through the controller
+        if controller.add_game(game):
+            # Reset form fields
+            self.title_entry.set_text("")
+            self.runner_list.unselect_all()
+            self.selected_runner = None
+            self.selected_image_path = None
+            self.image_preview.set_paintable(None)
+            
+            # Close the dialog
+            self.close()
+
+
 class GameShelfController:
     def __init__(self, data_handler: DataHandler):
         self.data_handler = data_handler
@@ -217,6 +447,15 @@ class GameShelfController:
         if result:
             self.reload_data()
         return result
+        
+    def reload_data(self):
+        """Reload all data from storage and refresh the UI"""
+        # Reload games and runners from disk
+        self.games = self.data_handler.load_games()
+        self.runners = {runner.id: runner for runner in self.data_handler.load_runners()}
+        
+        # Update UI
+        self.populate_games()
 
     def get_game_pixbuf(self, game: Game, width: int = 200, height: int = 260) -> Optional[GdkPixbuf.Pixbuf]:
         try:

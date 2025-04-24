@@ -72,3 +72,62 @@
 #sidebar_container {
   border-right: 1px solid alpha(@borders, 0.5);
 }
+
+/* Details panel styling */
+.details-panel {
+  background-color: @window_bg_color;
+  border-left: 1px solid alpha(@borders, 0.5);
+}
+
+.details-scroll-container {
+  /* Ensure the container doesn't expand with the window */
+  min-width: 430px;
+  /* max-width not supported in GTK CSS, we'll rely on the width-request in the UI file */
+}
+
+.game-detail-title {
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+.game-cover-container {
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  min-height: 320px;
+  transition: box-shadow 200ms ease;
+}
+
+.game-cover-container:hover {
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+.game-info-section {
+  background-color: alpha(@card_bg_color, 0.5);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.caption-heading {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.runner-info {
+  margin-bottom: 12px;
+}
+
+button.pill {
+  border-radius: 9999px;
+  padding: 12px 24px;
+  font-weight: bold;
+}
+
+/* Add game dialog styling */
+.image-preview {
+  border-radius: 8px;
+  min-height: 260px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  background-color: alpha(@card_bg_color, 0.5);
+}

@@ -4,8 +4,8 @@
   <requires lib="libadwaita" version="1.0"/>
 
   <template class="GameShelfWindow" parent="AdwApplicationWindow">
-    <property name="default-width">1000</property>
-    <property name="default-height">700</property>
+    <property name="default-width">1280</property>
+    <property name="default-height">800</property>
     <property name="title">GameShelf</property>
 
     <child>
@@ -19,6 +19,13 @@
               <object class="GtkLabel">
                 <property name="label">GameShelf</property>
                 <property name="xalign">0</property>
+              </object>
+            </child>
+            <child type="end">
+              <object class="GtkButton" id="add_game_button">
+                <property name="icon-name">list-add-symbolic</property>
+                <property name="tooltip-text">Add New Game</property>
+                <signal name="clicked" handler="on_add_game_clicked"/>
               </object>
             </child>
           </object>
@@ -53,10 +60,22 @@
                 <property name="vexpand">true</property>
                 <property name="hexpand">true</property>
                 <property name="flap-position">end</property>
+                <property name="locked">true</property>
+                <property name="modal">false</property>
 
                 <!-- Sliding Game Details Panel -->
                 <child type="flap">
-                  <object class="GameDetailsContent" id="details_content"/>
+                  <object class="GtkScrolledWindow">
+                    <property name="hscrollbar-policy">never</property>
+                    <property name="width-request">430</property>
+                    <property name="hexpand">false</property>
+                    <style>
+                      <class name="details-scroll-container"/>
+                    </style>
+                    <child>
+                      <object class="GameDetailsContent" id="details_content"/>
+                    </child>
+                  </object>
                 </child>
 
                 <!-- Game Grid -->

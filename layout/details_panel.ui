@@ -3,37 +3,184 @@
   <requires lib="gtk" version="4.0"/>
   <template class="GameDetailsContent" parent="GtkBox">
     <property name="orientation">vertical</property>
-    <property name="spacing">12</property>
-    <property name="margin-top">12</property>
-    <property name="margin-bottom">12</property>
-    <property name="margin-start">12</property>
-    <property name="margin-end">12</property>
+    <property name="spacing">16</property>
+    <property name="margin-top">16</property>
+    <property name="margin-bottom">24</property>
+    <property name="margin-start">24</property>
+    <property name="margin-end">24</property>
+    <property name="width-request">380</property>
+    <property name="hexpand">false</property>
+    <style>
+      <class name="details-panel"/>
+    </style>
 
+    <!-- Header with close button -->
     <child>
-      <object class="GtkButton">
-        <property name="label">Close</property>
-        <property name="halign">end</property>
-        <signal name="clicked" handler="on_close_details_clicked"/>
+      <object class="GtkBox">
+        <property name="spacing">8</property>
+        <child>
+          <object class="GtkLabel">
+            <property name="label">Game Details</property>
+            <property name="xalign">0</property>
+            <property name="hexpand">true</property>
+            <style>
+              <class name="title-3"/>
+            </style>
+          </object>
+        </child>
+        <child>
+          <object class="GtkButton">
+            <property name="icon-name">window-close-symbolic</property>
+            <property name="halign">end</property>
+            <style>
+              <class name="circular"/>
+            </style>
+            <signal name="clicked" handler="on_close_details_clicked"/>
+          </object>
+        </child>
       </object>
     </child>
 
+    <!-- Game Cover Image -->
+    <child>
+      <object class="GtkBox">
+        <property name="halign">center</property>
+        <property name="margin-top">8</property>
+        <property name="margin-bottom">16</property>
+        <style>
+          <class name="card"/>
+          <class name="game-cover-container"/>
+        </style>
+        <child>
+          <object class="GtkPicture" id="game_image">
+            <property name="content-fit">cover</property>
+            <property name="can-shrink">false</property>
+            <property name="width-request">280</property>
+            <property name="height-request">380</property>
+          </object>
+        </child>
+      </object>
+    </child>
+
+    <!-- Game Title -->
     <child>
       <object class="GtkLabel" id="title_label">
-        <property name="xalign">0</property>
+        <property name="xalign">0.5</property>
+        <property name="justify">center</property>
+        <property name="wrap">true</property>
+        <property name="wrap-mode">word-char</property>
+        <property name="margin-bottom">8</property>
         <style>
-          <class name="heading"/>
+          <class name="title-2"/>
+          <class name="game-detail-title"/>
         </style>
       </object>
     </child>
 
+    <!-- Game Info -->
     <child>
-      <object class="GtkLabel" id="runner_label">
-        <property name="xalign">0</property>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">16</property>
         <style>
-          <class name="dim-label"/>
+          <class name="game-info-section"/>
         </style>
+
+        <!-- Runner Info -->
+        <child>
+          <object class="GtkBox">
+            <property name="spacing">12</property>
+            <property name="margin-top">8</property>
+            <style>
+              <class name="runner-info"/>
+            </style>
+            <child>
+              <object class="GtkImage" id="runner_icon">
+                <property name="icon-name">application-x-executable-symbolic</property>
+                <property name="icon-size">large</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">4</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Runner</property>
+                    <property name="xalign">0</property>
+                    <style>
+                      <class name="caption-heading"/>
+                      <class name="dim-label"/>
+                    </style>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="runner_label">
+                    <property name="xalign">0</property>
+                    <property name="ellipsize">end</property>
+                    <style>
+                      <class name="title-4"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+
+        <!-- Game ID -->
+        <child>
+          <object class="GtkBox">
+            <property name="spacing">12</property>
+            <property name="margin-top">8</property>
+            <child>
+              <object class="GtkImage">
+                <property name="icon-name">dialog-information-symbolic</property>
+                <property name="icon-size">large</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">4</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Game ID</property>
+                    <property name="xalign">0</property>
+                    <style>
+                      <class name="caption-heading"/>
+                      <class name="dim-label"/>
+                    </style>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="id_label">
+                    <property name="xalign">0</property>
+                    <property name="ellipsize">end</property>
+                    <style>
+                      <class name="body"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
+
+    <!-- Play Button -->
+    <child>
+      <object class="GtkButton" id="play_button">
+        <property name="label">Play Game</property>
+        <property name="margin-top">24</property>
+        <style>
+          <class name="suggested-action"/>
+          <class name="pill"/>
+        </style>
+        <signal name="clicked" handler="on_play_button_clicked"/>
+      </object>
+    </child>
+
   </template>
 </interface>
-
