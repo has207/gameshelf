@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GameShelfWindow" parent="AdwApplicationWindow">
+    <property name="title">GameShelf</property>
+    <property name="default-width">1000</property>
+    <property name="default-height">700</property>
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <child>
+          <object class="AdwHeaderBar" id="header">
+          </object>
+        </child>
+        <child>
+          <object class="GtkScrolledWindow" id="scrolled">
+            <property name="hexpand">True</property>
+            <property name="vexpand">True</property>
+            <child>
+              <object class="GtkGridView" id="games_grid">
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>
