@@ -188,6 +188,17 @@
           </object>
         </child>
         
+        <!-- Edit Button -->
+        <child>
+          <object class="GtkButton" id="edit_button">
+            <property name="label">Edit Game</property>
+            <style>
+              <class name="pill"/>
+            </style>
+            <signal name="clicked" handler="on_edit_button_clicked"/>
+          </object>
+        </child>
+        
         <!-- Remove Button -->
         <child>
           <object class="GtkButton" id="remove_button">
