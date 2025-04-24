@@ -15,6 +15,12 @@ class SidebarItem(GObject.GObject):
         self.name = name
 
 
+@Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "sidebar_row.ui"))
+class SidebarRow(Gtk.Box):
+    __gtype_name__ = "SidebarRow"
+    label: Gtk.Label = Gtk.Template.Child()
+
+
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "window.ui"))
 class GameShelfWindow(Adw.ApplicationWindow):
     __gtype_name__ = "GameShelfWindow"
@@ -44,13 +50,13 @@ class GameShelfWindow(Adw.ApplicationWindow):
         controller.bind_gridview(self.games_grid)
 
     def _setup_sidebar_item(self, factory, list_item):
-        label = Gtk.Label(xalign=0)
-        list_item.set_child(label)
+        sidebar_row = SidebarRow()
+        list_item.set_child(sidebar_row)
 
     def _bind_sidebar_item(self, factory, list_item):
-        label = list_item.get_child()
+        row = list_item.get_child()
         item = list_item.get_item()
-        label.set_label(item.name)
+        row.label.set_label(item.name.capitalize())
 
     def _on_sidebar_selection(self, selection, param):
         index = selection.get_selected()
@@ -92,14 +98,10 @@ class RunnerItem(Gtk.Box):
             self.image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
 
 
+
 class GameShelfController:
     def __init__(self, data_handler: DataHandler):
         self.data_handler = data_handler
-        self.games: List[Game] = []
-        self.runners: Dict[str, Runner] = {}
-        self.reload_data()
-
-    def reload_data(self):
         self.games = self.data_handler.load_games()
         self.runners = {runner.id: runner for runner in self.data_handler.load_runners()}
 
@@ -172,7 +174,7 @@ class GameShelfController:
         self.games_model.remove_all()
         games = self.get_games()
         if filter_runner:
-            games = [g for g in games if g.runner == filter_runner]
+            games = [g for g in games if g.runner.lower() == filter_runner.lower()]
         for game in games:
             game_item = self.create_game_widget(game)
             self.games_model.append(game_item)
@@ -182,3 +184,4 @@ class GameShelfController:
 
     def create_runner_widget(self, runner: Runner) -> Gtk.Widget:
         return RunnerItem(runner, self)
+

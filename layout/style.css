@@ -23,3 +23,17 @@
   margin: 6px;
 }
 
+.sidebar-row {
+  border-radius: 8px;
+  padding: 6px;
+  transition: background-color 150ms ease;
+}
+
+.sidebar-row:selected,
+.sidebar-row:focus,
+.sidebar-row:hover {
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+}
+
+
