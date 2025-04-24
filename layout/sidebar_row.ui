@@ -16,7 +16,7 @@
     <child>
       <object class="GtkImage" id="icon">
         <property name="icon-name">application-x-executable-symbolic</property>
-        <property name="icon-size">large</property>
+        <property name="icon-size">1</property>
         <property name="valign">center</property>
       </object>
     </child>
@@ -30,15 +30,6 @@
         <style>
           <class name="sidebar-label"/>
         </style>
-      </object>
-    </child>
-    
-    <!-- Add indicator for selected state -->
-    <child>
-      <object class="GtkImage" id="selected_indicator">
-        <property name="icon-name">go-next-symbolic</property>
-        <property name="visible">false</property>
-        <property name="valign">center</property>
       </object>
     </child>
   </template>

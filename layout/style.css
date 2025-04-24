@@ -1,28 +1,33 @@
+/* Game item styling */
 .game-item {
-    padding: 12px;
-    border-radius: 6px;
-    background-color: alpha(@card_bg_color, 0.8);
+  transition: transform 200ms ease;
+  border-radius: 12px;
+  padding: 0;
+  background-color: transparent;
+}
+
+.game-image-container {
+  border-radius: 12px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 200ms ease;
+}
+
+/* Hover effects */
+.game-item:hover {
+  transform: translateY(-3px);
+}
+
+.game-item:hover .game-image-container {
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
 }
 
 .game-title {
-    font-weight: bold;
-    font-size: 14px;
-    margin-top: 6px;
+  font-weight: bold;
+  font-size: 14px;
+  margin-top: 8px;
 }
 
-.game-image {
-    border-radius: 4px;
-    background-color: alpha(@card_bg_color, 0.6);
-}
-
-.game-item {
-  margin: 6px;
-}
-
-.runner-card {
-  margin: 6px;
-}
-
+/* Enhanced sidebar styling */
 .sidebar-row {
   border-radius: 8px;
   padding: 8px;
@@ -44,13 +49,13 @@
   background-color: alpha(@card_bg_color, 0.5);
 }
 
-/* Animate selection transitions */
-.sidebar-row:selected .sidebar-label {
-  font-weight: bold;
-  transition: font-weight 100ms ease;
+/* Grid styling */
+.games-grid {
+  padding: 8px;
+  background-color: transparent;
 }
 
-/* Add a border to the sidebar */
+/* Sidebar container styling */
 #sidebar_container {
   border-right: 1px solid alpha(@borders, 0.5);
 }

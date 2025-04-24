@@ -37,7 +37,9 @@
                 <property name="min-content-width">200</property>
                 <property name="vexpand">true</property>
                 <child>
-                  <object class="GtkListView" id="sidebar_listview"/>
+                  <object class="GtkListView" id="sidebar_listview">
+                    <!-- No custom properties here that could cause problems -->
+                  </object>
                 </child>
               </object>
             </child>
@@ -50,7 +52,7 @@
                 <property name="transition-type">slide</property>
                 <property name="vexpand">true</property>
                 <property name="hexpand">true</property>
-		<property name="flap-position">end</property>
+                <property name="flap-position">end</property>
 
                 <!-- Sliding Game Details Panel -->
                 <child type="flap">
@@ -68,6 +70,10 @@
                         <property name="hexpand">true</property>
                         <property name="min-columns">2</property>
                         <property name="max-columns">10</property>
+                        <!-- Removed invalid margin property -->
+                        <style>
+                          <class name="games-grid"/>
+                        </style>
                       </object>
                     </child>
                   </object>
@@ -82,4 +88,3 @@
     </child>
   </template>
 </interface>
-
