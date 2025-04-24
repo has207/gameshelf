@@ -90,50 +90,35 @@ class GameShelfController:
             self.games_model.append(game_item)
 
     def create_game_widget(self, game: Game) -> Gtk.Widget:
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        box.set_margin_top(6)
-        box.set_margin_bottom(6)
-        box.set_margin_start(6)
-        box.set_margin_end(6)
-
-        image = Gtk.Picture()
-        image.set_size_request(200, 260)
-        image.set_content_fit(Gtk.ContentFit.SCALE_DOWN)
-
-        pixbuf = self.get_game_pixbuf(game)
-        if pixbuf:
-            texture = Gdk.Texture.new_for_pixbuf(pixbuf)
-            image.set_paintable(texture)
-
-        label = Gtk.Label(label=game.title)
-        label.set_wrap(True)
-        label.set_max_width_chars(20)
-        label.set_justify(Gtk.Justification.CENTER)
-
-        box.append(image)
-        box.append(label)
-        return box
+        return GameItem(game, self)
 
     def create_runner_widget(self, runner: Runner) -> Gtk.Widget:
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        box.set_margin_top(6)
-        box.set_margin_bottom(6)
-        box.set_margin_start(6)
-        box.set_margin_end(6)
+        return RunnerItem(game, self)
 
-        image = Gtk.Picture()
-        image.set_size_request(64, 64)
-        image.set_content_fit(Gtk.ContentFit.SCALE_DOWN)
+@Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "game_item.ui"))
+class GameItem(Gtk.Box):
+    __gtype_name__ = "GameItem"
+    image: Gtk.Picture = Gtk.Template.Child()
+    label: Gtk.Label = Gtk.Template.Child()
 
-        pixbuf = self.get_runner_pixbuf(runner)
+    def __init__(self, game: Game, controller: GameShelfController):
+        super().__init__()
+        self.label.set_label(game.title)
+        pixbuf = controller.get_game_pixbuf(game)
         if pixbuf:
-            texture = Gdk.Texture.new_for_pixbuf(pixbuf)
-            image.set_paintable(texture)
+            self.image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
 
-        label = Gtk.Label(label=runner.title)
-        label.set_xalign(0)
 
-        box.append(image)
-        box.append(label)
-        return box
+@Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "runner_item.ui"))
+class RunnerItem(Gtk.Box):
+    __gtype_name__ = "RunnerItem"
+    image: Gtk.Picture = Gtk.Template.Child()
+    label: Gtk.Label = Gtk.Template.Child()
+
+    def __init__(self, runner: Runner, controller: GameShelfController):
+        super().__init__()
+        self.label.set_label(runner.title)
+        pixbuf = controller.get_runner_pixbuf(runner)
+        if pixbuf:
+            self.image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
 

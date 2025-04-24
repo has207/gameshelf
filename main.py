@@ -1,9 +1,10 @@
 import sys
 import gi
 import os
+gi.require_version('Gdk', '4.0')
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, Gio
+from gi.repository import Gdk, Gtk, Adw, Gio
 from data_handler import DataHandler
 from controller import GameShelfController
 
@@ -22,12 +23,21 @@ class GameShelfWindow(Adw.ApplicationWindow):
 class GameShelfApp(Adw.Application):
     def __init__(self):
         super().__init__(application_id="com.example.GameShelf")
+
+        # Load custom CSS
+        css = Gtk.CssProvider()
+        css.load_from_path(os.path.join(os.path.dirname(__file__), "layout", "style.css"))
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), css,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+        # Set up model/controller
         self.data_handler = DataHandler()
         self.controller = GameShelfController(self.data_handler)
-        self.connect('activate', self.on_activate)
 
-    def on_activate(self, app):
-        self.win = GameShelfWindow(app, self.controller)
+    def do_activate(self):
+        self.win = GameShelfWindow(self, self.controller)
         self.win.present()
 
 

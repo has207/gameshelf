@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="GameItem" parent="GtkBox">
+    <property name="orientation">vertical</property>
+    <style>
+      <class name="game-card"/>
+    </style>
+    <child>
+      <object class="GtkPicture" id="image">
+        <property name="content-fit">scale-down</property>
+        <property name="width-request">200</property>
+        <property name="height-request">260</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkLabel" id="label">
+        <property name="wrap">true</property>
+        <property name="max-width-chars">20</property>
+        <property name="justify">center</property>
+      </object>
+    </child>
+  </template>
+</interface>
+

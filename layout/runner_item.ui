@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="RunnerItem" parent="GtkBox">
+    <property name="orientation">horizontal</property>
+    <style>
+      <class name="runner-card"/>
+    </style>
+    <child>
+      <object class="GtkPicture" id="image">
+        <property name="content-fit">scale-down</property>
+        <property name="width-request">64</property>
+        <property name="height-request">64</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkLabel" id="label">
+        <property name="xalign">0</property>
+      </object>
+    </child>
+  </template>
+</interface>
+
