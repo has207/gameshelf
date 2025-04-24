@@ -2,9 +2,17 @@ import gi
 import os
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk
+from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk, GObject
 from data_handler import DataHandler, Game, Runner
 from typing import Dict, List, Optional
+
+
+class SidebarItem(GObject.GObject):
+    name = GObject.Property(type=str)
+
+    def __init__(self, name):
+        super().__init__()
+        self.name = name
 
 
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "window.ui"))
@@ -12,10 +20,48 @@ class GameShelfWindow(Adw.ApplicationWindow):
     __gtype_name__ = "GameShelfWindow"
 
     games_grid: Gtk.GridView = Gtk.Template.Child()
+    sidebar_listview: Gtk.ListView = Gtk.Template.Child()
 
     def __init__(self, app, controller):
         super().__init__(application=app)
+        self.controller = controller
+
+        self.sidebar_store = Gio.ListStore(item_type=SidebarItem)
+        self.sidebar_store.append(SidebarItem("Games"))
+        for runner in controller.get_runners():
+            self.sidebar_store.append(SidebarItem(runner.id))
+
+        factory = Gtk.SignalListItemFactory()
+        factory.connect("setup", self._setup_sidebar_item)
+        factory.connect("bind", self._bind_sidebar_item)
+
+        selection = Gtk.SingleSelection(model=self.sidebar_store)
+        selection.connect("notify::selected", self._on_sidebar_selection)
+
+        self.sidebar_listview.set_model(selection)
+        self.sidebar_listview.set_factory(factory)
+
         controller.bind_gridview(self.games_grid)
+
+    def _setup_sidebar_item(self, factory, list_item):
+        label = Gtk.Label(xalign=0)
+        list_item.set_child(label)
+
+    def _bind_sidebar_item(self, factory, list_item):
+        label = list_item.get_child()
+        item = list_item.get_item()
+        label.set_label(item.name)
+
+    def _on_sidebar_selection(self, selection, param):
+        index = selection.get_selected()
+        if index == -1:
+            return
+
+        selected = self.sidebar_store.get_item(index).name
+        if selected == "Games":
+            self.controller.populate_games()
+        else:
+            self.controller.populate_games(filter_runner=selected)
 
 
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "game_item.ui"))
@@ -122,9 +168,12 @@ class GameShelfController:
         game_item = self.games_model.get_item(list_item.get_position())
         box.append(game_item)
 
-    def populate_games(self):
+    def populate_games(self, filter_runner: Optional[str] = None):
         self.games_model.remove_all()
-        for game in self.get_games():
+        games = self.get_games()
+        if filter_runner:
+            games = [g for g in games if g.runner == filter_runner]
+        for game in games:
             game_item = self.create_game_widget(game)
             self.games_model.append(game_item)
 
@@ -133,4 +182,3 @@ class GameShelfController:
 
     def create_runner_widget(self, runner: Runner) -> Gtk.Widget:
         return RunnerItem(runner, self)
-

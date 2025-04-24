@@ -12,27 +12,59 @@
       <object class="GtkBox" id="main_box">
         <property name="orientation">vertical</property>
 
+        <!-- ✅ Header bar (just a regular child for AdwApplicationWindow) -->
         <child>
-          <object class="AdwHeaderBar" id="header"/>
+          <object class="AdwHeaderBar" id="header">
+            <child>
+              <object class="GtkLabel">
+                <property name="label">GameShelf</property>
+                <property name="xalign">0</property>
+              </object>
+            </child>
+          </object>
         </child>
 
+        <!-- ✅ Horizontal layout: sidebar + content -->
         <child>
-          <object class="GtkBox" id="content_area">
-            <property name="orientation">vertical</property>
+          <object class="GtkBox">
+            <property name="orientation">horizontal</property>
             <property name="vexpand">true</property>
             <property name="hexpand">true</property>
 
+            <!-- Sidebar -->
             <child>
-              <object class="GtkScrolledWindow" id="scrolled">
+              <object class="GtkScrolledWindow">
+                <property name="min-content-width">180</property>
+                <property name="vexpand">true</property>
+                <property name="hexpand">false</property>
+                <child>
+                  <object class="GtkListView" id="sidebar_listview">
+                    <property name="vexpand">true</property>
+                    <property name="hexpand">false</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+
+            <!-- Main content area -->
+            <child>
+              <object class="GtkBox" id="content_area">
+                <property name="orientation">vertical</property>
                 <property name="vexpand">true</property>
                 <property name="hexpand">true</property>
 
                 <child>
-                  <object class="GtkGridView" id="games_grid">
+                  <object class="GtkScrolledWindow" id="scrolled">
                     <property name="vexpand">true</property>
                     <property name="hexpand">true</property>
-                    <property name="min-columns">2</property>
-                    <property name="max-columns">10</property>
+                    <child>
+                      <object class="GtkGridView" id="games_grid">
+                        <property name="vexpand">true</property>
+                        <property name="hexpand">true</property>
+                        <property name="min-columns">2</property>
+                        <property name="max-columns">10</property>
+                      </object>
+                    </child>
                   </object>
                 </child>
               </object>
@@ -43,3 +75,4 @@
     </child>
   </template>
 </interface>
+

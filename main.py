@@ -1,12 +1,12 @@
 import sys
 import gi
 import os
-gi.require_version('Gdk', '4.0')
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gdk, Gtk, Adw, Gio
+gi.require_version('Gdk', '4.0')
+from gi.repository import Gtk, Adw, Gio, Gdk
 from data_handler import DataHandler
-from controller import GameShelfController, GameShelfWindow
+from controller import GameShelfController, GameShelfWindow  # includes sidebar listview logic
 
 
 class GameShelfApp(Adw.Application):
