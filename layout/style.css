@@ -4,21 +4,34 @@
   border-radius: 12px;
   padding: 0;
   background-color: transparent;
+  min-width: 220px;
 }
 
 .game-image-container {
   border-radius: 12px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   transition: box-shadow 200ms ease;
+  /* Ensure the container maintains its dimensions */
+  min-width: 200px;
+  min-height: 260px;
 }
 
-/* Hover effects */
+/* Hover and active effects */
 .game-item:hover {
   transform: translateY(-3px);
 }
 
 .game-item:hover .game-image-container {
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* Active/clicked state */
+.game-item:active {
+  transform: translateY(-1px);
+}
+
+.game-item:active .game-image-container {
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
 }
 
 .game-title {
@@ -51,7 +64,7 @@
 
 /* Grid styling */
 .games-grid {
-  padding: 8px;
+  padding: 12px;
   background-color: transparent;
 }
 

@@ -54,6 +54,8 @@ class GameShelfWindow(Adw.ApplicationWindow):
     def __init__(self, app, controller):
         super().__init__(application=app)
         self.controller = controller
+        # Track the currently selected game to maintain state across filtering
+        self.current_selected_game = None
     
         # Debug to see if the UI template is loaded correctly
         print("Sidebar ListView:", self.sidebar_listview)
@@ -74,7 +76,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
             factory.connect("setup", self._setup_sidebar_item)
             factory.connect("bind", self._bind_sidebar_item)
 
-            selection = Gtk.SingleSelection(model=self.sidebar_store)
+            selection = Gtk.SingleSelection(model=self.sidebar_store, autoselect=False)
             selection.connect("notify::selected", self._on_sidebar_selection)
 
             self.sidebar_listview.set_model(selection)
@@ -101,7 +103,6 @@ class GameShelfWindow(Adw.ApplicationWindow):
         "native": "system-run-symbolic",
         "browser": "web-browser-symbolic",
         "emulator": "media-optical-symbolic",
-        # Add more mappings as needed
       }
 
       # Try to match beginning of runner name to known icons
@@ -125,25 +126,20 @@ class GameShelfWindow(Adw.ApplicationWindow):
     def _on_game_selected(self, selection, param):
         selected_item = selection.get_selected_item()
         if not selected_item or not selected_item.get_first_child():
-            self.details_panel.set_reveal_flap(False)
             return
 
         game_box = selected_item
         if not game_box or not game_box.get_first_child():
-            self.details_panel.set_visible(False)
             return
-
-        if isinstance(game_box, GameItem):
-            self.details_content.set_game(game_box.game)
-            self.details_panel.set_reveal_flap(True)
-        else:
-            self.details_panel.set_visible(False)
-
+            
     def _on_sidebar_selection(self, selection, param):
         index = selection.get_selected()
         if index == -1:
             return
 
+        # Save current details panel state
+        was_panel_open = self.details_panel.get_reveal_flap()
+        
         selected = self.sidebar_store.get_item(index).name
         if selected == "Games":
             self.controller.populate_games()
@@ -160,10 +156,25 @@ class GameItem(Gtk.Box):
     def __init__(self, game: Game, controller):
         super().__init__()
         self.game = game
+        self.controller = controller
         self.label.set_label(game.title)
         pixbuf = controller.get_game_pixbuf(game)
         if pixbuf:
             self.image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
+        
+        # Add click gesture for showing details panel
+        click_gesture = Gtk.GestureClick.new()
+        click_gesture.connect("released", self._on_clicked)
+        self.add_controller(click_gesture)
+        
+    def _on_clicked(self, gesture, n_press, x, y):
+        # Find the main window to access the details panel
+        window = self.get_ancestor(GameShelfWindow)
+        if window:
+            # Store the selected game to maintain state across filtering
+            window.current_selected_game = self.game
+            window.details_content.set_game(self.game)
+            window.details_panel.set_reveal_flap(True)
 
 
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "runner_item.ui"))
@@ -234,9 +245,13 @@ class GameShelfController:
         factory.connect("setup", self._on_factory_setup)
         factory.connect("bind", self._on_factory_bind)
 
-        selection_model = Gtk.SingleSelection(model=self.games_model)
+        # Create selection model that doesn't auto-select the first item
+        selection_model = Gtk.SingleSelection(model=self.games_model, autoselect=False)
         grid_view.set_model(selection_model)
         grid_view.set_factory(factory)
+
+        # Set fixed size for grid items
+        grid_view.set_enable_rubberband(False)
 
         self.populate_games()
 

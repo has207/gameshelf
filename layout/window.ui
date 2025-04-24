@@ -70,7 +70,10 @@
                         <property name="hexpand">true</property>
                         <property name="min-columns">2</property>
                         <property name="max-columns">10</property>
-                        <!-- Removed invalid margin property -->
+                        <!-- This ensures the grid items don't stretch -->
+                        <property name="single-click-activate">false</property>
+                        <!-- Center the items in the grid -->
+                        <!-- property name="halign">center</property-->
                         <style>
                           <class name="games-grid"/>
                         </style>
