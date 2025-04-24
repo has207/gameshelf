@@ -74,8 +74,8 @@ class GameDetailsContent(Gtk.Box):
         
         # Set runner icon if available
         window = self.get_ancestor(GameShelfWindow)
-        if window:
-            icon_name = window._get_runner_icon(game.runner) 
+        if window and window.controller:
+            icon_name = window.controller.data_handler.get_runner_icon(game.runner) 
             self.runner_icon.set_from_icon_name(icon_name)
         
         # Set game image if available
@@ -128,7 +128,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
         
             # Add runners with appropriate icons
             for runner in self.controller.get_runners():
-                icon_name = self._get_runner_icon(runner.id)
+                icon_name = self.controller.data_handler.get_runner_icon(runner.id)
                 self.sidebar_store.append(SidebarItem(runner.id, icon_name))
 
             factory = Gtk.SignalListItemFactory()
@@ -168,22 +168,6 @@ class GameShelfWindow(Adw.ApplicationWindow):
         self.add_game_dialog.populate_runners(self.controller.get_runners())
         self.add_game_dialog.show()
 
-    def _get_runner_icon(self, runner_id):
-      icon_map = {
-        "steam": "steam-symbolic",
-        "wine": "wine-symbolic",
-        "native": "system-run-symbolic",
-        "browser": "web-browser-symbolic",
-        "emulator": "media-optical-symbolic",
-      }
-
-      # Try to match beginning of runner name to known icons
-      for key, icon in icon_map.items():
-          if runner_id.lower().startswith(key):
-              return icon
-
-      # Default icon for unknown runners
-      return "application-x-executable-symbolic"
 
     def _setup_sidebar_item(self, factory, list_item):
         sidebar_row = SidebarRow()
@@ -314,7 +298,7 @@ class AddGameDialog(Adw.Window):
             
             # Runner icon
             icon = Gtk.Image()
-            icon_name = self.parent_window._get_runner_icon(runner.id)
+            icon_name = self.parent_window.controller.data_handler.get_runner_icon(runner.id)
             icon.set_from_icon_name(icon_name)
             box.append(icon)
             
@@ -367,12 +351,16 @@ class AddGameDialog(Adw.Window):
     def on_file_dialog_response(self, dialog, response):
         if response == Gtk.ResponseType.ACCEPT:
             self.selected_image_path = dialog.get_file().get_path()
-            try:
-                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                    self.selected_image_path, 200, 260, True)
+            
+            # Create a temporary game to use the data handler's image loading
+            data_handler = self.parent_window.controller.data_handler
+            temp_game = Game(id="preview", title="Preview", image=self.selected_image_path)
+            
+            # Load the image using the data handler
+            pixbuf = data_handler.load_game_image(temp_game, 200, 260)
+            if pixbuf:
                 self.image_preview.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
-            except GLib.Error as e:
-                print(f"Error loading image: {e}")
+            else:
                 self.selected_image_path = None
         
         self.validate_form()
@@ -458,24 +446,12 @@ class GameShelfController:
         self.populate_games()
 
     def get_game_pixbuf(self, game: Game, width: int = 200, height: int = 260) -> Optional[GdkPixbuf.Pixbuf]:
-        try:
-            if not game.image or not os.path.exists(game.image):
-                return None
-            return GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                game.image, width, height, True)
-        except Exception as e:
-            print(f"Error loading image for {game.title}: {e}")
-            return None
+        """Get a game's image as a pixbuf, using the data handler"""
+        return self.data_handler.load_game_image(game, width, height)
 
     def get_runner_pixbuf(self, runner: Runner, width: int = 64, height: int = 64) -> Optional[GdkPixbuf.Pixbuf]:
-        try:
-            if not runner.image or not os.path.exists(runner.image):
-                return None
-            return GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                runner.image, width, height, True)
-        except Exception as e:
-            print(f"Error loading image for {runner.title}: {e}")
-            return None
+        """Get a runner's image as a pixbuf, using the data handler"""
+        return self.data_handler.load_runner_image(runner, width, height)
 
     def bind_gridview(self, grid_view: Gtk.GridView):
         self.games_model = Gio.ListStore(item_type=Gtk.Widget)

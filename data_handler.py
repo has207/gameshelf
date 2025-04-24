@@ -5,6 +5,10 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple
 
+import gi
+gi.require_version('GdkPixbuf', '2.0')
+from gi.repository import GdkPixbuf
+
 
 @dataclass
 class Runner:
@@ -33,6 +37,15 @@ class DataHandler:
         # Get the project root directory for finding media directory
         self.project_root = Path(__file__).parent
         self.media_dir = self.project_root / "media" / "images"
+        
+        # Runner icon mapping
+        self.runner_icon_map = {
+            "steam": "steam-symbolic",
+            "wine": "wine-symbolic",
+            "native": "system-run-symbolic",
+            "browser": "web-browser-symbolic",
+            "emulator": "media-optical-symbolic",
+        }
         
         # Ensure directories exist
         self.games_dir.mkdir(parents=True, exist_ok=True)
@@ -165,3 +178,66 @@ class DataHandler:
             image=final_image_path,
             runner=runner_id
         )
+        
+    def get_runner_icon(self, runner_id: str) -> str:
+        """
+        Get the icon name for a given runner ID.
+        
+        Args:
+            runner_id: The ID of the runner
+            
+        Returns:
+            The name of the icon to use for the runner
+        """
+        if not runner_id:
+            return "application-x-executable-symbolic"
+            
+        # Try to match beginning of runner name to known icons
+        for key, icon in self.runner_icon_map.items():
+            if runner_id.lower().startswith(key):
+                return icon
+                
+        # Default icon for unknown runners
+        return "application-x-executable-symbolic"
+        
+    def load_game_image(self, game: Game, width: int = 200, height: int = 260) -> Optional[GdkPixbuf.Pixbuf]:
+        """
+        Load a game's image as a pixbuf, scaled to the specified dimensions.
+        
+        Args:
+            game: The game to load the image for
+            width: The desired width of the image
+            height: The desired height of the image
+            
+        Returns:
+            A pixbuf containing the game's image, or None if no image is available
+        """
+        try:
+            if not game.image or not os.path.exists(game.image):
+                return None
+            return GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                game.image, width, height, True)
+        except Exception as e:
+            print(f"Error loading image for {game.title}: {e}")
+            return None
+            
+    def load_runner_image(self, runner: Runner, width: int = 64, height: int = 64) -> Optional[GdkPixbuf.Pixbuf]:
+        """
+        Load a runner's image as a pixbuf, scaled to the specified dimensions.
+        
+        Args:
+            runner: The runner to load the image for
+            width: The desired width of the image
+            height: The desired height of the image
+            
+        Returns:
+            A pixbuf containing the runner's image, or None if no image is available
+        """
+        try:
+            if not runner.image or not os.path.exists(runner.image):
+                return None
+            return GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                runner.image, width, height, True)
+        except Exception as e:
+            print(f"Error loading image for {runner.title}: {e}")
+            return None
