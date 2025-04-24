@@ -104,14 +104,13 @@ class GameDetailsContent(Gtk.Box):
         # Open the edit dialog
         window = self.get_ancestor(GameShelfWindow)
         if window:
-            # Lazy load the edit game dialog only when needed
-            if not hasattr(window, 'edit_game_dialog') or not window.edit_game_dialog:
-                window.edit_game_dialog = EditGameDialog(window, self.controller)
-                window.edit_game_dialog.set_transient_for(window)
+            # Create a new game dialog in edit mode
+            dialog = GameDialog(window, self.controller, edit_mode=True)
+            dialog.set_transient_for(window)
 
             # Set the game to edit
-            window.edit_game_dialog.set_game(self.game)
-            window.edit_game_dialog.show()
+            dialog.set_game(self.game)
+            dialog.show()
 
     def set_game(self, game: Game):
         self.game = game
@@ -172,9 +171,6 @@ class GameShelfWindow(Adw.ApplicationWindow):
         # Track the currently selected game to maintain state across filtering
         self.current_selected_game = None
 
-        # Create add game dialog
-        self.add_game_dialog = None
-
         # Debug to see if the UI template is loaded correctly
         print("Sidebar ListView:", self.sidebar_listview)
         print("Games Grid:", self.games_grid)
@@ -221,14 +217,13 @@ class GameShelfWindow(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback()
     def on_add_game_clicked(self, button):
-        # Lazy load the add game dialog only when needed
-        if not self.add_game_dialog:
-            self.add_game_dialog = AddGameDialog(self)
-            self.add_game_dialog.set_transient_for(self)
+        # Create a new game dialog in add mode
+        dialog = GameDialog(self, self.controller, edit_mode=False)
+        dialog.set_transient_for(self)
 
         # Populate runners list with fresh data
-        self.add_game_dialog.populate_runners(self.controller.get_runners())
-        self.add_game_dialog.show()
+        dialog.populate_runners(self.controller.get_runners())
+        dialog.show()
 
 
     def _setup_sidebar_item(self, factory, list_item):
@@ -364,113 +359,59 @@ def show_image_chooser_dialog(parent_window, callback):
     dialog.show()
 
 
-class GameDialogMixin:
-    """Mixin class for common game dialog functionality"""
-
-    def populate_runners(self, runners: List[Runner]):
-        """Populate the runner list with available runners"""
-        # Remove existing rows
-        while True:
-            row = self.runner_list.get_first_child()
-            if row is None:
-                break
-            self.runner_list.remove(row)
-
-        # Store runners list for reference when selected
-        self.runners_data = runners
-
-        # Add runner rows using the RunnerItem template
-        for i, runner in enumerate(runners):
-            row = Gtk.ListBoxRow()
-            # Store the index to reference the runner later
-            row.runner_index = i
-
-            # Create RunnerItem instance - expects self.controller or self.parent_window.controller
-            controller = getattr(self, 'controller', None)
-            if controller is None:
-                controller = self.parent_window.controller
-
-            runner_item = RunnerItem(runner, controller)
-
-            row.set_child(runner_item)
-            self.runner_list.append(row)
-
-    # Note: This is provided by the mixin but must be decorated in the template class
-    # @Gtk.Template.Callback()
-    def on_runner_selected(self, listbox):
-        """Handler for runner selection changes"""
-        selected_row = listbox.get_selected_row()
-        if selected_row and hasattr(selected_row, 'runner_index'):
-            # Get the runner from our stored data using the index
-            self.selected_runner = self.runners_data[selected_row.runner_index]
-        else:
-            self.selected_runner = None
-        self.validate_form()
-
-    # Note: This is provided by the mixin but must be decorated in the template class
-    # @Gtk.Template.Callback()
-    def on_select_image_clicked(self, button):
-        """Handler for select image button click"""
-        show_image_chooser_dialog(self, self.on_image_selected)
-
-    def on_image_selected(self, file_path):
-        """Handler for image selection"""
-        if file_path:
-            self.selected_image_path = file_path
-
-            # Create a temporary game to use the data handler's image loading
-            controller = getattr(self, 'controller', None)
-            if controller is None:
-                controller = self.parent_window.controller
-
-            data_handler = controller.data_handler
-            temp_game = Game(id="preview", title="Preview", image=self.selected_image_path)
-
-            # Load the image using the data handler
-            pixbuf = data_handler.load_game_image(temp_game, 200, 260)
-            if pixbuf:
-                self.image_preview.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
-            else:
-                # Set default icon for invalid image
-                icon_paintable = data_handler.get_default_icon_paintable("image-missing", 128)
-                self.image_preview.set_paintable(icon_paintable)
-                self.selected_image_path = None
-        else:
-            # Clear the preview if dialog was canceled
-            self.selected_image_path = None
-            self.image_preview.set_paintable(None)
-
-        self.validate_form()
 
 
-@Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "edit_game_dialog.ui"))
-class EditGameDialog(Adw.Window, GameDialogMixin):
-    __gtype_name__ = "EditGameDialog"
+@Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "game_dialog.ui"))
+class GameDialog(Adw.Window):
+    """Unified dialog for adding and editing games"""
+    __gtype_name__ = "GameDialog"
 
     # UI elements from template
+    dialog_title: Adw.WindowTitle = Gtk.Template.Child()
     title_entry: Adw.EntryRow = Gtk.Template.Child()
+    id_section_container: Gtk.Box = Gtk.Template.Child()
     id_entry: Adw.EntryRow = Gtk.Template.Child()
     runner_list: Gtk.ListBox = Gtk.Template.Child()
     image_preview: Gtk.Picture = Gtk.Template.Child()
     select_image_button: Gtk.Button = Gtk.Template.Child()
+    clear_image_container: Gtk.Box = Gtk.Template.Child()
     clear_image_button: Gtk.Button = Gtk.Template.Child()
-    save_button: Gtk.Button = Gtk.Template.Child()
+    action_button: Gtk.Button = Gtk.Template.Child()
     cancel_button: Gtk.Button = Gtk.Template.Child()
 
-    def __init__(self, parent_window, controller):
+    def __init__(self, parent_window, controller=None, edit_mode=False):
         super().__init__()
         self.parent_window = parent_window
-        self.controller = controller
+        self.controller = controller or parent_window.controller
+        self.edit_mode = edit_mode
         self.selected_runner = None
         self.selected_image_path = None
         self.original_image_path = None
         self.runners_data = []
         self.game = None
 
-        # Ensure save button updates when entry changes
+        # Configure UI based on mode (add or edit)
+        if edit_mode:
+            self.dialog_title.set_title("Edit Game")
+            self.action_button.set_label("Save Changes")
+            self.id_section_container.set_visible(True)
+            self.clear_image_container.set_visible(True)
+            self.select_image_button.set_label("Change Image")
+        else:
+            self.dialog_title.set_title("Add New Game")
+            self.action_button.set_label("Add Game")
+            self.id_section_container.set_visible(False)
+            self.clear_image_container.set_visible(False)
+            self.select_image_button.set_label("Select Image")
+
+        # Ensure action button updates when entry changes
         self.title_entry.connect("notify::text", self.validate_form)
 
     def set_game(self, game: Game):
+        """Set the game to edit (only for edit mode)"""
+        if not self.edit_mode:
+            return
+
         self.game = game
         self.title_entry.set_text(game.title)
         self.id_entry.set_text(game.id)
@@ -500,8 +441,32 @@ class EditGameDialog(Adw.Window, GameDialogMixin):
                     self.selected_runner = self.runners_data[i]
                     break
 
-        # Enable the save button
+        # Enable the action button
         self.validate_form()
+
+    def populate_runners(self, runners: List[Runner]):
+        """Populate the runner list with available runners"""
+        # Remove existing rows
+        while True:
+            row = self.runner_list.get_first_child()
+            if row is None:
+                break
+            self.runner_list.remove(row)
+
+        # Store runners list for reference when selected
+        self.runners_data = runners
+
+        # Add runner rows using the RunnerItem template
+        for i, runner in enumerate(runners):
+            row = Gtk.ListBoxRow()
+            # Store the index to reference the runner later
+            row.runner_index = i
+
+            # Create RunnerItem instance
+            runner_item = RunnerItem(runner, self.controller)
+
+            row.set_child(runner_item)
+            self.runner_list.append(row)
 
     @Gtk.Template.Callback()
     def on_entry_changed(self, entry):
@@ -509,16 +474,51 @@ class EditGameDialog(Adw.Window, GameDialogMixin):
 
     @Gtk.Template.Callback()
     def on_runner_selected(self, listbox):
-        # Uses the mixin implementation
-        GameDialogMixin.on_runner_selected(self, listbox)
+        """Handler for runner selection changes"""
+        selected_row = listbox.get_selected_row()
+        if selected_row and hasattr(selected_row, 'runner_index'):
+            # Get the runner from our stored data using the index
+            self.selected_runner = self.runners_data[selected_row.runner_index]
+        else:
+            self.selected_runner = None
+        self.validate_form()
 
     @Gtk.Template.Callback()
     def on_select_image_clicked(self, button):
-        # Uses the mixin implementation
-        GameDialogMixin.on_select_image_clicked(self, button)
+        """Handler for select image button click"""
+        show_image_chooser_dialog(self, self.on_image_selected)
+
+    def on_image_selected(self, file_path):
+        """Handler for image selection"""
+        if file_path:
+            self.selected_image_path = file_path
+
+            # Create a temporary game to use the data handler's image loading
+            data_handler = self.controller.data_handler
+            temp_game = Game(id="preview", title="Preview", image=self.selected_image_path)
+
+            # Load the image using the data handler
+            pixbuf = data_handler.load_game_image(temp_game, 200, 260)
+            if pixbuf:
+                self.image_preview.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
+            else:
+                # Set default icon for invalid image
+                icon_paintable = data_handler.get_default_icon_paintable("image-missing", 128)
+                self.image_preview.set_paintable(icon_paintable)
+                self.selected_image_path = None
+        else:
+            # Clear the preview if dialog was canceled
+            self.selected_image_path = None
+            self.image_preview.set_paintable(None)
+
+        self.validate_form()
 
     @Gtk.Template.Callback()
     def on_clear_image_clicked(self, button):
+        """Handler for clear image button click (edit mode only)"""
+        if not self.edit_mode:
+            return
+
         # Clear the image
         self.selected_image_path = ""
         icon_paintable = self.controller.data_handler.get_default_icon_paintable("applications-games-symbolic", 128)
@@ -526,13 +526,14 @@ class EditGameDialog(Adw.Window, GameDialogMixin):
         self.validate_form()
 
     def validate_form(self, *args):
+        """Validate form fields and update action button sensitivity"""
         # Check if required fields are filled - only title is required
         title = self.title_entry.get_text().strip()
         has_title = len(title) > 0
 
-        # Check if any changes were made compared to original game
-        has_changes = False
-        if self.game:
+        if self.edit_mode and self.game:
+            # In edit mode, check if any changes were made
+            has_changes = False
             # Check title change
             if title != self.game.title:
                 has_changes = True
@@ -546,15 +547,51 @@ class EditGameDialog(Adw.Window, GameDialogMixin):
             if self.selected_image_path is not None:  # Only if image was explicitly changed
                 has_changes = True
 
-        # Update the save button sensitivity - requires title and changes
-        self.save_button.set_sensitive(has_title and has_changes)
+            # Update button sensitivity - requires title and changes
+            self.action_button.set_sensitive(has_title and has_changes)
+        else:
+            # In add mode, just check for title
+            self.action_button.set_sensitive(has_title)
 
     @Gtk.Template.Callback()
     def on_cancel_clicked(self, button):
         self.close()
 
     @Gtk.Template.Callback()
-    def on_save_clicked(self, button):
+    def on_action_clicked(self, button):
+        """Handle the primary action (add or save) based on the dialog mode"""
+        if self.edit_mode:
+            self._save_game_changes()
+        else:
+            self._add_new_game()
+
+    def _add_new_game(self):
+        """Add a new game (add mode)"""
+        # Get the input values
+        title = self.title_entry.get_text().strip()
+        runner_id = self.selected_runner.id if self.selected_runner else ""
+
+        # Create the game using the data handler
+        game = self.controller.data_handler.create_game_with_image(
+            title=title,
+            runner_id=runner_id,
+            image_path=self.selected_image_path
+        )
+
+        # Save the game through the controller
+        if self.controller.add_game(game):
+            # Reset form fields
+            self.title_entry.set_text("")
+            self.runner_list.unselect_all()
+            self.selected_runner = None
+            self.selected_image_path = None
+            self.image_preview.set_paintable(None)
+
+            # Close the dialog
+            self.close()
+
+    def _save_game_changes(self):
+        """Save changes to an existing game (edit mode)"""
         if not self.game:
             return
 
@@ -585,85 +622,6 @@ class EditGameDialog(Adw.Window, GameDialogMixin):
             if (self.parent_window.current_selected_game and
                 self.parent_window.current_selected_game.id == self.game.id):
                 self.parent_window.details_content.set_game(self.game)
-
-            # Close the dialog
-            self.close()
-
-@Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "add_game_dialog.ui"))
-class AddGameDialog(Adw.Window, GameDialogMixin):
-    __gtype_name__ = "AddGameDialog"
-
-    # UI elements from template
-    title_entry: Adw.EntryRow = Gtk.Template.Child()
-    runner_list: Gtk.ListBox = Gtk.Template.Child()
-    image_preview: Gtk.Picture = Gtk.Template.Child()
-    select_image_button: Gtk.Button = Gtk.Template.Child()
-    add_button: Gtk.Button = Gtk.Template.Child()
-    cancel_button: Gtk.Button = Gtk.Template.Child()
-
-    def __init__(self, parent_window):
-        super().__init__()
-        self.parent_window = parent_window
-        self.selected_runner = None
-        self.selected_image_path = None
-        self.runners_data = []
-
-        # Ensure add button updates when entry changes
-        self.title_entry.connect("notify::text", self.validate_form)
-
-    @Gtk.Template.Callback()
-    def on_entry_changed(self, entry):
-        self.validate_form()
-
-    @Gtk.Template.Callback()
-    def on_runner_selected(self, listbox):
-        # Uses the mixin implementation
-        GameDialogMixin.on_runner_selected(self, listbox)
-
-    @Gtk.Template.Callback()
-    def on_select_image_clicked(self, button):
-        # Uses the mixin implementation
-        GameDialogMixin.on_select_image_clicked(self, button)
-
-    def validate_form(self, *args):
-        # Check if required fields are filled - only title is required
-        title = self.title_entry.get_text().strip()
-        has_title = len(title) > 0
-
-        # Update the add button sensitivity - only title is required
-        self.add_button.set_sensitive(has_title)
-
-    @Gtk.Template.Callback()
-    def on_cancel_clicked(self, button):
-        self.close()
-
-    @Gtk.Template.Callback()
-    def on_add_clicked(self, button):
-        # Get the input values
-        title = self.title_entry.get_text().strip()
-
-        # Runner is optional
-        runner_id = self.selected_runner.id if self.selected_runner else ""
-
-        # Use the data handler to create and save the game with image
-        controller = self.parent_window.controller
-        data_handler = controller.data_handler
-
-        # Create the game using the data handler
-        game = data_handler.create_game_with_image(
-            title=title,
-            runner_id=runner_id,
-            image_path=self.selected_image_path
-        )
-
-        # Save the game through the controller
-        if controller.add_game(game):
-            # Reset form fields
-            self.title_entry.set_text("")
-            self.runner_list.unselect_all()
-            self.selected_runner = None
-            self.selected_image_path = None
-            self.image_preview.set_paintable(None)
 
             # Close the dialog
             self.close()

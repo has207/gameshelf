@@ -2,8 +2,8 @@
 <interface>
   <requires lib="gtk" version="4.0"/>
   <requires lib="libadwaita" version="1.0"/>
-  <template class="EditGameDialog" parent="AdwWindow">
-    <property name="title">Edit Game</property>
+  <template class="GameDialog" parent="AdwWindow">
+    <property name="title">Game Dialog</property>
     <property name="default-width">500</property>
     <property name="default-height">500</property>
     <property name="modal">true</property>
@@ -20,8 +20,8 @@
             <property name="show-start-title-buttons">false</property>
             <property name="show-end-title-buttons">false</property>
             <property name="title-widget">
-              <object class="AdwWindowTitle">
-                <property name="title">Edit Game</property>
+              <object class="AdwWindowTitle" id="dialog_title">
+                <property name="title">Game Dialog</property>
               </object>
             </property>
             
@@ -33,15 +33,15 @@
               </object>
             </child>
             
-            <!-- Save Button -->
+            <!-- Action Button (Add/Save) -->
             <child type="end">
-              <object class="GtkButton" id="save_button">
-                <property name="label">Save Changes</property>
+              <object class="GtkButton" id="action_button">
+                <property name="label">Action</property>
                 <property name="sensitive">false</property>
                 <style>
                   <class name="suggested-action"/>
                 </style>
-                <signal name="clicked" handler="on_save_clicked"/>
+                <signal name="clicked" handler="on_action_clicked"/>
               </object>
             </child>
           </object>
@@ -75,14 +75,19 @@
                   </object>
                 </child>
                 
-                <!-- Game ID Section (read-only) -->
+                <!-- Game ID Section (only for edit mode) -->
                 <child>
-                  <object class="AdwPreferencesGroup">
-                    <property name="title">Game ID</property>
+                  <object class="GtkBox" id="id_section_container">
+                    <property name="visible">false</property>
                     <child>
-                      <object class="AdwEntryRow" id="id_entry">
-                        <property name="title">ID</property>
-                        <property name="editable">false</property>
+                      <object class="AdwPreferencesGroup">
+                        <property name="title">Game ID</property>
+                        <child>
+                          <object class="AdwEntryRow" id="id_entry">
+                            <property name="title">ID</property>
+                            <property name="editable">false</property>
+                          </object>
+                        </child>
                       </object>
                     </child>
                   </object>
@@ -140,19 +145,24 @@
                         <!-- Select Image Button -->
                         <child>
                           <object class="GtkButton" id="select_image_button">
-                            <property name="label">Change Image</property>
+                            <property name="label">Select Image</property>
                             <signal name="clicked" handler="on_select_image_clicked"/>
                           </object>
                         </child>
                         
-                        <!-- Clear Image Button -->
+                        <!-- Clear Image Button (only for edit mode) -->
                         <child>
-                          <object class="GtkButton" id="clear_image_button">
-                            <property name="label">Clear Image</property>
-                            <style>
-                              <class name="destructive-action"/>
-                            </style>
-                            <signal name="clicked" handler="on_clear_image_clicked"/>
+                          <object class="GtkBox" id="clear_image_container">
+                            <property name="visible">false</property>
+                            <child>
+                              <object class="GtkButton" id="clear_image_button">
+                                <property name="label">Clear Image</property>
+                                <style>
+                                  <class name="destructive-action"/>
+                                </style>
+                                <signal name="clicked" handler="on_clear_image_clicked"/>
+                              </object>
+                            </child>
                           </object>
                         </child>
                       </object>
