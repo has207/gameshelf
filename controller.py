@@ -36,6 +36,7 @@ class GameDetailsContent(Gtk.Box):
     runner_icon: Gtk.Image = Gtk.Template.Child()
     game_image: Gtk.Picture = Gtk.Template.Child()
     play_button: Gtk.Button = Gtk.Template.Child()
+    remove_button: Gtk.Button = Gtk.Template.Child()
 
     def __init__(self):
         super().__init__()
@@ -61,6 +62,38 @@ class GameDetailsContent(Gtk.Box):
 
     def set_controller(self, controller):
         self.controller = controller
+
+    @Gtk.Template.Callback()
+    def on_remove_button_clicked(self, button):
+        if not self.game or not self.controller:
+            return
+
+        # Create a confirmation dialog
+        window = self.get_ancestor(GameShelfWindow)
+        if window:
+            dialog = Gtk.MessageDialog(
+                transient_for=window,
+                modal=True,
+                message_type=Gtk.MessageType.QUESTION,
+                buttons=Gtk.ButtonsType.YES_NO,
+                text=f"Remove {self.game.title}?",
+                secondary_text="This action cannot be undone. The game will be permanently removed."
+            )
+            dialog.connect("response", self._on_remove_confirmation_response)
+            dialog.show()
+
+    def _on_remove_confirmation_response(self, dialog, response_id):
+        if response_id == Gtk.ResponseType.YES:
+            # User confirmed removal
+            if self.controller.remove_game(self.game):
+                # Close the details panel
+                window = self.get_ancestor(GameShelfWindow)
+                if window:
+                    window.details_panel.set_reveal_flap(False)
+                    window.current_selected_game = None
+
+        # Destroy the dialog in any case
+        dialog.destroy()
 
     def set_game(self, game: Game):
         self.game = game
@@ -472,6 +505,14 @@ class GameShelfController:
     def add_runner(self, runner: Runner) -> bool:
         result = self.data_handler.save_runner(runner)
         if result:
+            self.reload_data()
+        return result
+
+    def remove_game(self, game: Game) -> bool:
+        """Remove a game and refresh the UI"""
+        result = self.data_handler.remove_game(game)
+        if result:
+            # Reload data to refresh the UI
             self.reload_data()
         return result
 

@@ -169,16 +169,36 @@
       </object>
     </child>
 
-    <!-- Play Button -->
+    <!-- Action Buttons -->
     <child>
-      <object class="GtkButton" id="play_button">
-        <property name="label">Play Game</property>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">12</property>
         <property name="margin-top">24</property>
-        <style>
-          <class name="suggested-action"/>
-          <class name="pill"/>
-        </style>
-        <signal name="clicked" handler="on_play_button_clicked"/>
+        
+        <!-- Play Button -->
+        <child>
+          <object class="GtkButton" id="play_button">
+            <property name="label">Play Game</property>
+            <style>
+              <class name="suggested-action"/>
+              <class name="pill"/>
+            </style>
+            <signal name="clicked" handler="on_play_button_clicked"/>
+          </object>
+        </child>
+        
+        <!-- Remove Button -->
+        <child>
+          <object class="GtkButton" id="remove_button">
+            <property name="label">Remove Game</property>
+            <style>
+              <class name="destructive-action"/>
+              <class name="pill"/>
+            </style>
+            <signal name="clicked" handler="on_remove_button_clicked"/>
+          </object>
+        </child>
       </object>
     </child>
 

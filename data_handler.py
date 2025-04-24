@@ -262,3 +262,37 @@ class DataHandler:
         except Exception as e:
             print(f"Error loading image for {runner.title}: {e}")
             return None
+
+    def remove_game(self, game: Game) -> bool:
+        """
+        Remove a game from the games directory.
+
+        Args:
+            game: The game to remove
+
+        Returns:
+            True if the game was successfully removed, False otherwise
+        """
+        game_file = self.games_dir / f"{game.id}.yaml"
+        try:
+            if game_file.exists():
+                # Remove the game file
+                game_file.unlink()
+
+                # Remove the game's image if it exists and is in our media directory
+                if game.image and os.path.exists(game.image):
+                    image_path = Path(game.image)
+                    # Only remove if the image is in our media directory (not a system icon)
+                    if str(self.media_dir) in str(image_path):
+                        try:
+                            image_path.unlink()
+                        except Exception as e:
+                            print(f"Error removing image {game.image}: {e}")
+
+                return True
+            else:
+                print(f"Game file {game_file} not found")
+                return False
+        except Exception as e:
+            print(f"Error removing game {game.id}: {e}")
+            return False
