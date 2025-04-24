@@ -7,18 +7,20 @@ from typing import List, Optional, Dict, Any
 
 @dataclass
 class Runner:
-    title: str
-    image: str
-    command: str
-    id: str = ""
+    def __init__(self, id: str, title: str, image: Optional[str] = None, command: Optional[str] = None):
+        self.id = id.lower()
+        self.title = title
+        self.image = image
+        self.command = command
 
 
 @dataclass
 class Game:
-    title: str
-    image: str
-    runner: Optional[str] = None
-    id: str = ""
+    def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None):
+        self.id = id.lower()
+        self.title = title
+        self.image = image
+        self.runner = runner.lower()
 
 
 class DataHandler:
