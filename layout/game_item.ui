@@ -1,22 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
+  <requires lib="gtk" version="4.0"/>
+
   <template class="GameItem" parent="GtkBox">
     <property name="orientation">vertical</property>
+    <property name="spacing">6</property>
     <style>
-      <class name="game-card"/>
+      <class name="game-item"/>
     </style>
+    <property name="margin-top">6</property>
+    <property name="margin-bottom">6</property>
+    <property name="margin-start">6</property>
+    <property name="margin-end">6</property>
+
     <child>
       <object class="GtkPicture" id="image">
-        <property name="content-fit">scale-down</property>
+        <property name="content-fit">contain</property>
         <property name="width-request">200</property>
         <property name="height-request">260</property>
       </object>
     </child>
+
     <child>
       <object class="GtkLabel" id="label">
         <property name="wrap">true</property>
-        <property name="max-width-chars">20</property>
+        <property name="max-width-chars">24</property>
         <property name="justify">center</property>
+        <property name="xalign">0.5</property>
       </object>
     </child>
   </template>

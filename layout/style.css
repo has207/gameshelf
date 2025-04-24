@@ -15,7 +15,7 @@
     background-color: alpha(@card_bg_color, 0.6);
 }
 
-.game-card {
+.game-item {
   margin: 6px;
 }
 

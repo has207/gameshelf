@@ -4,17 +4,17 @@
   <requires lib="libadwaita" version="1.0"/>
 
   <template class="GameShelfWindow" parent="AdwApplicationWindow">
-    <property name="title">GameShelf</property>
     <property name="default-width">1000</property>
     <property name="default-height">700</property>
+    <property name="title">GameShelf</property>
 
     <child>
-      <object class="GtkBox" id="main_box">
+      <object class="GtkBox">
         <property name="orientation">vertical</property>
 
-        <!-- ✅ Header bar (just a regular child for AdwApplicationWindow) -->
+        <!-- Title bar -->
         <child>
-          <object class="AdwHeaderBar" id="header">
+          <object class="AdwHeaderBar">
             <child>
               <object class="GtkLabel">
                 <property name="label">GameShelf</property>
@@ -24,7 +24,7 @@
           </object>
         </child>
 
-        <!-- ✅ Horizontal layout: sidebar + content -->
+        <!-- Sidebar + Content -->
         <child>
           <object class="GtkBox">
             <property name="orientation">horizontal</property>
@@ -36,25 +36,30 @@
               <object class="GtkScrolledWindow">
                 <property name="min-content-width">180</property>
                 <property name="vexpand">true</property>
-                <property name="hexpand">false</property>
                 <child>
-                  <object class="GtkListView" id="sidebar_listview">
-                    <property name="vexpand">true</property>
-                    <property name="hexpand">false</property>
-                  </object>
+                  <object class="GtkListView" id="sidebar_listview"/>
                 </child>
               </object>
             </child>
 
-            <!-- Main content area -->
+            <!-- AdwFlap wrapping grid + detail panel -->
             <child>
-              <object class="GtkBox" id="content_area">
-                <property name="orientation">vertical</property>
+              <object class="AdwFlap" id="details_panel">
+                <property name="reveal-flap">false</property>
+                <property name="fold-policy">never</property>
+                <property name="transition-type">slide</property>
                 <property name="vexpand">true</property>
                 <property name="hexpand">true</property>
+		<property name="flap-position">end</property>
 
-                <child>
-                  <object class="GtkScrolledWindow" id="scrolled">
+                <!-- Sliding Game Details Panel -->
+                <child type="flap">
+                  <object class="GameDetailsContent" id="details_content"/>
+                </child>
+
+                <!-- Game Grid -->
+                <child type="content">
+                  <object class="GtkScrolledWindow">
                     <property name="vexpand">true</property>
                     <property name="hexpand">true</property>
                     <child>
@@ -69,8 +74,10 @@
                 </child>
               </object>
             </child>
+
           </object>
         </child>
+
       </object>
     </child>
   </template>

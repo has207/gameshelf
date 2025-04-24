@@ -21,11 +21,28 @@ class SidebarRow(Gtk.Box):
     label: Gtk.Label = Gtk.Template.Child()
 
 
+@Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "details_panel.ui"))
+class GameDetailsContent(Gtk.Box):
+    __gtype_name__ = "GameDetailsContent"
+    title_label: Gtk.Label = Gtk.Template.Child()
+    runner_label: Gtk.Label = Gtk.Template.Child()
+
+    @Gtk.Template.Callback()
+    def on_close_details_clicked(self, button):
+        self.get_ancestor(GameShelfWindow).details_panel.set_reveal_flap(False)
+
+    def set_game(self, game: Game):
+        self.title_label.set_text(game.title)
+        self.runner_label.set_text(game.runner)
+
+
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "window.ui"))
 class GameShelfWindow(Adw.ApplicationWindow):
     __gtype_name__ = "GameShelfWindow"
 
     games_grid: Gtk.GridView = Gtk.Template.Child()
+    details_panel: Adw.Flap = Gtk.Template.Child()
+    details_content: GameDetailsContent = Gtk.Template.Child()
     sidebar_listview: Gtk.ListView = Gtk.Template.Child()
 
     def __init__(self, app, controller):
@@ -48,6 +65,11 @@ class GameShelfWindow(Adw.ApplicationWindow):
         self.sidebar_listview.set_factory(factory)
 
         controller.bind_gridview(self.games_grid)
+        self.details_panel.set_reveal_flap(False)
+
+        selection_model = self.games_grid.get_model()
+        if isinstance(selection_model, Gtk.SingleSelection):
+            selection_model.connect("notify::selected-item", self._on_game_selected)
 
     def _setup_sidebar_item(self, factory, list_item):
         sidebar_row = SidebarRow()
@@ -57,6 +79,23 @@ class GameShelfWindow(Adw.ApplicationWindow):
         row = list_item.get_child()
         item = list_item.get_item()
         row.label.set_label(item.name.capitalize())
+
+    def _on_game_selected(self, selection, param):
+        selected_item = selection.get_selected_item()
+        if not selected_item or not selected_item.get_first_child():
+            self.details_panel.set_reveal_flap(False)
+            return
+
+        game_box = selected_item
+        if not game_box or not game_box.get_first_child():
+            self.details_panel.set_visible(False)
+            return
+
+        if isinstance(game_box, GameItem):
+            self.details_content.set_game(game_box.game)
+            self.details_panel.set_reveal_flap(True)
+        else:
+            self.details_panel.set_visible(False)
 
     def _on_sidebar_selection(self, selection, param):
         index = selection.get_selected()
@@ -78,6 +117,7 @@ class GameItem(Gtk.Box):
 
     def __init__(self, game: Game, controller):
         super().__init__()
+        self.game = game
         self.label.set_label(game.title)
         pixbuf = controller.get_game_pixbuf(game)
         if pixbuf:
@@ -96,7 +136,6 @@ class RunnerItem(Gtk.Box):
         pixbuf = controller.get_runner_pixbuf(runner)
         if pixbuf:
             self.image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
-
 
 
 class GameShelfController:
