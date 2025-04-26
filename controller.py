@@ -1,5 +1,6 @@
 import gi
 import os
+import subprocess
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk, GObject, GLib
@@ -53,13 +54,25 @@ class GameDetailsContent(Gtk.Box):
         if not self.game or not self.controller:
             return
 
-        # Get the runner for this game
         runner = self.controller.get_runner(self.game.runner)
         if runner and runner.command:
-            # In a real app, we'd launch the game here
-            print(f"Launching game: {self.game.title} with command: {runner.command}")
-            # For a production app, you would use subprocess.Popen here
-            # subprocess.Popen(runner.command.split() + [self.game.id], start_new_session=True)
+            try:
+                print(f"Launching game: {self.game.title} with command: {runner.command}")
+                cmd = runner.command.split()
+                game_path = self.controller.data_handler.games_dir / self.game.id
+                subprocess.Popen(cmd + [str(game_path)], start_new_session=True)
+            except Exception as e:
+                print(f"Error launching game: {e}")
+                dialog = Gtk.MessageDialog(
+                    transient_for=self.get_ancestor(Gtk.Window),
+                    modal=True,
+                    message_type=Gtk.MessageType.ERROR,
+                    buttons=Gtk.ButtonsType.OK,
+                    text="Failed to launch game",
+                    secondary_text=f"Error: {str(e)}"
+                )
+                dialog.connect("response", lambda dialog, response: dialog.destroy())
+                dialog.show()
 
     def set_controller(self, controller):
         self.controller = controller
