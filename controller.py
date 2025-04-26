@@ -416,15 +416,12 @@ class GameDialog(Adw.Window):
         self.title_entry.set_text(game.title)
         self.id_entry.set_text(game.id)
 
-        # Store the original image path
-        self.original_image_path = game.image
         self.selected_image_path = None
 
         # Load the game image
-        if game.image and os.path.exists(game.image):
-            pixbuf = self.controller.get_game_pixbuf(game, width=200, height=260)
-            if pixbuf:
-                self.image_preview.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
+        pixbuf = self.controller.get_game_pixbuf(game, width=200, height=260)
+        if pixbuf:
+            self.image_preview.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
         else:
             # Set default image if no image is available
             icon_paintable = self.controller.data_handler.get_default_icon_paintable("applications-games-symbolic", 128)
@@ -493,17 +490,21 @@ class GameDialog(Adw.Window):
         if file_path:
             self.selected_image_path = file_path
 
-            # Create a temporary game to use the data handler's image loading
-            data_handler = self.controller.data_handler
-            temp_game = Game(id="preview", title="Preview", image=self.selected_image_path)
-
-            # Load the image using the data handler
-            pixbuf = data_handler.load_game_image(temp_game, 200, 260)
-            if pixbuf:
-                self.image_preview.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
-            else:
+            # Load the image directly for preview
+            try:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                    file_path, 200, 260, True)
+                if pixbuf:
+                    self.image_preview.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
+                else:
+                    # Set default icon for invalid image
+                    icon_paintable = self.controller.data_handler.get_default_icon_paintable("image-missing", 128)
+                    self.image_preview.set_paintable(icon_paintable)
+                    self.selected_image_path = None
+            except Exception as e:
+                print(f"Error loading preview image: {e}")
                 # Set default icon for invalid image
-                icon_paintable = data_handler.get_default_icon_paintable("image-missing", 128)
+                icon_paintable = self.controller.data_handler.get_default_icon_paintable("image-missing", 128)
                 self.image_preview.set_paintable(icon_paintable)
                 self.selected_image_path = None
         else:
@@ -600,21 +601,26 @@ class GameDialog(Adw.Window):
         runner_id = self.selected_runner.id if self.selected_runner else ""
 
         # Copy the image if a new one was selected
-        image_path = self.original_image_path
         if self.selected_image_path is not None:  # Image was changed
             if self.selected_image_path:  # New image selected
                 # Save the new image
-                image_path = self.controller.data_handler.save_game_image(
+                self.controller.data_handler.save_game_image(
                     self.selected_image_path,
                     self.game.id
                 )
             else:  # Image was cleared
-                image_path = ""
+                # Delete the cover.jpg file if it exists
+                game_dir = self.controller.data_handler.games_dir / self.game.id
+                cover_path = game_dir / "cover.jpg"
+                if cover_path.exists():
+                    try:
+                        cover_path.unlink()
+                    except Exception as e:
+                        print(f"Error removing cover image: {e}")
 
         # Update the game object
         self.game.title = title
         self.game.runner = runner_id
-        self.game.image = image_path
 
         # Save the updated game
         if self.controller.add_game(self.game):

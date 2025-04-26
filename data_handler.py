@@ -24,8 +24,10 @@ class Game:
     def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None):
         self.id = id.lower()
         self.title = title
-        self.image = image
         self.runner = runner.lower() if runner else ""
+
+    def get_cover_path(self, data_dir: Path) -> str:
+        return str(data_dir / "games" / self.id / "cover.jpg")
 
 
 class DataHandler:
@@ -54,15 +56,18 @@ class DataHandler:
 
     def load_games(self) -> List[Game]:
         games = []
-        for game_file in self.games_dir.glob("*.yaml"):
+        # Look for game.yaml files inside subdirectories of the games directory
+        for game_file in self.games_dir.glob("*/game.yaml"):
             try:
+                # The game ID is the name of the parent directory
+                game_id = game_file.parent.name
+
                 with open(game_file, "r") as f:
                     game_data = yaml.safe_load(f)
                     game = Game(
                         title=game_data.get("title", "Unknown Game"),
-                        image=game_data.get("image", ""),
                         runner=game_data.get("runner"),
-                        id=game_file.stem
+                        id=game_id
                     )
                     games.append(game)
             except Exception as e:
@@ -88,18 +93,25 @@ class DataHandler:
 
     def save_game(self, game: Game) -> bool:
         if not game.id:
-            game.id = game.title.lower().replace(" ", "_")
+            # Only generate a numeric ID if one doesn't exist
+            next_id = self.get_next_game_id()
+            game.id = str(next_id)
 
         game_data = {
             "title": game.title,
-            "image": game.image,
         }
 
         if game.runner:
             game_data["runner"] = game.runner
 
         try:
-            with open(self.games_dir / f"{game.id}.yaml", "w") as f:
+            # Create the game's directory if it doesn't exist
+            game_dir = self.games_dir / game.id
+            game_dir.mkdir(parents=True, exist_ok=True)
+
+            # Save the game data to game.yaml inside the game directory
+            game_file = game_dir / "game.yaml"
+            with open(game_file, "w") as f:
                 yaml.dump(game_data, f)
             return True
         except Exception as e:
@@ -124,32 +136,34 @@ class DataHandler:
             print(f"Error saving runner {runner.id}: {e}")
             return False
 
-    def save_game_image(self, source_path: str, game_id: str) -> Optional[str]:
+    def save_game_image(self, source_path: str, game_id: str) -> bool:
         """
-        Copy a game image to the media directory and return the destination path.
+        Copy a game image to the game's directory as cover.jpg.
 
         Args:
             source_path: Path to the source image
-            game_id: ID of the game for naming the destination file
+            game_id: ID of the game
 
         Returns:
-            The path to the saved image, or None if the operation failed
+            True if the image was successfully saved, False otherwise
         """
         if not source_path or not os.path.exists(source_path):
-            return None
+            return False
 
         try:
-            # Generate unique filename
-            ext = os.path.splitext(source_path)[1]
-            unique_filename = f"{game_id}{ext}"
-            dest_path = self.media_dir / unique_filename
+            # Create game directory if it doesn't exist
+            game_dir = self.games_dir / game_id
+            game_dir.mkdir(parents=True, exist_ok=True)
+
+            # Always save as cover.jpg
+            dest_path = game_dir / "cover.jpg"
 
             # Copy the file
             shutil.copy2(source_path, dest_path)
-            return str(dest_path)
+            return True
         except Exception as e:
             print(f"Error copying image: {e}")
-            return None
+            return False
 
     def create_game_with_image(self, title: str, runner_id: Optional[str], image_path: Optional[str] = None) -> Game:
         """
@@ -163,21 +177,22 @@ class DataHandler:
         Returns:
             A new Game object
         """
-        # Generate a game ID
-        game_id = title.lower().replace(" ", "-")
+        # Get the next numeric game ID
+        next_id = self.get_next_game_id()
+        game_id = str(next_id)
 
-        # Save image if provided
-        final_image_path = None
-        if image_path:
-            final_image_path = self.save_game_image(image_path, game_id)
-
-        # Create and return the game object
-        return Game(
+        # Create the game object
+        game = Game(
             id=game_id,
             title=title,
-            image=final_image_path,
             runner=runner_id
         )
+
+        # Save image if provided
+        if image_path:
+            self.save_game_image(image_path, game_id)
+
+        return game
 
     def get_runner_icon(self, runner_id: str) -> str:
         """
@@ -213,10 +228,11 @@ class DataHandler:
             A pixbuf containing the game's image, or None if no image is available
         """
         try:
-            if not game.image or not os.path.exists(game.image):
+            cover_path = game.get_cover_path(self.data_dir)
+            if not os.path.exists(cover_path):
                 return None
             return GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                game.image, width, height, True)
+                cover_path, width, height, True)
         except Exception as e:
             print(f"Error loading image for {game.title}: {e}")
             return None
@@ -241,6 +257,37 @@ class DataHandler:
         icon_theme = Gtk.IconTheme.get_for_display(display)
         # The empty list is for icon sizes, 1 is scale factor, Gtk.TextDirection.LTR is text direction
         return icon_theme.lookup_icon(icon_name, [], size, 1, Gtk.TextDirection.LTR, 0)
+
+    def get_next_game_id(self) -> int:
+        """
+        Get the next available game ID by finding the highest existing numeric ID
+        and incrementing it by 1.
+
+        Returns:
+            The next available numeric ID for a game
+        """
+        try:
+            # Look for the highest existing ID in the games directory
+            highest_id = -1
+            for game_dir in self.games_dir.iterdir():
+                # Only consider directories
+                if not game_dir.is_dir():
+                    continue
+
+                # Check if the directory has a game.yaml file (it's a game directory)
+                if not (game_dir / "game.yaml").exists():
+                    continue
+
+                # Extract the ID from the directory name and see if it's a number
+                dir_id = game_dir.name
+                if dir_id.isdigit():
+                    highest_id = max(highest_id, int(dir_id))
+
+            # Start from the next ID after the highest found, or 0 if no numeric IDs exist
+            return highest_id + 1
+        except Exception as e:
+            print(f"Error getting next game ID: {e}")
+            return 0
 
     def load_runner_image(self, runner: Runner, width: int = 64, height: int = 64) -> Optional[GdkPixbuf.Pixbuf]:
         """
@@ -273,12 +320,10 @@ class DataHandler:
         Returns:
             True if the game was successfully removed, False otherwise
         """
-        game_file = self.games_dir / f"{game.id}.yaml"
-        try:
-            if game_file.exists():
-                # Remove the game file
-                game_file.unlink()
+        game_dir = self.games_dir / game.id
 
+        try:
+            if game_dir.exists():
                 # Remove the game's image if it exists and is in our media directory
                 if game.image and os.path.exists(game.image):
                     image_path = Path(game.image)
@@ -289,9 +334,11 @@ class DataHandler:
                         except Exception as e:
                             print(f"Error removing image {game.image}: {e}")
 
+                # Remove the entire game directory
+                shutil.rmtree(game_dir)
                 return True
             else:
-                print(f"Game file {game_file} not found")
+                print(f"Game directory {game_dir} not found")
                 return False
         except Exception as e:
             print(f"Error removing game {game.id}: {e}")
