@@ -180,6 +180,17 @@ class GameDetailsContent(Gtk.Box):
                     friendly_time = get_friendly_time(last_played)
                     self.last_played_label.set_text(f"Last Played: {friendly_time}")
 
+                # Refresh the game grid immediately if we're sorting by play count or last played
+                # (play time will be updated when the process exits)
+                sort_field = getattr(self.controller, 'sort_field', None)
+                immediate_update_fields = ['last_played', 'play_count']
+
+                if sort_field in immediate_update_fields:
+                    window = self.get_ancestor(GameShelfWindow)
+                    if window:
+                        # Create a short delay to ensure changes are saved before refreshing
+                        GLib.timeout_add(100, self._delayed_grid_refresh)
+
                 # Start tracking the process to monitor play time
                 self.monitor_game_process(process.pid, self.game)
 
@@ -195,6 +206,18 @@ class GameDetailsContent(Gtk.Box):
                 )
                 dialog.connect("response", lambda dialog, response: dialog.destroy())
                 dialog.show()
+
+    def _delayed_grid_refresh(self):
+        """Refresh the game grid after a short delay to ensure data is saved"""
+        if self.controller:
+            window = self.get_ancestor(GameShelfWindow)
+            if window:
+                search_text = window.search_entry.get_text().strip().lower() if window.search_entry else ""
+                self.controller.populate_games(
+                    filter_runner=self.controller.current_filter,
+                    search_text=search_text
+                )
+        return False  # Don't repeat the timeout
 
     def monitor_game_process(self, pid: int, game: Game):
         """
@@ -286,6 +309,22 @@ class GameDetailsContent(Gtk.Box):
 
                 self.play_button.set_label("Play Game")
                 self.play_button.set_sensitive(can_play)
+
+            # Refresh the game grid to reflect updated sorting if we're sorting by play-related criteria
+            if self.controller:
+                # Check if current sort field is affected by playing a game
+                sort_field = getattr(self.controller, 'sort_field', None)
+                play_related_fields = ['last_played', 'play_time', 'play_count']
+
+                if sort_field in play_related_fields:
+                    # Refresh the game grid with current sorting and filtering settings
+                    window = self.get_ancestor(GameShelfWindow)
+                    if window:
+                        # Trigger a refresh by calling populate_games with existing parameters
+                        self.controller.populate_games(
+                            filter_runner=self.controller.current_filter,
+                            search_text=window.search_entry.get_text().strip().lower() if window.search_entry else ""
+                        )
 
         return False  # Return False to remove this function from the idle queue
 

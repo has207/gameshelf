@@ -156,8 +156,8 @@ button.pill {
 
 /* Context menu styling */
 .context-menu-container {
-  margin-start: 8px;
-  margin-end: 8px;
+  margin-left: 8px;
+  margin-right: 8px;
   margin-top: 8px;
   margin-bottom: 8px;
 }
@@ -225,7 +225,7 @@ searchentry:focus {
 /* Details panel layout styling */
 .details-panel-topbar {
   margin-top: 4px;
-  margin-end: 4px;
+  margin-right: 4px;
 }
 
 .details-panel-title {
