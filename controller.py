@@ -596,10 +596,12 @@ class GameShelfWindow(Adw.ApplicationWindow):
             # When toggled on, we're showing hidden games
             button.set_icon_name("view-reveal-symbolic")
             button.set_tooltip_text("Showing Hidden Games")
+            button.add_css_class("destructive-action")  # Make the button red when showing hidden games
         else:
             # When toggled off, we're showing normal games
             button.set_icon_name("view-conceal-symbolic")
             button.set_tooltip_text("Showing Normal Games")
+            button.remove_css_class("destructive-action")  # Remove the red styling
 
         # Tell the controller to toggle visibility mode
         self.controller.toggle_show_hidden()
