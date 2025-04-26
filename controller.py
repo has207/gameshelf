@@ -624,6 +624,67 @@ class RunnerItem(Gtk.Box):
             self.image.set_from_icon_name(icon_name)
 
 
+@Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "sort_menu.ui"))
+class GameSortMenu(Gtk.Popover):
+    """Sort menu for games grid"""
+    __gtype_name__ = "GameSortMenu"
+
+    # Template child widgets
+    sort_ascending_button: Gtk.ToggleButton = Gtk.Template.Child()
+    sort_descending_button: Gtk.ToggleButton = Gtk.Template.Child()
+    sort_by_title: Gtk.CheckButton = Gtk.Template.Child()
+    sort_by_last_played: Gtk.CheckButton = Gtk.Template.Child()
+    sort_by_play_time: Gtk.CheckButton = Gtk.Template.Child()
+    sort_by_play_count: Gtk.CheckButton = Gtk.Template.Child()
+    sort_by_date_added: Gtk.CheckButton = Gtk.Template.Child()
+    sort_by_date_modified: Gtk.CheckButton = Gtk.Template.Child()
+
+    def __init__(self):
+        super().__init__()
+        # Sort order and field will be set by handlers
+        self.ascending = True
+        self.sort_field = "title"
+
+    @Gtk.Template.Callback()
+    def on_sort_order_toggled(self, button):
+        """Called when sort order buttons are toggled"""
+        if button == self.sort_ascending_button and button.get_active():
+            self.ascending = True
+        elif button == self.sort_descending_button and button.get_active():
+            self.ascending = False
+
+        # Update sort
+        window = self.get_ancestor(GameShelfWindow)
+        if window and window.controller:
+            window.controller.update_sort(self.sort_field, self.ascending)
+
+    @Gtk.Template.Callback()
+    def on_sort_by_toggled(self, button):
+        """Called when sort field options are toggled"""
+        if not button.get_active():
+            # Skip when buttons are untoggled (we only care about active selections)
+            return
+
+        # Map buttons to sort fields
+        if button == self.sort_by_title:
+            self.sort_field = "title"
+        elif button == self.sort_by_last_played:
+            self.sort_field = "last_played"
+        elif button == self.sort_by_play_time:
+            self.sort_field = "play_time"
+        elif button == self.sort_by_play_count:
+            self.sort_field = "play_count"
+        elif button == self.sort_by_date_added:
+            self.sort_field = "date_added"
+        elif button == self.sort_by_date_modified:
+            self.sort_field = "date_modified"
+
+        # Update sort
+        window = self.get_ancestor(GameShelfWindow)
+        if window and window.controller:
+            window.controller.update_sort(self.sort_field, self.ascending)
+
+
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "context_menu.ui"))
 class GameContextMenu(Gtk.Popover):
     """Context menu for game items in the grid"""
@@ -994,6 +1055,10 @@ class GameShelfController:
         self.window = None
         self.actions = {}
 
+        # Initialize sorting parameters
+        self.sort_field = "title"
+        self.sort_ascending = True
+
     def get_games(self) -> List[Game]:
         return self.games
 
@@ -1092,10 +1157,77 @@ class GameShelfController:
         if search_text:
             games = [g for g in games if search_text in g.title.lower()]
 
+        # Sort the games if sort parameters are set
+        if hasattr(self, 'sort_field') and hasattr(self, 'sort_ascending'):
+            games = self.sort_games(games, self.sort_field, self.sort_ascending)
+        else:
+            # Default sorting by title ascending
+            games = sorted(games, key=lambda g: g.title.lower())
+
         # Create widgets for the games
         for game in games:
             game_item = self.create_game_widget(game)
             self.games_model.append(game_item)
+
+    def update_sort(self, sort_field: str, ascending: bool):
+        """
+        Update the sort parameters and refresh the game grid
+
+        Args:
+            sort_field: Field to sort by (title, last_played, etc.)
+            ascending: True for ascending order, False for descending
+        """
+        self.sort_field = sort_field
+        self.sort_ascending = ascending
+
+        # Reload games with current filters and new sort
+        search_text = ""
+        if self.window and hasattr(self.window, 'search_entry'):
+            search_text = self.window.search_entry.get_text().strip().lower()
+
+        self.populate_games(filter_runner=self.current_filter, search_text=search_text)
+
+    def sort_games(self, games: List[Game], sort_field: str, ascending: bool) -> List[Game]:
+        """
+        Sort a list of games by the specified field and direction
+
+        Args:
+            games: List of games to sort
+            sort_field: Field to sort by
+            ascending: True for ascending, False for descending
+
+        Returns:
+            Sorted list of games
+        """
+        reverse = not ascending
+
+        if sort_field == "title":
+            return sorted(games, key=lambda g: g.title.lower(), reverse=reverse)
+        elif sort_field == "last_played":
+            # Sort by last played time (None values at the end)
+            def get_last_played(game):
+                time = game.get_last_played_time(self.data_handler.data_dir)
+                # Use a very old timestamp for games never played
+                return time if time is not None else 0
+            return sorted(games, key=get_last_played, reverse=reverse)
+        elif sort_field == "play_time":
+            return sorted(games, key=lambda g: g.play_time, reverse=reverse)
+        elif sort_field == "play_count":
+            return sorted(games, key=lambda g: g.play_count, reverse=reverse)
+        elif sort_field == "date_added":
+            # Sort by created timestamp
+            def get_created(game):
+                return game.created if game.created is not None else 0
+            return sorted(games, key=get_created, reverse=reverse)
+        elif sort_field == "date_modified":
+            # Sort by modified time
+            def get_modified(game):
+                time = game.get_modified_time(self.data_handler.data_dir)
+                return time if time is not None else 0
+            return sorted(games, key=get_modified, reverse=reverse)
+        else:
+            # Default to title
+            return sorted(games, key=lambda g: g.title.lower(), reverse=reverse)
 
     def create_game_widget(self, game: Game) -> Gtk.Widget:
         return GameItem(game, self)

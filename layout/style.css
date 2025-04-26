@@ -183,3 +183,29 @@ searchentry {
 searchentry:focus {
   border-color: @accent_color;
 }
+
+/* Sort menu styling */
+.sort-menu-container {
+  margin: 12px;
+}
+
+.sort-order-section {
+  margin-bottom: 6px;
+}
+
+.sort-separator {
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+
+.sort-by-label {
+  margin-bottom: 6px;
+}
+
+.sort-option {
+  margin: 2px 0;
+}
+
+.sort-button {
+  padding: 4px;
+}

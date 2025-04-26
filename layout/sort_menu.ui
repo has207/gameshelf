@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <template class="GameSortMenu" parent="GtkPopover">
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <style>
+          <class name="sort-menu-container"/>
+        </style>
+        
+        <!-- Sort Order -->
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">horizontal</property>
+            <property name="halign">center</property>
+            <property name="spacing">8</property>
+            <style>
+              <class name="sort-order-section"/>
+            </style>
+            <child>
+              <object class="GtkToggleButton" id="sort_ascending_button">
+                <property name="icon-name">view-sort-ascending-symbolic</property>
+                <property name="tooltip-text">Ascending</property>
+                <property name="active">true</property>
+                <signal name="toggled" handler="on_sort_order_toggled"/>
+                <style>
+                  <class name="sort-button"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkToggleButton" id="sort_descending_button">
+                <property name="icon-name">view-sort-descending-symbolic</property>
+                <property name="tooltip-text">Descending</property>
+                <property name="group">sort_ascending_button</property>
+                <signal name="toggled" handler="on_sort_order_toggled"/>
+                <style>
+                  <class name="sort-button"/>
+                </style>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <child>
+          <object class="GtkSeparator">
+            <style>
+              <class name="sort-separator"/>
+            </style>
+          </object>
+        </child>
+        
+        <!-- Sort By Options -->
+        <child>
+          <object class="GtkLabel">
+            <property name="label">Sort by:</property>
+            <property name="xalign">0</property>
+            <style>
+              <class name="caption-heading"/>
+              <class name="sort-by-label"/>
+            </style>
+          </object>
+        </child>
+        
+        <!-- Title -->
+        <child>
+          <object class="GtkCheckButton" id="sort_by_title">
+            <property name="label">Title</property>
+            <property name="active">true</property>
+            <signal name="toggled" handler="on_sort_by_toggled"/>
+            <style>
+              <class name="sort-option"/>
+            </style>
+          </object>
+        </child>
+        
+        <!-- Last Played -->
+        <child>
+          <object class="GtkCheckButton" id="sort_by_last_played">
+            <property name="label">Last Played</property>
+            <property name="group">sort_by_title</property>
+            <signal name="toggled" handler="on_sort_by_toggled"/>
+            <style>
+              <class name="sort-option"/>
+            </style>
+          </object>
+        </child>
+        
+        <!-- Play Time -->
+        <child>
+          <object class="GtkCheckButton" id="sort_by_play_time">
+            <property name="label">Play Time</property>
+            <property name="group">sort_by_title</property>
+            <signal name="toggled" handler="on_sort_by_toggled"/>
+            <style>
+              <class name="sort-option"/>
+            </style>
+          </object>
+        </child>
+        
+        <!-- Play Count -->
+        <child>
+          <object class="GtkCheckButton" id="sort_by_play_count">
+            <property name="label">Play Count</property>
+            <property name="group">sort_by_title</property>
+            <signal name="toggled" handler="on_sort_by_toggled"/>
+            <style>
+              <class name="sort-option"/>
+            </style>
+          </object>
+        </child>
+        
+        <!-- Date Added -->
+        <child>
+          <object class="GtkCheckButton" id="sort_by_date_added">
+            <property name="label">Date Added</property>
+            <property name="group">sort_by_title</property>
+            <signal name="toggled" handler="on_sort_by_toggled"/>
+            <style>
+              <class name="sort-option"/>
+            </style>
+          </object>
+        </child>
+        
+        <!-- Date Modified -->
+        <child>
+          <object class="GtkCheckButton" id="sort_by_date_modified">
+            <property name="label">Date Modified</property>
+            <property name="group">sort_by_title</property>
+            <signal name="toggled" handler="on_sort_by_toggled"/>
+            <style>
+              <class name="sort-option"/>
+            </style>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

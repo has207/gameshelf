@@ -26,12 +26,21 @@
             <property name="title-widget">
               <object class="GtkBox">
                 <property name="halign">center</property>
-                <property name="spacing">12</property>
+                <property name="spacing">8</property>
                 <child>
                   <object class="GtkSearchEntry" id="search_entry">
                     <property name="placeholder-text">Search games...</property>
                     <property name="width-request">400</property>
                     <signal name="search-changed" handler="on_search_changed"/>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkMenuButton" id="sort_button">
+                    <property name="icon-name">view-sort-descending-symbolic</property>
+                    <property name="tooltip-text">Sort Games</property>
+                    <property name="popover">
+                      <object class="GameSortMenu" id="sort_menu"/>
+                    </property>
                   </object>
                 </child>
               </object>
