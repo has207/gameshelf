@@ -39,6 +39,16 @@
           </object>
         </child>
         
+        <!-- Toggle Hidden -->
+        <child>
+          <object class="GtkButton" id="toggle_hidden_button">
+            <property name="label">Hide Game</property>
+            <style>
+              <class name="context-menu-item"/>
+            </style>
+          </object>
+        </child>
+        
         <!-- Remove Button -->
         <child>
           <object class="GtkButton" id="remove_button">

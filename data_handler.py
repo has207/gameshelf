@@ -22,13 +22,14 @@ class Runner:
 
 @dataclass
 class Game:
-    def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None, created: Optional[float] = None):
+    def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None, created: Optional[float] = None, hidden: bool = False):
         self.id = id.lower()
         self.title = title
         self.runner = runner.lower() if runner else ""
         self.created = created
         self.play_count = 0
         self.play_time = 0  # Total play time in seconds
+        self.hidden = hidden  # Whether the game is hidden from the main grid
 
     def get_cover_path(self, data_dir: Path) -> str:
         return str(data_dir / "games" / self.id / "cover.jpg")
@@ -96,7 +97,8 @@ class DataHandler:
                         title=game_data.get("title", "Unknown Game"),
                         runner=game_data.get("runner"),
                         id=game_id,
-                        created=game_data.get("created")
+                        created=game_data.get("created"),
+                        hidden=game_data.get("hidden", False)
                     )
 
                     # Load play count if exists
@@ -157,6 +159,8 @@ class DataHandler:
             game_data["runner"] = game.runner
         if game.created:
             game_data["created"] = game.created
+        if game.hidden:
+            game_data["hidden"] = game.hidden
 
         try:
             game_dir = self.games_dir / game.id

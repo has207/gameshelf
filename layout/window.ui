@@ -43,6 +43,13 @@
                     </property>
                   </object>
                 </child>
+                <child>
+                  <object class="GtkToggleButton" id="visibility_toggle">
+                    <property name="icon-name">view-conceal-symbolic</property>
+                    <property name="tooltip-text">Toggle Hidden Games</property>
+                    <signal name="toggled" handler="on_visibility_toggle_clicked"/>
+                  </object>
+                </child>
               </object>
             </property>
           </object>

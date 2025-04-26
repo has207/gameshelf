@@ -252,6 +252,24 @@
           <class name="details-panel-actions"/>
         </style>
         
+        <!-- Toggle Hidden Button -->
+        <child>
+          <object class="GtkButton" id="toggle_hidden_button">
+            <property name="label">Hide Game</property>
+            <style>
+              <class name="pill"/>
+            </style>
+            <signal name="clicked" handler="on_toggle_hidden_clicked"/>
+          </object>
+        </child>
+        
+        <!-- Spacer -->
+        <child>
+          <object class="GtkBox">
+            <property name="height-request">8</property>
+          </object>
+        </child>
+        
         <!-- Remove Button -->
         <child>
           <object class="GtkButton" id="remove_button">

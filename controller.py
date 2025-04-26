@@ -125,6 +125,7 @@ class GameDetailsContent(Gtk.Box):
     runner_icon: Gtk.Image = Gtk.Template.Child()
     play_button: Gtk.Button = Gtk.Template.Child()
     edit_button: Gtk.Button = Gtk.Template.Child()
+    toggle_hidden_button: Gtk.Button = Gtk.Template.Child()
     remove_button: Gtk.Button = Gtk.Template.Child()
     created_label: Gtk.Label = Gtk.Template.Child()
     modified_label: Gtk.Label = Gtk.Template.Child()
@@ -140,6 +141,20 @@ class GameDetailsContent(Gtk.Box):
     @Gtk.Template.Callback()
     def on_close_details_clicked(self, button):
         self.get_ancestor(GameShelfWindow).details_panel.set_reveal_flap(False)
+
+    @Gtk.Template.Callback()
+    def on_toggle_hidden_clicked(self, button):
+        if not self.game or not self.controller:
+            return
+
+        # Toggle the hidden state using the controller
+        self.controller.toggle_game_hidden(self.game)
+
+        # Update the button text based on the new state
+        if self.game.hidden:
+            self.toggle_hidden_button.set_label("Unhide Game")
+        else:
+            self.toggle_hidden_button.set_label("Hide Game")
 
     @Gtk.Template.Callback()
     def on_play_button_clicked(self, button):
@@ -398,6 +413,12 @@ class GameDetailsContent(Gtk.Box):
 
         self.runner_label.set_text(runner_name)
 
+        # Update the toggle hidden button label based on the game's hidden state
+        if game.hidden:
+            self.toggle_hidden_button.set_label("Unhide Game")
+        else:
+            self.toggle_hidden_button.set_label("Hide Game")
+
         if self.controller:
             if game.created:
                 created_time = datetime.fromtimestamp(game.created).strftime("%Y-%m-%d %H:%M:%S")
@@ -453,6 +474,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
     sidebar_listview: Gtk.ListView = Gtk.Template.Child()
     add_game_button: Gtk.Button = Gtk.Template.Child()
     search_entry: Gtk.SearchEntry = Gtk.Template.Child()
+    visibility_toggle: Gtk.ToggleButton = Gtk.Template.Child()
 
     def __init__(self, app, controller):
         super().__init__(application=app)
@@ -565,6 +587,22 @@ class GameShelfWindow(Adw.ApplicationWindow):
 
         # Populate games with search filter
         self.controller.populate_games(search_text=search_text)
+
+    @Gtk.Template.Callback()
+    def on_visibility_toggle_clicked(self, button):
+        """Handle visibility toggle button click"""
+        # Update the icon based on toggle state
+        if button.get_active():
+            # When toggled on, we're showing hidden games
+            button.set_icon_name("view-reveal-symbolic")
+            button.set_tooltip_text("Showing Hidden Games")
+        else:
+            # When toggled off, we're showing normal games
+            button.set_icon_name("view-conceal-symbolic")
+            button.set_tooltip_text("Showing Normal Games")
+
+        # Tell the controller to toggle visibility mode
+        self.controller.toggle_show_hidden()
 
 
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "game_item.ui"))
@@ -732,6 +770,7 @@ class GameContextMenu(Gtk.Popover):
     # Template child widgets
     play_button: Gtk.Button = Gtk.Template.Child()
     edit_button: Gtk.Button = Gtk.Template.Child()
+    toggle_hidden_button: Gtk.Button = Gtk.Template.Child()
     remove_button: Gtk.Button = Gtk.Template.Child()
 
     def __init__(self, game: Game, parent_item):
@@ -742,11 +781,19 @@ class GameContextMenu(Gtk.Popover):
         # Connect button signals
         self.play_button.connect("clicked", self._on_play_clicked)
         self.edit_button.connect("clicked", self._on_edit_clicked)
+        self.toggle_hidden_button.connect("clicked", self._on_toggle_hidden_clicked)
         self.remove_button.connect("clicked", self._on_remove_clicked)
+
+        # Set appropriate label for toggle hidden button based on current state
+        if game.hidden:
+            self.toggle_hidden_button.set_label("Unhide Game")
+        else:
+            self.toggle_hidden_button.set_label("Hide Game")
 
         # Add CSS classes
         self.play_button.add_css_class("context-menu-item")
         self.edit_button.add_css_class("context-menu-item")
+        self.toggle_hidden_button.add_css_class("context-menu-item")
         self.remove_button.add_css_class("context-menu-item")
         self.remove_button.add_css_class("context-menu-item-destructive")
 
@@ -763,6 +810,13 @@ class GameContextMenu(Gtk.Popover):
         if window:
             window.details_content.set_game(self.game)
             window.details_content.on_edit_button_clicked(None)
+
+    def _on_toggle_hidden_clicked(self, button):
+        self.popdown()
+        window = self.get_ancestor(GameShelfWindow)
+        if window and window.controller:
+            # Toggle the hidden state of the game
+            window.controller.toggle_game_hidden(self.game)
 
     def _on_remove_clicked(self, button):
         self.popdown()
@@ -1098,6 +1152,9 @@ class GameShelfController:
         self.sort_field = "title"
         self.sort_ascending = True
 
+        # Initialize visibility settings
+        self.show_hidden = False  # When False, show normal games; when True, show only hidden games
+
     def get_games(self) -> List[Game]:
         return self.games
 
@@ -1196,6 +1253,15 @@ class GameShelfController:
         if search_text:
             games = [g for g in games if search_text in g.title.lower()]
 
+        # Show only hidden or non-hidden games based on self.show_hidden setting
+        if hasattr(self, 'show_hidden'):
+            if self.show_hidden:
+                # When show_hidden is True, only show hidden games
+                games = [g for g in games if g.hidden]
+            else:
+                # When show_hidden is False, only show non-hidden games
+                games = [g for g in games if not g.hidden]
+
         # Sort the games if sort parameters are set
         if hasattr(self, 'sort_field') and hasattr(self, 'sort_ascending'):
             games = self.sort_games(games, self.sort_field, self.sort_ascending)
@@ -1273,6 +1339,37 @@ class GameShelfController:
 
     def create_runner_widget(self, runner: Runner) -> Gtk.Widget:
         return RunnerItem(runner, self)
+
+    def toggle_game_hidden(self, game: Game) -> bool:
+        """
+        Toggle the hidden state of a game
+
+        Args:
+            game: The game to toggle hidden state for
+
+        Returns:
+            True if successful, False otherwise
+        """
+        game.hidden = not game.hidden
+
+        # Save the updated game
+        result = self.data_handler.save_game(game)
+        if result:
+            # Refresh the game list
+            self.reload_data()
+
+        return result
+
+    def toggle_show_hidden(self) -> None:
+        """Toggle between showing hidden or non-hidden games"""
+        self.show_hidden = not self.show_hidden
+
+        # Refresh the game list with the new visibility setting
+        search_text = ""
+        if self.window and hasattr(self.window, 'search_entry'):
+            search_text = self.window.search_entry.get_text().strip().lower()
+
+        self.populate_games(filter_runner=self.current_filter, search_text=search_text)
 
     def add_action(self, action: Gio.SimpleAction):
         """
