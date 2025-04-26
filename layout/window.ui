@@ -41,8 +41,8 @@
             <!-- Sidebar -->
             <child>
               <object class="GtkScrolledWindow" id="sidebar_container">
-                <property name="min-content-width">200</property>
                 <property name="vexpand">true</property>
+                <property name="min-content-width">220</property>
                 <child>
                   <object class="GtkListView" id="sidebar_listview">
                     <!-- No custom properties here that could cause problems -->
@@ -67,8 +67,8 @@
                 <child type="flap">
                   <object class="GtkScrolledWindow">
                     <property name="hscrollbar-policy">never</property>
-                    <property name="width-request">430</property>
                     <property name="hexpand">false</property>
+                    <property name="width-request">480</property>
                     <style>
                       <class name="details-scroll-container"/>
                     </style>
@@ -89,10 +89,7 @@
                         <property name="hexpand">true</property>
                         <property name="min-columns">2</property>
                         <property name="max-columns">10</property>
-                        <!-- This ensures the grid items don't stretch -->
                         <property name="single-click-activate">false</property>
-                        <!-- Center the items in the grid -->
-                        <!-- property name="halign">center</property-->
                         <style>
                           <class name="games-grid"/>
                         </style>

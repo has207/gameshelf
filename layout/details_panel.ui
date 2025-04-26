@@ -3,13 +3,9 @@
   <requires lib="gtk" version="4.0"/>
   <template class="GameDetailsContent" parent="GtkBox">
     <property name="orientation">vertical</property>
-    <property name="spacing">16</property>
-    <property name="margin-top">16</property>
-    <property name="margin-bottom">24</property>
-    <property name="margin-start">24</property>
-    <property name="margin-end">24</property>
-    <property name="width-request">380</property>
     <property name="hexpand">false</property>
+    <property name="spacing">16</property>
+    <property name="width-request">420</property>
     <style>
       <class name="details-panel"/>
     </style>
@@ -45,8 +41,6 @@
     <child>
       <object class="GtkBox">
         <property name="halign">center</property>
-        <property name="margin-top">8</property>
-        <property name="margin-bottom">16</property>
         <style>
           <class name="card"/>
           <class name="game-cover-container"/>
@@ -57,6 +51,9 @@
             <property name="can-shrink">false</property>
             <property name="width-request">280</property>
             <property name="height-request">380</property>
+            <style>
+              <class name="game-image"/>
+            </style>
           </object>
         </child>
       </object>
@@ -69,7 +66,6 @@
         <property name="justify">center</property>
         <property name="wrap">true</property>
         <property name="wrap-mode">word-char</property>
-        <property name="margin-bottom">8</property>
         <style>
           <class name="title-2"/>
           <class name="game-detail-title"/>
@@ -90,7 +86,6 @@
         <child>
           <object class="GtkBox">
             <property name="spacing">12</property>
-            <property name="margin-top">8</property>
             <style>
               <class name="runner-info"/>
             </style>
@@ -132,7 +127,9 @@
         <child>
           <object class="GtkBox">
             <property name="spacing">12</property>
-            <property name="margin-top">8</property>
+            <style>
+              <class name="game-id-box"/>
+            </style>
             <child>
               <object class="GtkImage">
                 <property name="icon-name">dialog-information-symbolic</property>
@@ -174,7 +171,9 @@
       <object class="GtkBox">
         <property name="orientation">vertical</property>
         <property name="spacing">12</property>
-        <property name="margin-top">24</property>
+        <style>
+          <class name="actions-container"/>
+        </style>
         
         <!-- Play Button -->
         <child>

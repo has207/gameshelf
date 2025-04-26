@@ -4,16 +4,13 @@
   border-radius: 12px;
   padding: 0;
   background-color: transparent;
-  min-width: 220px;
+  margin: 16px;
 }
 
 .game-image-container {
   border-radius: 12px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   transition: box-shadow 200ms ease;
-  /* Ensure the container maintains its dimensions */
-  min-width: 200px;
-  min-height: 260px;
 }
 
 /* Hover and active effects */
@@ -44,7 +41,7 @@
 .sidebar-row {
   border-radius: 8px;
   padding: 8px;
-  margin: 4px 8px;
+  margin: 8px 12px;
   transition: all 200ms ease;
 }
 
@@ -63,9 +60,14 @@
 }
 
 /* Grid styling */
+/* Apply a stronger grid padding */
 .games-grid {
-  padding: 12px;
+  padding: 20px;
   background-color: transparent;
+}
+
+gridview.games-grid {
+  padding: 20px;
 }
 
 /* Sidebar container styling */
@@ -77,12 +79,8 @@
 .details-panel {
   background-color: @window_bg_color;
   border-left: 1px solid alpha(@borders, 0.5);
-}
-
-.details-scroll-container {
-  /* Ensure the container doesn't expand with the window */
-  min-width: 430px;
-  /* max-width not supported in GTK CSS, we'll rely on the width-request in the UI file */
+  padding: 20px 32px 32px 32px;
+  margin: 0;
 }
 
 .game-detail-title {
@@ -93,8 +91,8 @@
 .game-cover-container {
   border-radius: 12px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-  min-height: 320px;
   transition: box-shadow 200ms ease;
+  margin: 8px 0 16px 0;
 }
 
 .game-cover-container:hover {
@@ -115,7 +113,15 @@
 }
 
 .runner-info {
-  margin-bottom: 12px;
+  margin: 8px 0 12px 0;
+}
+
+.game-id-box {
+  margin-top: 8px;
+}
+
+.actions-container {
+  margin-top: 24px;
 }
 
 button.pill {
@@ -124,10 +130,26 @@ button.pill {
   font-weight: bold;
 }
 
+/* Runner item styling */
+.runner-card {
+  margin: 8px 12px;
+}
+
+.runner-label {
+  margin-left: 12px;
+}
+
 /* Add game dialog styling */
 .image-preview {
   border-radius: 8px;
-  min-height: 260px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   background-color: alpha(@card_bg_color, 0.5);
+}
+
+.dialog-content {
+  margin: 24px;
+}
+
+.image-controls {
+  margin: 12px 0;
 }

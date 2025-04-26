@@ -5,11 +5,6 @@
   <template class="GameItem" parent="GtkBox">
     <property name="orientation">vertical</property>
     <property name="spacing">8</property>
-    <property name="margin-top">8</property>
-    <property name="margin-bottom">8</property>
-    <property name="margin-start">8</property>
-    <property name="margin-end">8</property>
-    <!-- Fixed width to ensure consistency -->
     <property name="width-request">220</property>
     <style>
       <class name="game-item"/>
@@ -20,7 +15,6 @@
         <style>
           <class name="game-image-container"/>
         </style>
-        <!-- Fixed dimensions for the image container -->
         <property name="width-request">200</property>
         <property name="height-request">260</property>
         <child>

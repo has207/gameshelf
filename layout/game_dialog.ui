@@ -56,10 +56,9 @@
               <object class="GtkBox">
                 <property name="orientation">vertical</property>
                 <property name="spacing">24</property>
-                <property name="margin-top">24</property>
-                <property name="margin-bottom">24</property>
-                <property name="margin-start">24</property>
-                <property name="margin-end">24</property>
+                <style>
+                  <class name="dialog-content"/>
+                </style>
                 
                 <!-- Game Title Section -->
                 <child>
@@ -116,10 +115,11 @@
                     <child>
                       <object class="GtkBox">
                         <property name="orientation">vertical</property>
-                        <property name="spacing">12</property>
-                        <property name="margin-top">12</property>
-                        <property name="margin-bottom">12</property>
                         <property name="halign">center</property>
+                        <property name="spacing">12</property>
+                        <style>
+                          <class name="image-controls"/>
+                        </style>
                         
                         <!-- Preview Image -->
                         <child>
