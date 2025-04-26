@@ -74,35 +74,14 @@
                   </object>
                 </child>
                 
-                <!-- Game ID Section (only for edit mode) -->
-                <child>
-                  <object class="GtkBox" id="id_section_container">
-                    <property name="visible">false</property>
-                    <child>
-                      <object class="AdwPreferencesGroup">
-                        <property name="title">Game ID</property>
-                        <child>
-                          <object class="AdwEntryRow" id="id_entry">
-                            <property name="title">ID</property>
-                            <property name="editable">false</property>
-                          </object>
-                        </child>
-                      </object>
-                    </child>
-                  </object>
-                </child>
-                
                 <!-- Runner Selection Section -->
                 <child>
                   <object class="AdwPreferencesGroup">
                     <property name="title">Runner</property>
                     <child>
-                      <object class="GtkListBox" id="runner_list">
-                        <property name="selection-mode">single</property>
-                        <style>
-                          <class name="boxed-list"/>
-                        </style>
-                        <signal name="selected-rows-changed" handler="on_runner_selected"/>
+                      <object class="AdwComboRow" id="runner_dropdown">
+                        <property name="title">Runner</property>
+                        <signal name="notify::selected" handler="on_runner_selected"/>
                       </object>
                     </child>
                   </object>

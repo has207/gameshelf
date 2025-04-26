@@ -219,7 +219,7 @@ class GameDetailsContent(Gtk.Box):
                 icon_name = self.controller.data_handler.get_runner_icon(game.runner)
                 self.runner_icon.set_from_icon_name(icon_name)
         else:
-            runner_name = "No Runner"
+            runner_name = "[none]"
             self.runner_icon.set_from_icon_name("dialog-question-symbolic")
 
         self.runner_label.set_text(runner_name)
@@ -477,9 +477,7 @@ class GameDialog(Adw.Window):
     # UI elements from template
     dialog_title: Adw.WindowTitle = Gtk.Template.Child()
     title_entry: Adw.EntryRow = Gtk.Template.Child()
-    id_section_container: Gtk.Box = Gtk.Template.Child()
-    id_entry: Adw.EntryRow = Gtk.Template.Child()
-    runner_list: Gtk.ListBox = Gtk.Template.Child()
+    runner_dropdown: Adw.ComboRow = Gtk.Template.Child()
     image_preview: Gtk.Picture = Gtk.Template.Child()
     select_image_button: Gtk.Button = Gtk.Template.Child()
     clear_image_container: Gtk.Box = Gtk.Template.Child()
@@ -502,13 +500,11 @@ class GameDialog(Adw.Window):
         if edit_mode:
             self.dialog_title.set_title("Edit Game")
             self.action_button.set_label("Save Changes")
-            self.id_section_container.set_visible(True)
             self.clear_image_container.set_visible(True)
             self.select_image_button.set_label("Change Image")
         else:
             self.dialog_title.set_title("Add New Game")
             self.action_button.set_label("Add Game")
-            self.id_section_container.set_visible(False)
             self.clear_image_container.set_visible(False)
             self.select_image_button.set_label("Select Image")
 
@@ -522,8 +518,6 @@ class GameDialog(Adw.Window):
 
         self.game = game
         self.title_entry.set_text(game.title)
-        self.id_entry.set_text(game.id)
-
         self.selected_image_path = None
 
         # Load the game image
@@ -535,55 +529,60 @@ class GameDialog(Adw.Window):
             icon_paintable = self.controller.data_handler.get_default_icon_paintable("applications-games-symbolic", 128)
             self.image_preview.set_paintable(icon_paintable)
 
-        # Populate runners list and select the current one
+        # Populate runners dropdown
         self.populate_runners(self.controller.get_runners())
 
-        # Select current runner in list if game has one
-        if self.game and self.game.runner:
-            for i, row in enumerate(self.runner_list):
-                if i < len(self.runners_data) and self.runners_data[i].id == self.game.runner:
-                    self.runner_list.select_row(row)
-                    self.selected_runner = self.runners_data[i]
-                    break
+        # Select current runner in dropdown if game has one
+        if self.game:
+            if self.game.runner:
+                # Find the index of the runner in runners_data
+                for i, runner in enumerate(self.runners_data):
+                    if runner and runner.id == self.game.runner:
+                        self.runner_dropdown.set_selected(i)
+                        self.selected_runner = runner
+                        break
+            else:
+                self.runner_dropdown.set_selected(0)
+                self.selected_runner = None
 
         # Enable the action button
         self.validate_form()
 
     def populate_runners(self, runners: List[Runner]):
-        """Populate the runner list with available runners"""
-        # Remove existing rows
-        while True:
-            row = self.runner_list.get_first_child()
-            if row is None:
-                break
-            self.runner_list.remove(row)
+        """Populate the runner dropdown with available runners"""
+        # Create a list store for the dropdown
+        runner_store = Gio.ListStore.new(GObject.Object)
+
+        # Create a string list for displaying runner names
+        string_list = Gtk.StringList()
+
+        string_list.append("[none]")
+
+        # Add all runners
+        for runner in runners:
+            string_list.append(runner.title)
 
         # Store runners list for reference when selected
-        self.runners_data = runners
+        self.runners_data = [None] + runners
 
-        # Add runner rows using the RunnerItem template
-        for i, runner in enumerate(runners):
-            row = Gtk.ListBoxRow()
-            # Store the index to reference the runner later
-            row.runner_index = i
+        # Set up the dropdown with the string list
+        self.runner_dropdown.set_model(string_list)
 
-            # Create RunnerItem instance
-            runner_item = RunnerItem(runner, self.controller)
-
-            row.set_child(runner_item)
-            self.runner_list.append(row)
+        # Select "[none]" by default
+        self.runner_dropdown.set_selected(0)
+        self.selected_runner = None
 
     @Gtk.Template.Callback()
     def on_entry_changed(self, entry):
         self.validate_form()
 
     @Gtk.Template.Callback()
-    def on_runner_selected(self, listbox):
+    def on_runner_selected(self, dropdown, gparam):
         """Handler for runner selection changes"""
-        selected_row = listbox.get_selected_row()
-        if selected_row and hasattr(selected_row, 'runner_index'):
+        selected_index = dropdown.get_selected()
+        if selected_index >= 0 and selected_index < len(self.runners_data):
             # Get the runner from our stored data using the index
-            self.selected_runner = self.runners_data[selected_row.runner_index]
+            self.selected_runner = self.runners_data[selected_index]
         else:
             self.selected_runner = None
         self.validate_form()
@@ -691,7 +690,7 @@ class GameDialog(Adw.Window):
         if self.controller.add_game(game):
             # Reset form fields
             self.title_entry.set_text("")
-            self.runner_list.unselect_all()
+            self.runner_dropdown.set_selected(0)  # Select "[none]"
             self.selected_runner = None
             self.selected_image_path = None
             self.image_preview.set_paintable(None)
