@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <template class="GameContextMenu" parent="GtkPopover">
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">2</property>
+        <property name="margin-start">8</property>
+        <property name="margin-end">8</property>
+        <property name="margin-top">8</property>
+        <property name="margin-bottom">8</property>
+        
+        <!-- Play Button -->
+        <child>
+          <object class="GtkButton" id="play_button">
+            <property name="label">Play Game</property>
+            <style>
+              <class name="context-menu-item"/>
+            </style>
+          </object>
+        </child>
+        
+        <!-- Edit Button -->
+        <child>
+          <object class="GtkButton" id="edit_button">
+            <property name="label">Edit Game</property>
+            <style>
+              <class name="context-menu-item"/>
+            </style>
+          </object>
+        </child>
+        
+        <!-- Separator -->
+        <child>
+          <object class="GtkSeparator">
+            <property name="margin-top">4</property>
+            <property name="margin-bottom">4</property>
+          </object>
+        </child>
+        
+        <!-- Remove Button -->
+        <child>
+          <object class="GtkButton" id="remove_button">
+            <property name="label">Remove Game</property>
+            <style>
+              <class name="context-menu-item"/>
+              <class name="context-menu-item-destructive"/>
+            </style>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

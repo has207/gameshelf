@@ -547,44 +547,10 @@ class GameItem(Gtk.Box):
         self.add_controller(right_click)
 
     def _create_context_menu(self):
-        # Create a simple popover with buttons
-        popover = Gtk.Popover.new()
-        popover.set_parent(self)
-
-        # Create a box to hold the menu items
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        box.set_margin_start(8)
-        box.set_margin_end(8)
-        box.set_margin_top(8)
-        box.set_margin_bottom(8)
-
-        # Play button
-        play_button = Gtk.Button(label="Play Game")
-        play_button.add_css_class("flat")
-        play_button.connect("clicked", self._on_context_play_clicked)
-        box.append(play_button)
-
-        # Edit button
-        edit_button = Gtk.Button(label="Edit Game")
-        edit_button.add_css_class("flat")
-        edit_button.connect("clicked", self._on_context_edit_clicked)
-        box.append(edit_button)
-
-        # Separator
-        separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
-        separator.set_margin_top(4)
-        separator.set_margin_bottom(4)
-        box.append(separator)
-
-        # Remove button
-        remove_button = Gtk.Button(label="Remove Game")
-        remove_button.add_css_class("flat")
-        remove_button.add_css_class("destructive-action")
-        remove_button.connect("clicked", self._on_context_remove_clicked)
-        box.append(remove_button)
-
-        popover.set_child(box)
-        return popover
+        # Create a context menu from the template
+        context_menu = GameContextMenu(self.game, self)
+        context_menu.set_parent(self)
+        return context_menu
 
     def _on_right_click(self, gesture, n_press, x, y):
         # Show context menu at pointer position
@@ -609,34 +575,6 @@ class GameItem(Gtk.Box):
         # Show the menu
         menu.popup()
 
-    def _on_context_play_clicked(self, button):
-        # Close the context menu
-        button.get_ancestor(Gtk.Popover).popdown()
-
-        window = self.get_ancestor(GameShelfWindow)
-        if window:
-            # Update the details panel with the game
-            window.details_content.set_game(self.game)
-            # Trigger the play button click
-            window.details_content.on_play_button_clicked(None)
-
-    def _on_context_edit_clicked(self, button):
-        # Close the context menu
-        button.get_ancestor(Gtk.Popover).popdown()
-
-        window = self.get_ancestor(GameShelfWindow)
-        if window:
-            window.details_content.set_game(self.game)
-            window.details_content.on_edit_button_clicked(None)
-
-    def _on_context_remove_clicked(self, button):
-        # Close the context menu
-        button.get_ancestor(Gtk.Popover).popdown()
-
-        window = self.get_ancestor(GameShelfWindow)
-        if window:
-            window.details_content.set_game(self.game)
-            window.details_content.on_remove_button_clicked(None)
 
     def _on_clicked(self, gesture, n_press, x, y):
         # Only handle left clicks (button 1)
@@ -670,6 +608,54 @@ class RunnerItem(Gtk.Box):
             # Set a default icon when no image is available
             icon_name = controller.data_handler.get_runner_icon(runner.id)
             self.image.set_from_icon_name(icon_name)
+
+
+@Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "context_menu.ui"))
+class GameContextMenu(Gtk.Popover):
+    """Context menu for game items in the grid"""
+    __gtype_name__ = "GameContextMenu"
+
+    # Template child widgets
+    play_button: Gtk.Button = Gtk.Template.Child()
+    edit_button: Gtk.Button = Gtk.Template.Child()
+    remove_button: Gtk.Button = Gtk.Template.Child()
+
+    def __init__(self, game: Game, parent_item):
+        super().__init__()
+        self.game = game
+        self.parent_item = parent_item
+
+        # Connect button signals
+        self.play_button.connect("clicked", self._on_play_clicked)
+        self.edit_button.connect("clicked", self._on_edit_clicked)
+        self.remove_button.connect("clicked", self._on_remove_clicked)
+
+        # Add CSS classes
+        self.play_button.add_css_class("context-menu-item")
+        self.edit_button.add_css_class("context-menu-item")
+        self.remove_button.add_css_class("context-menu-item")
+        self.remove_button.add_css_class("context-menu-item-destructive")
+
+    def _on_play_clicked(self, button):
+        self.popdown()
+        window = self.get_ancestor(GameShelfWindow)
+        if window:
+            window.details_content.set_game(self.game)
+            window.details_content.on_play_button_clicked(None)
+
+    def _on_edit_clicked(self, button):
+        self.popdown()
+        window = self.get_ancestor(GameShelfWindow)
+        if window:
+            window.details_content.set_game(self.game)
+            window.details_content.on_edit_button_clicked(None)
+
+    def _on_remove_clicked(self, button):
+        self.popdown()
+        window = self.get_ancestor(GameShelfWindow)
+        if window:
+            window.details_content.set_game(self.game)
+            window.details_content.on_remove_button_clicked(None)
 
 
 def show_image_chooser_dialog(parent_window, callback):

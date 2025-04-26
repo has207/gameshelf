@@ -153,3 +153,22 @@ button.pill {
 .image-controls {
   margin: 12px 0;
 }
+
+/* Context menu styling */
+.context-menu-item {
+  padding: 6px 12px;
+  border-radius: 4px;
+  margin: 2px 0;
+}
+
+.context-menu-item:hover {
+  background-color: alpha(@accent_bg_color, 0.2);
+}
+
+.context-menu-item-destructive {
+  color: #e01b24;
+}
+
+.context-menu-item-destructive:hover {
+  background-color: alpha(#e01b24, 0.2);
+}
