@@ -638,6 +638,7 @@ class GameShelfController:
         self.data_handler = data_handler
         self.games = self.data_handler.load_games()
         self.runners = {runner.id: runner for runner in self.data_handler.load_runners()}
+        self.current_filter = None
 
     def get_games(self) -> List[Game]:
         return self.games
@@ -670,12 +671,9 @@ class GameShelfController:
 
     def reload_data(self):
         """Reload all data from storage and refresh the UI"""
-        # Reload games and runners from disk
         self.games = self.data_handler.load_games()
         self.runners = {runner.id: runner for runner in self.data_handler.load_runners()}
-
-        # Update UI
-        self.populate_games()
+        self.populate_games(filter_runner=self.current_filter)
 
     def get_game_pixbuf(self, game: Game, width: int = 200, height: int = 260) -> Optional[GdkPixbuf.Pixbuf]:
         """Get a game's image as a pixbuf, using the data handler"""
@@ -722,6 +720,7 @@ class GameShelfController:
             box.append(game_item)
 
     def populate_games(self, filter_runner: Optional[str] = None):
+        self.current_filter = filter_runner
         self.games_model.remove_all()
         games = self.get_games()
 

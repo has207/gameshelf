@@ -324,17 +324,7 @@ class DataHandler:
 
         try:
             if game_dir.exists():
-                # Remove the game's image if it exists and is in our media directory
-                if game.image and os.path.exists(game.image):
-                    image_path = Path(game.image)
-                    # Only remove if the image is in our media directory (not a system icon)
-                    if str(self.media_dir) in str(image_path):
-                        try:
-                            image_path.unlink()
-                        except Exception as e:
-                            print(f"Error removing image {game.image}: {e}")
-
-                # Remove the entire game directory
+                # Remove the entire game directory (which includes the cover image)
                 shutil.rmtree(game_dir)
                 return True
             else:
