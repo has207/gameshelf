@@ -2,12 +2,70 @@ import gi
 import os
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk, GObject, GLib
 from data_handler import DataHandler, Game, Runner
 from typing import Dict, List, Optional, Tuple
+
+
+def get_friendly_time(timestamp: float) -> str:
+    """
+    Convert a timestamp to a human-friendly relative time string.
+
+    Args:
+        timestamp: The timestamp to convert
+
+    Returns:
+        A string like "Just now", "Today", "Yesterday", "X days ago", etc.
+    """
+    now = datetime.now()
+    dt = datetime.fromtimestamp(timestamp)
+
+    # Calculate the difference
+    diff = now - dt
+
+    # Just now (within last hour)
+    if diff < timedelta(hours=1):
+        if diff < timedelta(minutes=1):
+            return "Just now"
+        elif diff < timedelta(minutes=2):
+            return "1 minute ago"
+        else:
+            return f"{int(diff.total_seconds() / 60)} minutes ago"
+
+    # Today
+    if dt.date() == now.date():
+        return "Today"
+
+    # Yesterday
+    if dt.date() == (now - timedelta(days=1)).date():
+        return "Yesterday"
+
+    # Within a week
+    if diff < timedelta(days=7):
+        return f"{diff.days} days ago"
+
+    # Within a month
+    if diff < timedelta(days=30):
+        weeks = diff.days // 7
+        if weeks == 1:
+            return "1 week ago"
+        return f"{weeks} weeks ago"
+
+    # Within a year
+    if diff < timedelta(days=365):
+        months = diff.days // 30
+        if months == 1:
+            return "1 month ago"
+        return f"{months} months ago"
+
+    # More than a year
+    years = diff.days // 365
+    if years == 1:
+        return "1 year ago"
+    return f"{years} years ago"
 
 
 class SidebarItem(GObject.GObject):
@@ -43,6 +101,8 @@ class GameDetailsContent(Gtk.Box):
     remove_button: Gtk.Button = Gtk.Template.Child()
     created_label: Gtk.Label = Gtk.Template.Child()
     modified_label: Gtk.Label = Gtk.Template.Child()
+    play_count_label: Gtk.Label = Gtk.Template.Child()
+    last_played_label: Gtk.Label = Gtk.Template.Child()
 
     def __init__(self):
         super().__init__()
@@ -64,7 +124,22 @@ class GameDetailsContent(Gtk.Box):
                 print(f"Launching game: {self.game.title} with command: {runner.command}")
                 cmd = runner.command.split()
                 game_path = self.controller.data_handler.games_dir / self.game.id
+
+                # Launch the game
                 subprocess.Popen(cmd + [str(game_path)], start_new_session=True)
+
+                # Only increment play count if game launched successfully
+                self.controller.data_handler.increment_play_count(self.game)
+
+                # Update play count in UI
+                self.play_count_label.set_text(f"Play Count: {self.game.play_count}")
+
+                # Update last played timestamp (get it from the file)
+                last_played = self.game.get_last_played_time(self.controller.data_handler.data_dir)
+                if last_played:
+                    friendly_time = get_friendly_time(last_played)
+                    self.last_played_label.set_text(f"Last Played: {friendly_time}")
+
             except Exception as e:
                 print(f"Error launching game: {e}")
                 dialog = Gtk.MessageDialog(
@@ -162,12 +237,23 @@ class GameDetailsContent(Gtk.Box):
                 self.created_label.set_text(f"Added: {created_time}")
             else:
                 self.created_label.set_text("Added: Unknown")
+
             modified_time = game.get_modified_time(self.controller.data_handler.data_dir)
             if modified_time:
                 modified_str = datetime.fromtimestamp(modified_time).strftime("%Y-%m-%d %H:%M:%S")
                 self.modified_label.set_text(f"Modified: {modified_str}")
             else:
                 self.modified_label.set_text("Modified: Unknown")
+
+            # Set play count
+            self.play_count_label.set_text(f"Play Count: {game.play_count}")
+
+            last_played = game.get_last_played_time(self.controller.data_handler.data_dir)
+            if last_played and game.play_count > 0:
+                friendly_time = get_friendly_time(last_played)
+                self.last_played_label.set_text(f"Last Played: {friendly_time}")
+            else:
+                self.last_played_label.set_text("Last Played: Never")
 
         can_play = False
         if self.controller and game.runner:

@@ -205,6 +205,48 @@
             </child>
           </object>
         </child>
+        
+        <!-- Play Stats -->
+        <child>
+          <object class="GtkBox">
+            <property name="spacing">12</property>
+            <style>
+              <class name="play-stats-box"/>
+            </style>
+            <child>
+              <object class="GtkImage">
+                <property name="icon-name">media-playback-start-symbolic</property>
+                <property name="icon-size">large</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">4</property>
+                <child>
+                  <object class="GtkLabel" id="play_count_label">
+                    <property name="label">Play Count: 0</property>
+                    <property name="xalign">0</property>
+                    <property name="ellipsize">end</property>
+                    <style>
+                      <class name="body"/>
+                    </style>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="last_played_label">
+                    <property name="label">Last Played: Never</property>
+                    <property name="xalign">0</property>
+                    <property name="ellipsize">end</property>
+                    <style>
+                      <class name="body"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
 

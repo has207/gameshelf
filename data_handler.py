@@ -27,6 +27,7 @@ class Game:
         self.title = title
         self.runner = runner.lower() if runner else ""
         self.created = created
+        self.play_count = 0
 
     def get_cover_path(self, data_dir: Path) -> str:
         return str(data_dir / "games" / self.id / "cover.jpg")
@@ -35,6 +36,15 @@ class Game:
         game_file = data_dir / "games" / self.id / "game.yaml"
         if game_file.exists():
             return game_file.stat().st_mtime
+        return None
+
+    def get_play_count_path(self, data_dir: Path) -> str:
+        return str(data_dir / "games" / self.id / "play_count.yaml")
+
+    def get_last_played_time(self, data_dir: Path) -> Optional[float]:
+        play_count_file = Path(self.get_play_count_path(data_dir))
+        if play_count_file.exists():
+            return play_count_file.stat().st_mtime
         return None
 
 
@@ -76,6 +86,18 @@ class DataHandler:
                         id=game_id,
                         created=game_data.get("created")
                     )
+
+                    # Load play count if exists
+                    play_count_file = game_file.parent / "play_count.yaml"
+                    if play_count_file.exists():
+                        try:
+                            with open(play_count_file, "r") as pc_file:
+                                play_data = yaml.safe_load(pc_file)
+                                if play_data and isinstance(play_data, dict):
+                                    game.play_count = play_data.get("count", 0)
+                        except Exception as pc_err:
+                            print(f"Error loading play count for {game_id}: {pc_err}")
+
                     games.append(game)
             except Exception as e:
                 print(f"Error loading game {game_file}: {e}")
@@ -317,6 +339,36 @@ class DataHandler:
         except Exception as e:
             print(f"Error loading image for {runner.title}: {e}")
             return None
+
+    def increment_play_count(self, game: Game) -> bool:
+        """
+        Increment the play count for a game and update the play_count.yaml file.
+        The file modification time will serve as the 'last played' timestamp.
+
+        Args:
+            game: The game to increment the play count for
+
+        Returns:
+            True if the play count was successfully incremented, False otherwise
+        """
+        game_dir = self.games_dir / game.id
+        play_count_file = game_dir / "play_count.yaml"
+
+        try:
+            # Increment the play count in the game object
+            game.play_count += 1
+
+            # Create the play count data
+            play_data = {"count": game.play_count}
+
+            # Write to the file (this also updates the modification time)
+            with open(play_count_file, "w") as f:
+                yaml.dump(play_data, f)
+
+            return True
+        except Exception as e:
+            print(f"Error incrementing play count for {game.id}: {e}")
+            return False
 
     def remove_game(self, game: Game) -> bool:
         """
