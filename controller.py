@@ -2,6 +2,9 @@ import gi
 import os
 import subprocess
 import time
+import threading
+import psutil
+from pathlib import Path
 from datetime import datetime, timedelta
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
@@ -68,6 +71,32 @@ def get_friendly_time(timestamp: float) -> str:
     return f"{years} years ago"
 
 
+def format_play_time(seconds: int) -> str:
+    """
+    Format play time in seconds to a human-readable string.
+
+    Args:
+        seconds: The number of seconds of play time
+
+    Returns:
+        A formatted string like "2h 15m", "45m", "30s", etc.
+    """
+    if seconds < 60:
+        return f"{seconds}s"
+
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+
+    hours = minutes // 60
+    minutes = minutes % 60
+
+    if minutes == 0:
+        return f"{hours}h"
+    else:
+        return f"{hours}h {minutes}m"
+
+
 class SidebarItem(GObject.GObject):
     name = GObject.Property(type=str)
     icon_name = GObject.Property(type=str)
@@ -103,6 +132,7 @@ class GameDetailsContent(Gtk.Box):
     modified_label: Gtk.Label = Gtk.Template.Child()
     play_count_label: Gtk.Label = Gtk.Template.Child()
     last_played_label: Gtk.Label = Gtk.Template.Child()
+    play_time_label: Gtk.Label = Gtk.Template.Child()
 
     def __init__(self):
         super().__init__()
@@ -118,15 +148,27 @@ class GameDetailsContent(Gtk.Box):
         if not self.game or not self.controller:
             return
 
+        # Don't launch if the game is already running
+        if self.game.is_running(self.controller.data_handler.data_dir):
+            self.play_button.set_label("Playing...")
+            self.play_button.set_sensitive(False)
+            return
+
         runner = self.controller.get_runner(self.game.runner)
         if runner and runner.command:
             try:
                 print(f"Launching game: {self.game.title} with command: {runner.command}")
                 cmd = runner.command.split()
-                game_path = self.controller.data_handler.games_dir / self.game.id
 
                 # Launch the game
-                subprocess.Popen(cmd + [str(game_path)], start_new_session=True)
+                process = subprocess.Popen(cmd)
+
+                # Save the PID to the PID file
+                self.controller.data_handler.save_game_pid(self.game, process.pid)
+
+                # Update the button state immediately
+                self.play_button.set_label("Playing...")
+                self.play_button.set_sensitive(False)
 
                 # Only increment play count if game launched successfully
                 self.controller.data_handler.increment_play_count(self.game)
@@ -140,6 +182,9 @@ class GameDetailsContent(Gtk.Box):
                     friendly_time = get_friendly_time(last_played)
                     self.last_played_label.set_text(f"Last Played: {friendly_time}")
 
+                # Start tracking the process to monitor play time
+                self.monitor_game_process(process.pid, self.game)
+
             except Exception as e:
                 print(f"Error launching game: {e}")
                 dialog = Gtk.MessageDialog(
@@ -152,6 +197,99 @@ class GameDetailsContent(Gtk.Box):
                 )
                 dialog.connect("response", lambda dialog, response: dialog.destroy())
                 dialog.show()
+
+    def monitor_game_process(self, pid: int, game: Game):
+        """
+        Monitor a game process and update playtime when it exits.
+
+        Args:
+            pid: The process ID to monitor
+            game: The game being played
+        """
+        # Start a new thread to monitor the process
+        monitor_thread = threading.Thread(
+            target=self._process_monitor_thread,
+            args=(pid, game),
+            daemon=True  # Make it a daemon so it doesn't block program exit
+        )
+        monitor_thread.start()
+
+    def _process_monitor_thread(self, pid: int, game: Game):
+        """
+        Thread function to monitor a game process and update playtime.
+
+        Args:
+            pid: The process ID to monitor
+            game: The game being played
+        """
+        try:
+            # Get the file creation time for the pid.yaml file to use as our start time
+            pid_file = Path(game.get_pid_path(self.controller.data_handler.data_dir))
+            start_time = pid_file.stat().st_ctime
+
+            # Try to get the process
+            try:
+                process = psutil.Process(pid)
+                # Wait for process to exit
+                process.wait()
+            except psutil.NoSuchProcess:
+                # Process doesn't exist or already exited
+                print(f"Process {pid} for game {game.title} no longer exists or has already exited")
+                # We'll continue to update the playtime anyway
+
+            # Calculate play time
+            end_time = time.time()
+            seconds_played = int(end_time - start_time)
+
+            # Don't count very short sessions (less than 1 second)
+            if seconds_played < 1:
+                seconds_played = 1  # At least record 1 second for very short sessions
+
+            print(f"Game {game.title} played for {seconds_played} seconds")
+
+            # Update the play time in the data handler
+            self.controller.data_handler.update_play_time(game, seconds_played)
+
+            # Remove the PID file since the process has exited
+            self.controller.data_handler.clear_game_pid(game)
+
+            # Update the UI on the main thread if this game is currently displayed
+            GLib.idle_add(self._update_playtime_ui, game)
+
+        except Exception as e:
+            print(f"Error monitoring game process: {e}")
+            # Make sure to clean up the PID file in case of error
+            self.controller.data_handler.clear_game_pid(game)
+
+
+    def _update_playtime_ui(self, game: Game):
+        """
+        Update the play time in the UI. This is called from the monitor thread via GLib.idle_add.
+
+        Args:
+            game: The game to update playtime for
+        """
+        if self.game and self.game.id == game.id:
+            # Format the play time
+            formatted_time = format_play_time(game.play_time)
+            self.play_time_label.set_text(f"Play Time: {formatted_time}")
+
+            # Update the play button state based on whether the game is running
+            # (should be false now, but we check the file to be sure)
+            if self.game.is_running(self.controller.data_handler.data_dir):
+                self.play_button.set_label("Playing...")
+                self.play_button.set_sensitive(False)
+            else:
+                # The game isn't running, enable the play button if there's a valid runner
+                can_play = False
+                if self.controller and self.game.runner:
+                    runner = self.controller.get_runner(self.game.runner)
+                    can_play = runner is not None and runner.command is not None
+
+                self.play_button.set_label("Play Game")
+                self.play_button.set_sensitive(can_play)
+
+        return False  # Return False to remove this function from the idle queue
 
     def set_controller(self, controller):
         self.controller = controller
@@ -248,6 +386,13 @@ class GameDetailsContent(Gtk.Box):
             # Set play count
             self.play_count_label.set_text(f"Play Count: {game.play_count}")
 
+            # Set play time
+            if game.play_time > 0:
+                formatted_time = format_play_time(game.play_time)
+                self.play_time_label.set_text(f"Play Time: {formatted_time}")
+            else:
+                self.play_time_label.set_text("Play Time: Not played")
+
             last_played = game.get_last_played_time(self.controller.data_handler.data_dir)
             if last_played and game.play_count > 0:
                 friendly_time = get_friendly_time(last_played)
@@ -260,7 +405,13 @@ class GameDetailsContent(Gtk.Box):
             runner = self.controller.get_runner(game.runner)
             can_play = runner is not None and runner.command is not None
 
-        self.play_button.set_sensitive(can_play)
+        # Update the play button state based on whether the game is running
+        if game.is_running(self.controller.data_handler.data_dir):
+            self.play_button.set_label("Playing...")
+            self.play_button.set_sensitive(False)
+        else:
+            self.play_button.set_label("Play Game")
+            self.play_button.set_sensitive(can_play)
 
 
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "window.ui"))

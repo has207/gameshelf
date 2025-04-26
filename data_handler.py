@@ -28,6 +28,7 @@ class Game:
         self.runner = runner.lower() if runner else ""
         self.created = created
         self.play_count = 0
+        self.play_time = 0  # Total play time in seconds
 
     def get_cover_path(self, data_dir: Path) -> str:
         return str(data_dir / "games" / self.id / "cover.jpg")
@@ -41,11 +42,22 @@ class Game:
     def get_play_count_path(self, data_dir: Path) -> str:
         return str(data_dir / "games" / self.id / "play_count.yaml")
 
+    def get_play_time_path(self, data_dir: Path) -> str:
+        return str(data_dir / "games" / self.id / "playtime.yaml")
+
+    def get_pid_path(self, data_dir: Path) -> str:
+        return str(data_dir / "games" / self.id / "pid.yaml")
+
     def get_last_played_time(self, data_dir: Path) -> Optional[float]:
         play_count_file = Path(self.get_play_count_path(data_dir))
         if play_count_file.exists():
             return play_count_file.stat().st_mtime
         return None
+
+    def is_running(self, data_dir: Path) -> bool:
+        """Check if the game is currently running by looking for a pid.yaml file"""
+        pid_file = Path(self.get_pid_path(data_dir))
+        return pid_file.exists()
 
 
 class DataHandler:
@@ -97,6 +109,17 @@ class DataHandler:
                                     game.play_count = play_data.get("count", 0)
                         except Exception as pc_err:
                             print(f"Error loading play count for {game_id}: {pc_err}")
+
+                    # Load play time if exists
+                    play_time_file = game_file.parent / "playtime.yaml"
+                    if play_time_file.exists():
+                        try:
+                            with open(play_time_file, "r") as pt_file:
+                                play_time_data = yaml.safe_load(pt_file)
+                                if play_time_data and isinstance(play_time_data, dict):
+                                    game.play_time = play_time_data.get("seconds", 0)
+                        except Exception as pt_err:
+                            print(f"Error loading play time for {game_id}: {pt_err}")
 
                     games.append(game)
             except Exception as e:
@@ -368,6 +391,113 @@ class DataHandler:
             return True
         except Exception as e:
             print(f"Error incrementing play count for {game.id}: {e}")
+            return False
+
+    def update_play_time(self, game: Game, seconds: int) -> bool:
+        """
+        Update the play time for a game and save it to the playtime.yaml file.
+
+        Args:
+            game: The game to update the play time for
+            seconds: The number of seconds to add to the play time
+
+        Returns:
+            True if the play time was successfully updated, False otherwise
+        """
+        if seconds <= 0:
+            return True  # Nothing to update
+
+        game_dir = self.games_dir / game.id
+        play_time_file = game_dir / "playtime.yaml"
+
+        try:
+            # Add the new play time to the existing total
+            game.play_time += seconds
+
+            # Create the play time data
+            play_time_data = {"seconds": game.play_time}
+
+            # Write to the file
+            with open(play_time_file, "w") as f:
+                yaml.dump(play_time_data, f)
+
+            return True
+        except Exception as e:
+            print(f"Error updating play time for {game.id}: {e}")
+            return False
+
+    def save_game_pid(self, game: Game, pid: int) -> bool:
+        """
+        Save the PID of a running game process to a pid.yaml file.
+
+        Args:
+            game: The game being played
+            pid: The process ID of the game
+
+        Returns:
+            True if the PID was successfully saved, False otherwise
+        """
+        game_dir = self.games_dir / game.id
+        pid_file = game_dir / "pid.yaml"
+
+        try:
+            # Create the PID data
+            pid_data = {"pid": pid}
+
+            # Write to the file
+            with open(pid_file, "w") as f:
+                yaml.dump(pid_data, f)
+
+            return True
+        except Exception as e:
+            print(f"Error saving PID for {game.id}: {e}")
+            return False
+
+    def get_game_pid(self, game: Game) -> Optional[int]:
+        """
+        Get the PID of a running game process from the pid.yaml file.
+
+        Args:
+            game: The game to check
+
+        Returns:
+            The PID if the game is running, None otherwise
+        """
+        pid_file = Path(game.get_pid_path(self.data_dir))
+
+        if not pid_file.exists():
+            return None
+
+        try:
+            with open(pid_file, "r") as f:
+                pid_data = yaml.safe_load(f)
+                if pid_data and isinstance(pid_data, dict):
+                    return pid_data.get("pid")
+        except Exception as e:
+            print(f"Error getting PID for {game.id}: {e}")
+
+        return None
+
+    def clear_game_pid(self, game: Game) -> bool:
+        """
+        Remove the pid.yaml file for a game.
+
+        Args:
+            game: The game to clear the PID for
+
+        Returns:
+            True if the PID file was successfully removed, False otherwise
+        """
+        pid_file = Path(game.get_pid_path(self.data_dir))
+
+        if not pid_file.exists():
+            return True
+
+        try:
+            pid_file.unlink()
+            return True
+        except Exception as e:
+            print(f"Error clearing PID for {game.id}: {e}")
             return False
 
     def remove_game(self, game: Game) -> bool:
