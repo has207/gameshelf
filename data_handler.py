@@ -1,5 +1,6 @@
 import os
 import yaml
+import time
 import shutil
 from pathlib import Path
 from dataclasses import dataclass
@@ -21,13 +22,20 @@ class Runner:
 
 @dataclass
 class Game:
-    def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None):
+    def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None, created: Optional[float] = None):
         self.id = id.lower()
         self.title = title
         self.runner = runner.lower() if runner else ""
+        self.created = created
 
     def get_cover_path(self, data_dir: Path) -> str:
         return str(data_dir / "games" / self.id / "cover.jpg")
+
+    def get_modified_time(self, data_dir: Path) -> Optional[float]:
+        game_file = data_dir / "games" / self.id / "game.yaml"
+        if game_file.exists():
+            return game_file.stat().st_mtime
+        return None
 
 
 class DataHandler:
@@ -56,10 +64,8 @@ class DataHandler:
 
     def load_games(self) -> List[Game]:
         games = []
-        # Look for game.yaml files inside subdirectories of the games directory
         for game_file in self.games_dir.glob("*/game.yaml"):
             try:
-                # The game ID is the name of the parent directory
                 game_id = game_file.parent.name
 
                 with open(game_file, "r") as f:
@@ -67,7 +73,8 @@ class DataHandler:
                     game = Game(
                         title=game_data.get("title", "Unknown Game"),
                         runner=game_data.get("runner"),
-                        id=game_id
+                        id=game_id,
+                        created=game_data.get("created")
                     )
                     games.append(game)
             except Exception as e:
@@ -93,9 +100,9 @@ class DataHandler:
 
     def save_game(self, game: Game) -> bool:
         if not game.id:
-            # Only generate a numeric ID if one doesn't exist
             next_id = self.get_next_game_id()
             game.id = str(next_id)
+            game.created = time.time()
 
         game_data = {
             "title": game.title,
@@ -103,13 +110,13 @@ class DataHandler:
 
         if game.runner:
             game_data["runner"] = game.runner
+        if game.created:
+            game_data["created"] = game.created
 
         try:
-            # Create the game's directory if it doesn't exist
             game_dir = self.games_dir / game.id
             game_dir.mkdir(parents=True, exist_ok=True)
 
-            # Save the game data to game.yaml inside the game directory
             game_file = game_dir / "game.yaml"
             with open(game_file, "w") as f:
                 yaml.dump(game_data, f)
@@ -181,11 +188,12 @@ class DataHandler:
         next_id = self.get_next_game_id()
         game_id = str(next_id)
 
-        # Create the game object
+        # Create the game object with creation timestamp
         game = Game(
             id=game_id,
             title=title,
-            runner=runner_id
+            runner=runner_id,
+            created=time.time()
         )
 
         # Save image if provided

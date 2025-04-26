@@ -1,6 +1,8 @@
 import gi
 import os
 import subprocess
+import time
+from datetime import datetime
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk, GObject, GLib
@@ -39,6 +41,8 @@ class GameDetailsContent(Gtk.Box):
     play_button: Gtk.Button = Gtk.Template.Child()
     edit_button: Gtk.Button = Gtk.Template.Child()
     remove_button: Gtk.Button = Gtk.Template.Child()
+    created_label: Gtk.Label = Gtk.Template.Child()
+    modified_label: Gtk.Label = Gtk.Template.Child()
 
     def __init__(self):
         super().__init__()
@@ -127,19 +131,15 @@ class GameDetailsContent(Gtk.Box):
 
     def set_game(self, game: Game):
         self.game = game
-        # Set title and ID
         self.title_label.set_text(game.title)
         self.id_label.set_text(game.id)
 
-        # Get window and controller references
         window = self.get_ancestor(GameShelfWindow)
         if window and window.controller:
             self.controller = window.controller
 
-        # Set runner info
         if game.runner:
             runner_name = game.runner.capitalize()
-            # Set runner icon if available
             if self.controller:
                 icon_name = self.controller.data_handler.get_runner_icon(game.runner)
                 self.runner_icon.set_from_icon_name(icon_name)
@@ -149,19 +149,28 @@ class GameDetailsContent(Gtk.Box):
 
         self.runner_label.set_text(runner_name)
 
-        # Set game image if available
         if self.controller:
             pixbuf = self.controller.get_game_pixbuf(game, width=280, height=380)
             if pixbuf:
                 self.game_image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
             else:
-                # Get a default icon paintable from the data handler
                 icon_paintable = self.controller.data_handler.get_default_icon_paintable("applications-games-symbolic", 180)
                 self.game_image.set_paintable(icon_paintable)
 
-        # Enable/disable play button based on if we have a runner with a command
+            if game.created:
+                created_time = datetime.fromtimestamp(game.created).strftime("%Y-%m-%d %H:%M:%S")
+                self.created_label.set_text(f"Added: {created_time}")
+            else:
+                self.created_label.set_text("Added: Unknown")
+            modified_time = game.get_modified_time(self.controller.data_handler.data_dir)
+            if modified_time:
+                modified_str = datetime.fromtimestamp(modified_time).strftime("%Y-%m-%d %H:%M:%S")
+                self.modified_label.set_text(f"Modified: {modified_str}")
+            else:
+                self.modified_label.set_text("Modified: Unknown")
+
         can_play = False
-        if self.controller and game.runner:  # Ensure there's a runner set
+        if self.controller and game.runner:
             runner = self.controller.get_runner(game.runner)
             can_play = runner is not None and runner.command is not None
 
