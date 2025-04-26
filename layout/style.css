@@ -155,6 +155,18 @@ button.pill {
 }
 
 /* Context menu styling */
+.context-menu-container {
+  margin-start: 8px;
+  margin-end: 8px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.context-menu-separator {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
 .context-menu-item {
   padding: 6px 12px;
   border-radius: 4px;
@@ -208,4 +220,22 @@ searchentry:focus {
 
 .sort-button {
   padding: 4px;
+}
+
+/* Details panel layout styling */
+.details-panel-topbar {
+  margin-top: 4px;
+  margin-end: 4px;
+}
+
+.details-panel-title {
+  margin-top: 12px;
+}
+
+.details-panel-buttons {
+  margin-bottom: 12px;
+}
+
+.details-panel-actions {
+  margin-top: 12px;
 }

@@ -14,8 +14,9 @@
     <child>
       <object class="GtkBox">
         <property name="height-request">20</property>
-        <property name="margin-top">4</property>
-        <property name="margin-end">4</property>
+        <style>
+          <class name="details-panel-topbar"/>
+        </style>
         <child>
           <object class="GtkBox">
             <property name="hexpand">true</property>
@@ -39,7 +40,9 @@
     <child>
       <object class="GtkBox">
         <property name="spacing">8</property>
-        <property name="margin-top">12</property>
+        <style>
+          <class name="details-panel-title"/>
+        </style>
         <child>
           <object class="GtkLabel" id="title_label">
             <property name="xalign">0</property>
@@ -63,8 +66,10 @@
     <child>
       <object class="GtkBox">
         <property name="spacing">12</property>
-        <property name="margin-bottom">12</property>
         <property name="halign">start</property>
+        <style>
+          <class name="details-panel-buttons"/>
+        </style>
         
         <!-- Play Button -->
         <child>
@@ -242,9 +247,9 @@
       <object class="GtkBox">
         <property name="orientation">vertical</property>
         <property name="spacing">12</property>
-        <property name="margin-top">12</property>
         <style>
           <class name="actions-container"/>
+          <class name="details-panel-actions"/>
         </style>
         
         <!-- Remove Button -->

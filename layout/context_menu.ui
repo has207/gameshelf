@@ -6,10 +6,9 @@
       <object class="GtkBox">
         <property name="orientation">vertical</property>
         <property name="spacing">2</property>
-        <property name="margin-start">8</property>
-        <property name="margin-end">8</property>
-        <property name="margin-top">8</property>
-        <property name="margin-bottom">8</property>
+        <style>
+          <class name="context-menu-container"/>
+        </style>
         
         <!-- Play Button -->
         <child>
@@ -34,8 +33,9 @@
         <!-- Separator -->
         <child>
           <object class="GtkSeparator">
-            <property name="margin-top">4</property>
-            <property name="margin-bottom">4</property>
+            <style>
+              <class name="context-menu-separator"/>
+            </style>
           </object>
         </child>
         
