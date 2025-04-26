@@ -172,3 +172,14 @@ button.pill {
 .context-menu-item-destructive:hover {
   background-color: alpha(#e01b24, 0.2);
 }
+
+/* Search entry styling */
+searchentry {
+  border-radius: 999px;
+  margin: 0;
+  min-width: 300px;
+}
+
+searchentry:focus {
+  border-color: @accent_color;
+}

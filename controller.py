@@ -413,6 +413,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
     details_content: GameDetailsContent = Gtk.Template.Child()
     sidebar_listview: Gtk.ListView = Gtk.Template.Child()
     add_game_button: Gtk.Button = Gtk.Template.Child()
+    search_entry: Gtk.SearchEntry = Gtk.Template.Child()
 
     def __init__(self, app, controller):
         super().__init__(application=app)
@@ -505,6 +506,11 @@ class GameShelfWindow(Adw.ApplicationWindow):
         was_panel_open = self.details_panel.get_reveal_flap()
 
         selected = self.sidebar_store.get_item(index).name
+
+        # Clear the search entry when changing sidebar selection
+        if self.search_entry.get_text():
+            self.search_entry.set_text("")
+
         if selected == "Games":
             self.controller.populate_games()
         elif selected == "No Runner":
@@ -512,6 +518,14 @@ class GameShelfWindow(Adw.ApplicationWindow):
             self.controller.populate_games(filter_runner="")
         else:
             self.controller.populate_games(filter_runner=selected)
+
+    @Gtk.Template.Callback()
+    def on_search_changed(self, search_entry):
+        """Handle search entry text changes"""
+        search_text = search_entry.get_text().strip().lower()
+
+        # Populate games with search filter
+        self.controller.populate_games(search_text=search_text)
 
 
 @Gtk.Template(filename=os.path.join(os.path.dirname(__file__), "layout", "game_item.ui"))
@@ -1013,7 +1027,13 @@ class GameShelfController:
         """Reload all data from storage and refresh the UI"""
         self.games = self.data_handler.load_games()
         self.runners = {runner.id: runner for runner in self.data_handler.load_runners()}
-        self.populate_games(filter_runner=self.current_filter)
+
+        # Get search text from the window if available
+        search_text = ""
+        if self.window and hasattr(self.window, 'search_entry'):
+            search_text = self.window.search_entry.get_text().strip().lower()
+
+        self.populate_games(filter_runner=self.current_filter, search_text=search_text)
 
     def get_game_pixbuf(self, game: Game, width: int = 200, height: int = 260) -> Optional[GdkPixbuf.Pixbuf]:
         """Get a game's image as a pixbuf, using the data handler"""
@@ -1059,14 +1079,18 @@ class GameShelfController:
             game_item = self.games_model.get_item(position)
             box.append(game_item)
 
-    def populate_games(self, filter_runner: Optional[str] = None):
+    def populate_games(self, filter_runner: Optional[str] = None, search_text: str = ""):
         self.current_filter = filter_runner
         self.games_model.remove_all()
         games = self.get_games()
 
-        # Handle filtering
+        # Apply runner filter
         if filter_runner is not None:  # Filter is specifically set (including empty string)
             games = [g for g in games if g.runner == filter_runner]
+
+        # Apply search filter if search text is provided
+        if search_text:
+            games = [g for g in games if search_text in g.title.lower()]
 
         # Create widgets for the games
         for game in games:

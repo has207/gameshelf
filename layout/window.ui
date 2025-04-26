@@ -15,19 +15,27 @@
         <!-- Title bar -->
         <child>
           <object class="AdwHeaderBar">
-            <child>
-              <object class="GtkLabel">
-                <property name="label">GameShelf</property>
-                <property name="xalign">0</property>
-              </object>
-            </child>
-            <child type="end">
+            <child type="start">
               <object class="GtkButton" id="add_game_button">
                 <property name="icon-name">list-add-symbolic</property>
-                <property name="tooltip-text">Add New Game</property>
+                <property name="tooltip-text">Add Game</property>
                 <signal name="clicked" handler="on_add_game_clicked"/>
               </object>
             </child>
+            
+            <property name="title-widget">
+              <object class="GtkBox">
+                <property name="halign">center</property>
+                <property name="spacing">12</property>
+                <child>
+                  <object class="GtkSearchEntry" id="search_entry">
+                    <property name="placeholder-text">Search games...</property>
+                    <property name="width-request">400</property>
+                    <signal name="search-changed" handler="on_search_changed"/>
+                  </object>
+                </child>
+              </object>
+            </property>
           </object>
         </child>
 
