@@ -122,9 +122,7 @@ class GameDetailsContent(Gtk.Box):
     __gtype_name__ = "GameDetailsContent"
     title_label: Gtk.Label = Gtk.Template.Child()
     runner_label: Gtk.Label = Gtk.Template.Child()
-    id_label: Gtk.Label = Gtk.Template.Child()
     runner_icon: Gtk.Image = Gtk.Template.Child()
-    game_image: Gtk.Picture = Gtk.Template.Child()
     play_button: Gtk.Button = Gtk.Template.Child()
     edit_button: Gtk.Button = Gtk.Template.Child()
     remove_button: Gtk.Button = Gtk.Template.Child()
@@ -345,7 +343,6 @@ class GameDetailsContent(Gtk.Box):
     def set_game(self, game: Game):
         self.game = game
         self.title_label.set_text(game.title)
-        self.id_label.set_text(game.id)
 
         window = self.get_ancestor(GameShelfWindow)
         if window and window.controller:
@@ -363,13 +360,6 @@ class GameDetailsContent(Gtk.Box):
         self.runner_label.set_text(runner_name)
 
         if self.controller:
-            pixbuf = self.controller.get_game_pixbuf(game, width=280, height=380)
-            if pixbuf:
-                self.game_image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
-            else:
-                icon_paintable = self.controller.data_handler.get_default_icon_paintable("applications-games-symbolic", 180)
-                self.game_image.set_paintable(icon_paintable)
-
             if game.created:
                 created_time = datetime.fromtimestamp(game.created).strftime("%Y-%m-%d %H:%M:%S")
                 self.created_label.set_text(f"Added: {created_time}")
@@ -427,6 +417,8 @@ class GameShelfWindow(Adw.ApplicationWindow):
     def __init__(self, app, controller):
         super().__init__(application=app)
         self.controller = controller
+        # Set the window reference in the controller
+        self.controller.window = self
         # Track the currently selected game to maintain state across filtering
         self.current_selected_game = None
 
@@ -543,12 +535,114 @@ class GameItem(Gtk.Box):
             icon_paintable = controller.data_handler.get_default_icon_paintable("applications-games-symbolic")
             self.image.set_paintable(icon_paintable)
 
-        # Add click gesture for showing details panel
+        # Add left-click gesture for showing details panel
         click_gesture = Gtk.GestureClick.new()
         click_gesture.connect("released", self._on_clicked)
         self.add_controller(click_gesture)
 
+        # Add right-click gesture for context menu
+        right_click = Gtk.GestureClick.new()
+        right_click.set_button(3)  # Right mouse button
+        right_click.connect("pressed", self._on_right_click)
+        self.add_controller(right_click)
+
+    def _create_context_menu(self):
+        # Create a simple popover with buttons
+        popover = Gtk.Popover.new()
+        popover.set_parent(self)
+
+        # Create a box to hold the menu items
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.set_margin_start(8)
+        box.set_margin_end(8)
+        box.set_margin_top(8)
+        box.set_margin_bottom(8)
+
+        # Play button
+        play_button = Gtk.Button(label="Play Game")
+        play_button.add_css_class("flat")
+        play_button.connect("clicked", self._on_context_play_clicked)
+        box.append(play_button)
+
+        # Edit button
+        edit_button = Gtk.Button(label="Edit Game")
+        edit_button.add_css_class("flat")
+        edit_button.connect("clicked", self._on_context_edit_clicked)
+        box.append(edit_button)
+
+        # Separator
+        separator = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+        separator.set_margin_top(4)
+        separator.set_margin_bottom(4)
+        box.append(separator)
+
+        # Remove button
+        remove_button = Gtk.Button(label="Remove Game")
+        remove_button.add_css_class("flat")
+        remove_button.add_css_class("destructive-action")
+        remove_button.connect("clicked", self._on_context_remove_clicked)
+        box.append(remove_button)
+
+        popover.set_child(box)
+        return popover
+
+    def _on_right_click(self, gesture, n_press, x, y):
+        # Show context menu at pointer position
+        menu = self._create_context_menu()
+        if not menu:
+            return
+
+        # Find the main window
+        window = self.get_ancestor(GameShelfWindow)
+        if window:
+            # Store the selected game to maintain state
+            window.current_selected_game = self.game
+
+        # Set the position to be at the mouse pointer
+        rect = Gdk.Rectangle()
+        rect.x = x
+        rect.y = y
+        rect.width = 1
+        rect.height = 1
+        menu.set_pointing_to(rect)
+
+        # Show the menu
+        menu.popup()
+
+    def _on_context_play_clicked(self, button):
+        # Close the context menu
+        button.get_ancestor(Gtk.Popover).popdown()
+
+        window = self.get_ancestor(GameShelfWindow)
+        if window:
+            # Update the details panel with the game
+            window.details_content.set_game(self.game)
+            # Trigger the play button click
+            window.details_content.on_play_button_clicked(None)
+
+    def _on_context_edit_clicked(self, button):
+        # Close the context menu
+        button.get_ancestor(Gtk.Popover).popdown()
+
+        window = self.get_ancestor(GameShelfWindow)
+        if window:
+            window.details_content.set_game(self.game)
+            window.details_content.on_edit_button_clicked(None)
+
+    def _on_context_remove_clicked(self, button):
+        # Close the context menu
+        button.get_ancestor(Gtk.Popover).popdown()
+
+        window = self.get_ancestor(GameShelfWindow)
+        if window:
+            window.details_content.set_game(self.game)
+            window.details_content.on_remove_button_clicked(None)
+
     def _on_clicked(self, gesture, n_press, x, y):
+        # Only handle left clicks (button 1)
+        if gesture.get_current_button() != 1:
+            return
+
         # Find the main window to access the details panel
         window = self.get_ancestor(GameShelfWindow)
         if window:
@@ -897,6 +991,8 @@ class GameShelfController:
         self.games = self.data_handler.load_games()
         self.runners = {runner.id: runner for runner in self.data_handler.load_runners()}
         self.current_filter = None
+        self.window = None
+        self.actions = {}
 
     def get_games(self) -> List[Game]:
         return self.games
@@ -996,4 +1092,20 @@ class GameShelfController:
 
     def create_runner_widget(self, runner: Runner) -> Gtk.Widget:
         return RunnerItem(runner, self)
+
+    def add_action(self, action: Gio.SimpleAction):
+        """
+        Add an action to the controller's action map.
+        This is used for the context menu actions.
+
+        Args:
+            action: The action to add
+        """
+        # Store a reference to the action to prevent it from being garbage collected
+        action_name = action.get_name()
+        self.actions[action_name] = action
+
+        # Add the action to the window's action map if available
+        if self.window:
+            self.window.add_action(action)
 
