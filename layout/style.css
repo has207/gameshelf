@@ -222,6 +222,13 @@ searchentry:focus {
   padding: 4px;
 }
 
+/* Required field styling */
+.required-asterisk {
+  color: #e01b24;
+  font-weight: bold;
+  margin-left: 4px;
+}
+
 /* Details panel layout styling */
 .details-panel-topbar {
   margin-top: 4px;
