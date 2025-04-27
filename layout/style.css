@@ -31,6 +31,25 @@
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
 }
 
+/* Selected state for multi-selection */
+.selected-game-item {
+  background-color: alpha(@accent_bg_color, 0.15);
+  border-radius: 12px;
+  outline: 2px solid @accent_color;
+}
+
+.selected-game-item .game-image-container {
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Applied directly to the game item widget */
+.selected-item {
+  background-color: alpha(@accent_bg_color, 0.2);
+  border-radius: 8px;
+  outline: 2px solid @accent_color;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+}
+
 .game-title {
   font-weight: bold;
   font-size: 14px;

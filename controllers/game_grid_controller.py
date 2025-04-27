@@ -78,11 +78,55 @@ class GameItem(Gtk.Box):
         # Find the main window to access the details panel
         from controllers.window_controller import GameShelfWindow
         window = self.get_ancestor(GameShelfWindow)
-        if window:
+        if not window:
+            return
+
+        # Get keyboard state to check for shift key
+        shift_pressed = (gesture.get_current_event_state() & Gdk.ModifierType.SHIFT_MASK) != 0
+
+        # Find our position in the grid view
+        grid_ctrl = window.controller.game_grid_controller
+        position = -1
+
+        # Find the index of this game item in the model
+        for i in range(grid_ctrl.games_model.get_n_items()):
+            if grid_ctrl.games_model.get_item(i) == self:
+                position = i
+                break
+
+        if position < 0:
+            return
+
+        # If shift key is pressed, handle range selection
+        if shift_pressed and grid_ctrl.last_selected_position >= 0:
+            # Calculate range between last selected position and current position
+            start_pos = min(position, grid_ctrl.last_selected_position)
+            end_pos = max(position, grid_ctrl.last_selected_position) + 1
+
+            # For Gtk4 MultiSelection, we need to handle selection differently
+            # We'll need to toggle each item's selection state individually
+            for i in range(start_pos, end_pos):
+                # GTK4 doesn't have a direct way to set multiple selections at once in MultiSelection
+                # Toggle each item's selection
+                grid_ctrl.selection_model.select_item(i, True)
+
+            # Update the last selected position
+            grid_ctrl.last_selected_position = position
+
+        # Normal click (no modifier keys)
+        else:
+            # Clear all selections
+            for i in range(grid_ctrl.games_model.get_n_items()):
+                if grid_ctrl.selection_model.is_selected(i):
+                    grid_ctrl.selection_model.unselect_item(i)
+
             # Store the selected game to maintain state across filtering
             window.current_selected_game = self.game
             window.details_content.set_game(self.game)
             window.details_panel.set_reveal_flap(True)
+
+            # Update the last selected position
+            grid_ctrl.last_selected_position = position
 
 
 @Gtk.Template(filename=get_template_path("runner_item.ui"))
@@ -109,21 +153,28 @@ class GameGridController:
     def __init__(self, main_controller):
         self.main_controller = main_controller
         self.games_model = None
+        self.last_selected_position = -1  # Track the last selected position for range selection
 
     def bind_gridview(self, grid_view: Gtk.GridView):
         self.games_model = Gio.ListStore(item_type=Gtk.Widget)
+        self.grid_view = grid_view
 
         factory = Gtk.SignalListItemFactory()
         factory.connect("setup", self._on_factory_setup)
         factory.connect("bind", self._on_factory_bind)
 
-        # Create selection model that doesn't auto-select the first item
-        selection_model = Gtk.SingleSelection(model=self.games_model, autoselect=False)
-        grid_view.set_model(selection_model)
+        # Create multi-selection model that doesn't auto-select the first item
+        self.selection_model = Gtk.MultiSelection(model=self.games_model)
+        grid_view.set_model(self.selection_model)
         grid_view.set_factory(factory)
 
-        # Set fixed size for grid items
-        grid_view.set_enable_rubberband(False)
+        # Enable rubber band selection
+        grid_view.set_enable_rubberband(True)
+
+        # Add keyboard controller for handling key events (like delete)
+        key_controller = Gtk.EventControllerKey.new()
+        key_controller.connect("key-pressed", self._on_key_pressed)
+        grid_view.add_controller(key_controller)
 
         self.populate_games()
 
@@ -144,9 +195,24 @@ class GameGridController:
             game_item = self.games_model.get_item(position)
             box.append(game_item)
 
+            # Add selected style based on selection state
+            selection = self.selection_model.get_selection()
+            if selection.contains(position):
+                box.add_css_class("selected-game-item")
+                # Also add style to the game item itself for better visibility
+                if hasattr(game_item, 'add_css_class'):
+                    game_item.add_css_class("selected-item")
+            else:
+                box.remove_css_class("selected-game-item")
+                # Remove style from the game item
+                if hasattr(game_item, 'remove_css_class'):
+                    game_item.remove_css_class("selected-item")
+
     def populate_games(self, filter_runner: Optional[str] = None, search_text: str = ""):
         self.main_controller.current_filter = filter_runner
         self.games_model.remove_all()
+        # Reset selection tracking when repopulating
+        self.last_selected_position = -1
         games = self.main_controller.get_games()
 
         # Apply runner filter
@@ -225,3 +291,69 @@ class GameGridController:
 
     def create_runner_widget(self, runner: Runner) -> Gtk.Widget:
         return RunnerItem(runner, self.main_controller)
+
+    def _on_key_pressed(self, controller, keyval, keycode, state):
+        """Handle keyboard events"""
+        # Check for Delete key (keyval 65535)
+        if keyval == 65535:  # Delete key
+            self._handle_delete_key_pressed()
+            return True
+        return False
+
+    def _handle_delete_key_pressed(self):
+        """Handle delete key press by removing selected games"""
+        # Get the selected games
+        selected_games = []
+        # Find all selected items
+        for i in range(self.games_model.get_n_items()):
+            if self.selection_model.is_selected(i):
+                game_item = self.games_model.get_item(i)
+                if hasattr(game_item, 'game'):
+                    selected_games.append(game_item.game)
+
+        if not selected_games:
+            return
+
+        # Show confirmation dialog
+        self._show_multi_delete_confirmation(selected_games)
+
+    def _show_multi_delete_confirmation(self, games):
+        """Show a confirmation dialog for deleting multiple games"""
+        from controllers.window_controller import GameShelfWindow
+        window = self.grid_view.get_ancestor(GameShelfWindow)
+        if not window:
+            return
+
+        # Create confirmation dialog
+        dialog = Gtk.MessageDialog(
+            transient_for=window,
+            modal=True,
+            message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.YES_NO,
+            text=f"Remove {len(games)} games?",
+            secondary_text="This action cannot be undone. The selected games will be permanently removed."
+        )
+        dialog.connect("response", self._on_multi_delete_response, games)
+        dialog.show()
+
+    def _on_multi_delete_response(self, dialog, response_id, games):
+        """Handle the response from the remove confirmation dialog"""
+        if response_id == Gtk.ResponseType.YES:
+            # User confirmed removal
+            removed_count = 0
+            for game in games:
+                if self.main_controller.remove_game(game):
+                    removed_count += 1
+
+            # Get the window to update UI if needed
+            from controllers.window_controller import GameShelfWindow
+            window = self.grid_view.get_ancestor(GameShelfWindow)
+            if window and window.details_panel:
+                window.details_panel.set_reveal_flap(False)
+                window.current_selected_game = None
+
+            # Show a feedback message (optional)
+            print(f"Removed {removed_count} games")
+
+        # Destroy the dialog
+        dialog.destroy()
