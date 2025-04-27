@@ -558,3 +558,26 @@ class DataHandler:
         except Exception as e:
             print(f"Error removing game {game.id}: {e}")
             return False
+
+    def remove_runner(self, runner: Runner) -> bool:
+        """
+        Remove a runner from the runners directory.
+
+        Args:
+            runner: The runner to remove
+
+        Returns:
+            True if the runner was successfully removed, False otherwise
+        """
+        runner_file = self.runners_dir / f"{runner.id}.yaml"
+
+        try:
+            if runner_file.exists():
+                runner_file.unlink()
+                return True
+            else:
+                print(f"Runner file {runner_file} not found")
+                return False
+        except Exception as e:
+            print(f"Error removing runner {runner.id}: {e}")
+            return False

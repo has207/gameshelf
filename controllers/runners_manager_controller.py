@@ -293,14 +293,9 @@ class RunnerDialog(Adw.Window):
         if not self.runner:
             return
 
-        # Get the runner file path
-        runner_file = self.controller.data_handler.runners_dir / f"{self.runner.id}.yaml"
-
-        # Delete the file if it exists
-        if runner_file.exists():
-            try:
-                runner_file.unlink()
-
+        try:
+            # Use data handler to remove the runner
+            if self.controller.data_handler.remove_runner(self.runner):
                 # Reload data
                 self.controller.reload_data()
 
@@ -313,19 +308,31 @@ class RunnerDialog(Adw.Window):
 
                 # Refresh sidebar in main window
                 self.refresh_main_window_sidebar()
-            except Exception as e:
-                print(f"Error removing runner: {e}")
-                # Show error dialog
+            else:
+                # Show error dialog for failed removal
                 dialog = Gtk.MessageDialog(
                     transient_for=self,
                     modal=True,
                     message_type=Gtk.MessageType.ERROR,
                     buttons=Gtk.ButtonsType.OK,
                     text="Failed to remove runner",
-                    secondary_text=f"Error: {str(e)}"
+                    secondary_text="The runner file could not be removed."
                 )
                 dialog.connect("response", lambda dialog, response: dialog.destroy())
                 dialog.show()
+        except Exception as e:
+            print(f"Error removing runner: {e}")
+            # Show error dialog
+            dialog = Gtk.MessageDialog(
+                transient_for=self,
+                modal=True,
+                message_type=Gtk.MessageType.ERROR,
+                buttons=Gtk.ButtonsType.OK,
+                text="Failed to remove runner",
+                secondary_text=f"Error: {str(e)}"
+            )
+            dialog.connect("response", lambda dialog, response: dialog.destroy())
+            dialog.show()
 
     def _add_required_field_indicators(self):
         """Add required field indicators (red asterisks) next to required fields"""
