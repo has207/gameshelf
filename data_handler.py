@@ -367,26 +367,27 @@ class DataHandler:
             print(f"Error loading image for {runner.title}: {e}")
             return None
 
-    def increment_play_count(self, game: Game) -> bool:
+    def update_play_count(self, game: Game, count: int) -> bool:
         """
-        Increment the play count for a game and update the play_count.yaml file.
+        Update the play count for a game and save it to the play_count.yaml file.
         The file modification time will serve as the 'last played' timestamp.
 
         Args:
-            game: The game to increment the play count for
+            game: The game to update the play count for
+            count: The new play count value
 
         Returns:
-            True if the play count was successfully incremented, False otherwise
+            True if the play count was successfully updated, False otherwise
         """
         game_dir = self.games_dir / game.id
         play_count_file = game_dir / "play_count.yaml"
 
         try:
-            # Increment the play count in the game object
-            game.play_count += 1
+            # Update the play count in the game object
+            game.play_count = count
 
             # Create the play count data
-            play_data = {"count": game.play_count}
+            play_data = {"count": count}
 
             # Write to the file (this also updates the modification time)
             with open(play_count_file, "w") as f:
@@ -394,29 +395,39 @@ class DataHandler:
 
             return True
         except Exception as e:
-            print(f"Error incrementing play count for {game.id}: {e}")
+            print(f"Error updating play count for {game.id}: {e}")
             return False
+
+    def increment_play_count(self, game: Game) -> bool:
+        """
+        Increment the play count for a game by 1.
+        Uses update_play_count with current count + 1.
+
+        Args:
+            game: The game to increment the play count for
+
+        Returns:
+            True if the play count was successfully incremented, False otherwise
+        """
+        return self.update_play_count(game, game.play_count + 1)
 
     def update_play_time(self, game: Game, seconds: int) -> bool:
         """
-        Update the play time for a game and save it to the playtime.yaml file.
+        Update the play time for a game with a specific value.
 
         Args:
             game: The game to update the play time for
-            seconds: The number of seconds to add to the play time
+            seconds: The total seconds to set play time to
 
         Returns:
             True if the play time was successfully updated, False otherwise
         """
-        if seconds <= 0:
-            return True  # Nothing to update
-
         game_dir = self.games_dir / game.id
         play_time_file = game_dir / "playtime.yaml"
 
         try:
-            # Add the new play time to the existing total
-            game.play_time += seconds
+            # Set the play time to the provided value
+            game.play_time = seconds
 
             # Create the play time data
             play_time_data = {"seconds": game.play_time}
@@ -429,6 +440,26 @@ class DataHandler:
         except Exception as e:
             print(f"Error updating play time for {game.id}: {e}")
             return False
+
+    def increment_play_time(self, game: Game, seconds_to_add: int) -> bool:
+        """
+        Add seconds to a game's play time.
+
+        Args:
+            game: The game to increment play time for
+            seconds_to_add: The number of seconds to add
+
+        Returns:
+            True if the play time was successfully incremented, False otherwise
+        """
+        if seconds_to_add <= 0:
+            return True  # Nothing to add
+
+        # Calculate new total
+        new_total = game.play_time + seconds_to_add
+
+        # Update the play time with the new total
+        return self.update_play_time(game, new_total)
 
     def save_game_pid(self, game: Game, pid: int) -> bool:
         """

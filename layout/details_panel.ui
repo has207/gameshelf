@@ -242,7 +242,7 @@
       </object>
     </child>
 
-    <!-- Remove Button at bottom -->
+    <!-- Toggle Hidden Button at bottom -->
     <child>
       <object class="GtkBox">
         <property name="orientation">vertical</property>
@@ -260,25 +260,6 @@
               <class name="pill"/>
             </style>
             <signal name="clicked" handler="on_toggle_hidden_clicked"/>
-          </object>
-        </child>
-        
-        <!-- Spacer -->
-        <child>
-          <object class="GtkBox">
-            <property name="height-request">8</property>
-          </object>
-        </child>
-        
-        <!-- Remove Button -->
-        <child>
-          <object class="GtkButton" id="remove_button">
-            <property name="label">Remove Game</property>
-            <style>
-              <class name="destructive-action"/>
-              <class name="pill"/>
-            </style>
-            <signal name="clicked" handler="on_remove_button_clicked"/>
           </object>
         </child>
       </object>

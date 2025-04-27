@@ -126,7 +126,6 @@ class GameDetailsContent(Gtk.Box):
     play_button: Gtk.Button = Gtk.Template.Child()
     edit_button: Gtk.Button = Gtk.Template.Child()
     toggle_hidden_button: Gtk.Button = Gtk.Template.Child()
-    remove_button: Gtk.Button = Gtk.Template.Child()
     created_label: Gtk.Label = Gtk.Template.Child()
     modified_label: Gtk.Label = Gtk.Template.Child()
     play_count_label: Gtk.Label = Gtk.Template.Child()
@@ -284,7 +283,7 @@ class GameDetailsContent(Gtk.Box):
             print(f"Game {game.title} played for {seconds_played} seconds")
 
             # Update the play time in the data handler
-            self.controller.data_handler.update_play_time(game, seconds_played)
+            self.controller.data_handler.increment_play_time(game, seconds_played)
 
             # Remove the PID file since the process has exited
             self.controller.data_handler.clear_game_pid(game)
@@ -346,37 +345,6 @@ class GameDetailsContent(Gtk.Box):
     def set_controller(self, controller):
         self.controller = controller
 
-    @Gtk.Template.Callback()
-    def on_remove_button_clicked(self, button):
-        if not self.game or not self.controller:
-            return
-
-        # Create a confirmation dialog
-        window = self.get_ancestor(GameShelfWindow)
-        if window:
-            dialog = Gtk.MessageDialog(
-                transient_for=window,
-                modal=True,
-                message_type=Gtk.MessageType.QUESTION,
-                buttons=Gtk.ButtonsType.YES_NO,
-                text=f"Remove {self.game.title}?",
-                secondary_text="This action cannot be undone. The game will be permanently removed."
-            )
-            dialog.connect("response", self._on_remove_confirmation_response)
-            dialog.show()
-
-    def _on_remove_confirmation_response(self, dialog, response_id):
-        if response_id == Gtk.ResponseType.YES:
-            # User confirmed removal
-            if self.controller.remove_game(self.game):
-                # Close the details panel
-                window = self.get_ancestor(GameShelfWindow)
-                if window:
-                    window.details_panel.set_reveal_flap(False)
-                    window.current_selected_game = None
-
-        # Destroy the dialog in any case
-        dialog.destroy()
 
     @Gtk.Template.Callback()
     def on_edit_button_clicked(self, button):
@@ -885,6 +853,11 @@ class GameDialog(Adw.Window):
     clear_image_button: Gtk.Button = Gtk.Template.Child()
     action_button: Gtk.Button = Gtk.Template.Child()
     cancel_button: Gtk.Button = Gtk.Template.Child()
+    play_stats_group: Adw.PreferencesGroup = Gtk.Template.Child()
+    play_count_entry: Adw.EntryRow = Gtk.Template.Child()
+    play_time_entry: Adw.EntryRow = Gtk.Template.Child()
+    remove_game_container: Adw.PreferencesGroup = Gtk.Template.Child()
+    remove_button: Gtk.Button = Gtk.Template.Child()
 
     def __init__(self, parent_window, controller=None, edit_mode=False):
         super().__init__()
@@ -903,11 +876,15 @@ class GameDialog(Adw.Window):
             self.action_button.set_label("Save Changes")
             self.clear_image_container.set_visible(True)
             self.select_image_button.set_label("Change Image")
+            self.play_stats_group.set_visible(True)
+            self.remove_game_container.set_visible(True)
         else:
             self.dialog_title.set_title("Add New Game")
             self.action_button.set_label("Add Game")
             self.clear_image_container.set_visible(False)
             self.select_image_button.set_label("Select Image")
+            self.play_stats_group.set_visible(False)
+            self.remove_game_container.set_visible(False)
 
         # Ensure action button updates when entry changes
         self.title_entry.connect("notify::text", self.validate_form)
@@ -929,6 +906,10 @@ class GameDialog(Adw.Window):
             # Set default image if no image is available
             icon_paintable = self.controller.data_handler.get_default_icon_paintable("applications-games-symbolic", 128)
             self.image_preview.set_paintable(icon_paintable)
+
+        # Set play statistics
+        self.play_count_entry.set_text(str(game.play_count))
+        self.play_time_entry.set_text(str(game.play_time))
 
         # Populate runners dropdown
         self.populate_runners(self.controller.get_runners())
@@ -974,7 +955,7 @@ class GameDialog(Adw.Window):
         self.selected_runner = None
 
     @Gtk.Template.Callback()
-    def on_entry_changed(self, entry):
+    def on_entry_changed(self, entry, *args):
         self.validate_form()
 
     @Gtk.Template.Callback()
@@ -1034,6 +1015,39 @@ class GameDialog(Adw.Window):
         self.image_preview.set_paintable(icon_paintable)
         self.validate_form()
 
+    @Gtk.Template.Callback()
+    def on_remove_button_clicked(self, button):
+        """Handler for remove game button click (edit mode only)"""
+        if not self.edit_mode or not self.game:
+            return
+
+        # Create a confirmation dialog
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            modal=True,
+            message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.YES_NO,
+            text=f"Remove {self.game.title}?",
+            secondary_text="This action cannot be undone. The game will be permanently removed."
+        )
+        dialog.connect("response", self._on_remove_confirmation_response)
+        dialog.show()
+
+    def _on_remove_confirmation_response(self, dialog, response_id):
+        """Handle the response from the remove confirmation dialog"""
+        if response_id == Gtk.ResponseType.YES:
+            # User confirmed removal
+            if self.controller.remove_game(self.game):
+                # Close edit dialog and details panel if open
+                window = self.parent_window
+                if window and window.details_panel:
+                    window.details_panel.set_reveal_flap(False)
+                    window.current_selected_game = None
+                self.close()
+
+        # Destroy the dialog in any case
+        dialog.destroy()
+
     def validate_form(self, *args):
         """Validate form fields and update action button sensitivity"""
         # Check if required fields are filled - only title is required
@@ -1051,6 +1065,21 @@ class GameDialog(Adw.Window):
             current_runner_id = self.selected_runner.id if self.selected_runner else ""
             if current_runner_id != (self.game.runner or ""):
                 has_changes = True
+
+            # Check play stats changes - for EntryRow
+            current_play_count = self.play_count_entry.get_text().strip()
+            try:
+                if current_play_count and int(current_play_count) != self.game.play_count:
+                    has_changes = True
+            except (ValueError, TypeError):
+                pass
+
+            current_play_time = self.play_time_entry.get_text().strip()
+            try:
+                if current_play_time and int(current_play_time) != self.game.play_time:
+                    has_changes = True
+            except (ValueError, TypeError):
+                pass
 
             # Check image change
             if self.selected_image_path is not None:  # Only if image was explicitly changed
@@ -1107,6 +1136,27 @@ class GameDialog(Adw.Window):
         # Get the updated values
         title = self.title_entry.get_text().strip()
         runner_id = self.selected_runner.id if self.selected_runner else ""
+
+        # Get play statistics
+        try:
+            play_count_text = self.play_count_entry.get_text().strip()
+            if play_count_text:
+                play_count = int(play_count_text)
+                if play_count != self.game.play_count:
+                    # Update play count with new value
+                    self.controller.data_handler.update_play_count(self.game, play_count)
+        except (ValueError, TypeError) as e:
+            print(f"Error updating play count: {e}")
+
+        try:
+            play_time_text = self.play_time_entry.get_text().strip()
+            if play_time_text:
+                play_time = int(play_time_text)
+                if play_time != self.game.play_time:
+                    # Update play time with new value
+                    self.controller.data_handler.update_play_time(self.game, play_time)
+        except (ValueError, TypeError) as e:
+            print(f"Error updating play time: {e}")
 
         # Copy the image if a new one was selected
         if self.selected_image_path is not None:  # Image was changed

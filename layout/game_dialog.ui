@@ -63,7 +63,6 @@
                 <!-- Game Title Section -->
                 <child>
                   <object class="AdwPreferencesGroup">
-                    <property name="title">Game Information</property>
                     <child>
                       <object class="AdwEntryRow" id="title_entry">
                         <property name="title">Game Title</property>
@@ -71,17 +70,33 @@
                         <signal name="changed" handler="on_entry_changed"/>
                       </object>
                     </child>
-                  </object>
-                </child>
-                
-                <!-- Runner Selection Section -->
-                <child>
-                  <object class="AdwPreferencesGroup">
-                    <property name="title">Runner</property>
                     <child>
                       <object class="AdwComboRow" id="runner_dropdown">
                         <property name="title">Runner</property>
                         <signal name="notify::selected" handler="on_runner_selected"/>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <!-- Play Stats Section (only visible in edit mode) -->
+                <child>
+                  <object class="AdwPreferencesGroup" id="play_stats_group">
+                    <property name="title">Play Statistics</property>
+                    <property name="visible">false</property>
+                    <child>
+                      <object class="AdwEntryRow" id="play_count_entry">
+                        <property name="title">Play Count</property>
+                        <property name="input-purpose">number</property>
+                        <signal name="changed" handler="on_entry_changed"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="AdwEntryRow" id="play_time_entry">
+                        <property name="title">Play Time (seconds)</property>
+                        <property name="input-purpose">number</property>
+                        <signal name="changed" handler="on_entry_changed"/>
+                        <signal name="activate" handler="on_entry_changed"/>
                       </object>
                     </child>
                   </object>
@@ -142,6 +157,31 @@
                                 <signal name="clicked" handler="on_clear_image_clicked"/>
                               </object>
                             </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <!-- Remove Game Button (only for edit mode) -->
+                <child>
+                  <object class="AdwPreferencesGroup" id="remove_game_container">
+                    <property name="visible">false</property>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">8</property>
+                        <property name="margin-top">12</property>
+                        <child>
+                          <object class="GtkButton" id="remove_button">
+                            <property name="label">Remove Game</property>
+                            <property name="halign">center</property>
+                            <style>
+                              <class name="destructive-action"/>
+                              <class name="pill"/>
+                            </style>
+                            <signal name="clicked" handler="on_remove_button_clicked"/>
                           </object>
                         </child>
                       </object>
