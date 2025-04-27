@@ -44,20 +44,63 @@ class GameItem(Gtk.Box):
         from controllers.dialogs_controller import GameContextMenu
         context_menu = GameContextMenu(self.game, self)
         context_menu.set_parent(self)
+        # Make sure popover is visible
+        context_menu.set_autohide(True)
         return context_menu
 
     def _on_right_click(self, gesture, n_press, x, y):
-        # Show context menu at pointer position
-        menu = self._create_context_menu()
-        if not menu:
-            return
-
         # Find the main window
         from controllers.window_controller import GameShelfWindow
         window = self.get_ancestor(GameShelfWindow)
-        if window:
-            # Store the selected game to maintain state
+        if not window:
+            return
+
+        # Get grid controller
+        grid_ctrl = window.controller.game_grid_controller
+
+        # Find our position in the model
+        position = -1
+        for i in range(grid_ctrl.games_model.get_n_items()):
+            if grid_ctrl.games_model.get_item(i) == self:
+                position = i
+                break
+
+        if position < 0:
+            return
+
+        # Check if we have multiple items selected
+        selected_games = []
+        for i in range(grid_ctrl.games_model.get_n_items()):
+            if grid_ctrl.selection_model.is_selected(i):
+                item = grid_ctrl.games_model.get_item(i)
+                if hasattr(item, 'game'):
+                    selected_games.append(item.game)
+
+        # If current item is not in selection, select only this item
+        if not grid_ctrl.selection_model.is_selected(position):
+            # Clear existing selections
+            for i in range(grid_ctrl.games_model.get_n_items()):
+                if grid_ctrl.selection_model.is_selected(i):
+                    grid_ctrl.selection_model.unselect_item(i)
+
+            # Select current item
+            grid_ctrl.selection_model.select_item(position, True)
+            grid_ctrl.last_selected_position = position
+            selected_games = [self.game]
+
+            # Store single game in window state
             window.current_selected_game = self.game
+
+        # Create appropriate menu based on selection count
+        if len(selected_games) > 1:
+            # Show multi-selection menu
+            menu = grid_ctrl.create_multi_context_menu(selected_games, self)
+        else:
+            # Show standard single-item menu
+            menu = self._create_context_menu()
+
+        if not menu:
+            return
 
         # Set the position to be at the mouse pointer
         rect = Gdk.Rectangle()
@@ -68,7 +111,8 @@ class GameItem(Gtk.Box):
         menu.set_pointing_to(rect)
 
         # Show the menu
-        menu.popup()
+        menu.show()
+
 
     def _on_clicked(self, gesture, n_press, x, y):
         # Only handle left clicks (button 1)
@@ -352,8 +396,111 @@ class GameGridController:
                 window.details_panel.set_reveal_flap(False)
                 window.current_selected_game = None
 
-            # Show a feedback message (optional)
-            print(f"Removed {removed_count} games")
+            # Show feedback message
+            if removed_count > 0:
+                self._show_feedback_message(f"{removed_count} games removed")
 
         # Destroy the dialog
         dialog.destroy()
+
+    def create_multi_context_menu(self, games, parent_item):
+        """Create a context menu for multiple selected games"""
+        # Create a simple popover with our own widget hierarchy to avoid conflicting handlers
+        menu = Gtk.Popover()
+        menu.set_parent(parent_item)
+        menu.set_autohide(True)
+
+        # Create menu layout
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        vbox.add_css_class("context-menu-container")
+
+        # Determine hide/unhide state
+        all_hidden = all(game.hidden for game in games)
+
+        # Create toggle hidden button
+        if all_hidden:
+            toggle_btn = Gtk.Button(label=f"Unhide {len(games)} Games")
+        else:
+            toggle_btn = Gtk.Button(label=f"Hide {len(games)} Games")
+
+        toggle_btn.add_css_class("context-menu-item")
+        vbox.append(toggle_btn)
+
+        # Add separator
+        separator = Gtk.Separator()
+        separator.add_css_class("context-menu-separator")
+        vbox.append(separator)
+
+        # Create remove button
+        remove_btn = Gtk.Button(label=f"Remove {len(games)} Games")
+        remove_btn.add_css_class("context-menu-item")
+        remove_btn.add_css_class("context-menu-item-destructive")
+        vbox.append(remove_btn)
+
+        # Set content
+        menu.set_child(vbox)
+
+        # Connect signals to completely new buttons
+        toggle_btn.connect("clicked",
+            lambda b: self._on_multi_toggle_hidden(b, games, all_hidden))
+        remove_btn.connect("clicked",
+            lambda b: self._on_multi_remove(b, games))
+
+        return menu
+
+    def _on_multi_toggle_hidden(self, button, games, all_hidden):
+        """Handle toggling hidden state for multiple games"""
+        # Close the menu
+        menu = button.get_ancestor(Gtk.Popover)
+        if menu:
+            menu.popdown()
+
+        # Process all games
+        processed_count = 0
+
+        # Choose action based on current state
+        new_hidden_state = not all_hidden
+
+        for game in games:
+            # Set hidden state
+            game.hidden = new_hidden_state
+
+            # Save through the controller
+            if self.main_controller.data_handler.save_game(game):
+                processed_count += 1
+
+        # Reload the UI
+        self.main_controller.reload_data()
+
+        # Show feedback message
+        if processed_count > 0:
+            action = "hidden" if new_hidden_state else "unhidden"
+            self._show_feedback_message(f"{processed_count} games {action}")
+
+    def _on_multi_remove(self, button, games):
+        """Handle removing multiple games"""
+        # Close the menu
+        menu = button.get_ancestor(Gtk.Popover)
+        if menu:
+            menu.popdown()
+
+        # Show confirmation dialog
+        self._show_multi_delete_confirmation(games)
+
+    def _show_feedback_message(self, message):
+        """Show a feedback dialog with the result of a bulk operation"""
+        from controllers.window_controller import GameShelfWindow
+        window = self.grid_view.get_ancestor(GameShelfWindow)
+        if not window:
+            return
+
+        # Create a simple message dialog
+        dialog = Gtk.MessageDialog(
+            transient_for=window,
+            modal=True,
+            message_type=Gtk.MessageType.INFO,
+            buttons=Gtk.ButtonsType.OK,
+            text=message
+        )
+        dialog.connect("response", lambda d, r: d.destroy())
+        dialog.show()
