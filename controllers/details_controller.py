@@ -31,7 +31,7 @@ class GameDetailsContent(Gtk.Box):
     @Gtk.Template.Callback()
     def on_close_details_clicked(self, button):
         from controllers.window_controller import GameShelfWindow
-        window = find_ancestor(self, GameShelfWindow)
+        window = self.get_ancestor(GameShelfWindow)
         if window:
             window.details_panel.set_reveal_flap(False)
 
