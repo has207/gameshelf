@@ -1,10 +1,10 @@
-import os
 from typing import Optional
 
 from gi.repository import Gtk
+from controllers.common import get_template_path
 
 
-@Gtk.Template(filename=os.path.join(os.path.dirname(os.path.dirname(__file__)), "layout", "sort_menu.ui"))
+@Gtk.Template(filename=get_template_path("sort_menu.ui"))
 class GameSortMenu(Gtk.Popover):
     """Sort menu for games grid"""
     __gtype_name__ = "GameSortMenu"

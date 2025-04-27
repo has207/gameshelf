@@ -1,13 +1,13 @@
-import os
 from typing import List, Optional
 
 from gi.repository import Gtk, Gio, Gdk
 from data_handler import Game, Runner
 
 from controllers.sidebar_controller import SidebarItem
+from controllers.common import get_template_path
 
 
-@Gtk.Template(filename=os.path.join(os.path.dirname(os.path.dirname(__file__)), "layout", "game_item.ui"))
+@Gtk.Template(filename=get_template_path("game_item.ui"))
 class GameItem(Gtk.Box):
     __gtype_name__ = "GameItem"
     image: Gtk.Picture = Gtk.Template.Child()
@@ -85,7 +85,7 @@ class GameItem(Gtk.Box):
             window.details_panel.set_reveal_flap(True)
 
 
-@Gtk.Template(filename=os.path.join(os.path.dirname(os.path.dirname(__file__)), "layout", "runner_item.ui"))
+@Gtk.Template(filename=get_template_path("runner_item.ui"))
 class RunnerItem(Gtk.Box):
     __gtype_name__ = "RunnerItem"
     image: Gtk.Picture = Gtk.Template.Child()
@@ -135,10 +135,8 @@ class GameGridController:
     def _on_factory_bind(self, factory, list_item):
         box = list_item.get_child()
         # Remove any existing children
-        child = box.get_first_child()
-        while child:
+        while child := box.get_first_child():
             box.remove(child)
-            child = box.get_first_child()
 
         # Add our game item
         position = list_item.get_position()

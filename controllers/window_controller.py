@@ -1,9 +1,9 @@
-import os
 from typing import Dict, List, Optional
 
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf
 from data_handler import DataHandler, Game, Runner
 from process_tracking import ProcessTracker
+from controllers.common import get_template_path
 
 from controllers.details_controller import GameDetailsContent, DetailsController
 from controllers.dialogs_controller import GameDialog
@@ -163,7 +163,7 @@ class GameShelfController:
             self.window.add_action(action)
 
 
-@Gtk.Template(filename=os.path.join(os.path.dirname(os.path.dirname(__file__)), "layout", "window.ui"))
+@Gtk.Template(filename=get_template_path("window.ui"))
 class GameShelfWindow(Adw.ApplicationWindow):
     __gtype_name__ = "GameShelfWindow"
 

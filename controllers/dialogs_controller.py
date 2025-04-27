@@ -1,14 +1,13 @@
-import os
 from typing import List, Optional
 from pathlib import Path
 
 from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk
 
 from data_handler import Game, Runner
-from controllers.sidebar_controller import show_image_chooser_dialog
+from controllers.common import get_template_path, show_image_chooser_dialog
 
 
-@Gtk.Template(filename=os.path.join(os.path.dirname(os.path.dirname(__file__)), "layout", "context_menu.ui"))
+@Gtk.Template(filename=get_template_path("context_menu.ui"))
 class GameContextMenu(Gtk.Popover):
     """Context menu for game items in the grid"""
     __gtype_name__ = "GameContextMenu"
@@ -76,7 +75,7 @@ class GameContextMenu(Gtk.Popover):
             window.details_content.on_remove_button_clicked(None)
 
 
-@Gtk.Template(filename=os.path.join(os.path.dirname(os.path.dirname(__file__)), "layout", "game_dialog.ui"))
+@Gtk.Template(filename=get_template_path("game_dialog.ui"))
 class GameDialog(Adw.Window):
     """Unified dialog for adding and editing games"""
     __gtype_name__ = "GameDialog"

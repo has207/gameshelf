@@ -1,5 +1,4 @@
 import gi
-import os
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -8,6 +7,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk, GObject, GLib
 from data_handler import DataHandler, Game, Runner
+from controllers.common import get_template_path
 
 
 def get_friendly_time(timestamp: float) -> str:
@@ -94,47 +94,6 @@ def format_play_time(seconds: int) -> str:
         return f"{hours}h {minutes}m"
 
 
-def show_image_chooser_dialog(parent_window, callback, title="Select Image"):
-    """
-    Shows a file chooser dialog for selecting images.
-
-    Args:
-        parent_window: The parent window for the dialog
-        callback: Function to call with the selected file path or None if canceled
-        title: Optional title for the file chooser
-    """
-    dialog = Gtk.FileChooserDialog(
-        title=title,
-        action=Gtk.FileChooserAction.OPEN,
-        transient_for=parent_window,
-        modal=True
-    )
-
-    # Add buttons
-    dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-    dialog.add_button("Select", Gtk.ResponseType.ACCEPT)
-
-    # Add filters
-    filter_images = Gtk.FileFilter()
-    filter_images.set_name("Images")
-    filter_images.add_mime_type("image/jpeg")
-    filter_images.add_mime_type("image/png")
-    dialog.add_filter(filter_images)
-
-    def on_response(dialog, response):
-        path = None
-        if response == Gtk.ResponseType.ACCEPT:
-            file = dialog.get_file()
-            if file:
-                path = file.get_path()
-
-        callback(path)
-        dialog.destroy()
-
-    dialog.connect("response", on_response)
-    dialog.show()
-
-
 class SidebarItem(GObject.GObject):
     name = GObject.Property(type=str)
     icon_name = GObject.Property(type=str)
@@ -145,7 +104,7 @@ class SidebarItem(GObject.GObject):
         self.icon_name = icon_name
 
 
-@Gtk.Template(filename=os.path.join(os.path.dirname(os.path.dirname(__file__)), "layout", "sidebar_row.ui"))
+@Gtk.Template(filename=get_template_path("sidebar_row.ui"))
 class SidebarRow(Gtk.Box):
     __gtype_name__ = "SidebarRow"
     label: Gtk.Label = Gtk.Template.Child()

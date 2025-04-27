@@ -1,14 +1,13 @@
-import os
 from pathlib import Path
 from typing import Optional
 
 from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk
 from data_handler import Runner
 
-from controllers.sidebar_controller import show_image_chooser_dialog
+from controllers.common import get_template_path, show_error_dialog, show_confirmation_dialog, show_image_chooser_dialog
 
 
-@Gtk.Template(filename=os.path.join(os.path.dirname(os.path.dirname(__file__)), "layout", "runners_manager.ui"))
+@Gtk.Template(filename=get_template_path("runners_manager.ui"))
 class RunnersManagerDialog(Adw.Window):
     """Dialog for managing all runners"""
     __gtype_name__ = "RunnersManagerDialog"
@@ -63,7 +62,7 @@ class RunnersManagerDialog(Adw.Window):
         dialog.show()
 
 
-@Gtk.Template(filename=os.path.join(os.path.dirname(os.path.dirname(__file__)), "layout", "runner_list_row.ui"))
+@Gtk.Template(filename=get_template_path("runner_list_row.ui"))
 class RunnerListRow(Gtk.ListBoxRow):
     """Row for displaying a runner in the list"""
     __gtype_name__ = "RunnerListRow"
@@ -104,7 +103,7 @@ class RunnerListRow(Gtk.ListBoxRow):
             dialog.show()
 
 
-@Gtk.Template(filename=os.path.join(os.path.dirname(os.path.dirname(__file__)), "layout", "runner_dialog.ui"))
+@Gtk.Template(filename=get_template_path("runner_dialog.ui"))
 class RunnerDialog(Adw.Window):
     """Dialog for adding or editing a runner"""
     __gtype_name__ = "RunnerDialog"
@@ -268,16 +267,12 @@ class RunnerDialog(Adw.Window):
             return
 
         # Create a confirmation dialog
-        dialog = Gtk.MessageDialog(
-            transient_for=self,
-            modal=True,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text=f"Remove runner '{self.runner.title}'?",
-            secondary_text="This action cannot be undone."
+        show_confirmation_dialog(
+            self,
+            f"Remove runner '{self.runner.title}'?",
+            "This action cannot be undone.",
+            self._on_remove_confirmation_response
         )
-        dialog.connect("response", self._on_remove_confirmation_response)
-        dialog.show()
 
     def _on_remove_confirmation_response(self, dialog, response_id):
         """Handle the response from the remove confirmation dialog"""
@@ -310,29 +305,19 @@ class RunnerDialog(Adw.Window):
                 self.refresh_main_window_sidebar()
             else:
                 # Show error dialog for failed removal
-                dialog = Gtk.MessageDialog(
-                    transient_for=self,
-                    modal=True,
-                    message_type=Gtk.MessageType.ERROR,
-                    buttons=Gtk.ButtonsType.OK,
-                    text="Failed to remove runner",
-                    secondary_text="The runner file could not be removed."
+                show_error_dialog(
+                    self,
+                    "Failed to remove runner",
+                    "The runner file could not be removed."
                 )
-                dialog.connect("response", lambda dialog, response: dialog.destroy())
-                dialog.show()
         except Exception as e:
             print(f"Error removing runner: {e}")
             # Show error dialog
-            dialog = Gtk.MessageDialog(
-                transient_for=self,
-                modal=True,
-                message_type=Gtk.MessageType.ERROR,
-                buttons=Gtk.ButtonsType.OK,
-                text="Failed to remove runner",
-                secondary_text=f"Error: {str(e)}"
+            show_error_dialog(
+                self,
+                "Failed to remove runner",
+                f"Error: {str(e)}"
             )
-            dialog.connect("response", lambda dialog, response: dialog.destroy())
-            dialog.show()
 
     def _add_required_field_indicators(self):
         """Add required field indicators (red asterisks) next to required fields"""

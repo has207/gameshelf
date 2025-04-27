@@ -1,4 +1,3 @@
-import os
 from datetime import datetime
 from typing import Optional
 
@@ -7,9 +6,9 @@ from data_handler import Game
 from process_tracking import ProcessTracker
 
 from controllers.sidebar_controller import get_friendly_time, format_play_time
+from controllers.common import show_error_dialog, get_template_path
 
-
-@Gtk.Template(filename=os.path.join(os.path.dirname(os.path.dirname(__file__)), "layout", "details_panel.ui"))
+@Gtk.Template(filename=get_template_path("details_panel.ui"))
 class GameDetailsContent(Gtk.Box):
     __gtype_name__ = "GameDetailsContent"
     title_label: Gtk.Label = Gtk.Template.Child()
@@ -32,7 +31,9 @@ class GameDetailsContent(Gtk.Box):
     @Gtk.Template.Callback()
     def on_close_details_clicked(self, button):
         from controllers.window_controller import GameShelfWindow
-        self.get_ancestor(GameShelfWindow).details_panel.set_reveal_flap(False)
+        window = find_ancestor(self, GameShelfWindow)
+        if window:
+            window.details_panel.set_reveal_flap(False)
 
     @Gtk.Template.Callback()
     def on_toggle_hidden_clicked(self, button):
@@ -97,16 +98,11 @@ class GameDetailsContent(Gtk.Box):
                         GLib.timeout_add(100, self._delayed_grid_refresh)
             else:
                 # Show error dialog if launch failed
-                dialog = Gtk.MessageDialog(
-                    transient_for=self.get_ancestor(Gtk.Window),
-                    modal=True,
-                    message_type=Gtk.MessageType.ERROR,
-                    buttons=Gtk.ButtonsType.OK,
-                    text="Failed to launch game",
-                    secondary_text="Could not start the game process"
+                show_error_dialog(
+                    self.get_ancestor(Gtk.Window),
+                    "Failed to launch game",
+                    "Could not start the game process"
                 )
-                dialog.connect("response", lambda dialog, response: dialog.destroy())
-                dialog.show()
 
     def _delayed_grid_refresh(self):
         """Refresh the game grid after a short delay to ensure data is saved"""
