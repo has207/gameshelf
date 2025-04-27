@@ -1,14 +1,10 @@
 import os
-import subprocess
-import threading
-import time
-import psutil
-from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
 from gi.repository import Gtk, GLib, Gdk
 from data_handler import Game
+from process_tracking import ProcessTracker
 
 from controllers.sidebar_controller import get_friendly_time, format_play_time
 
@@ -67,24 +63,19 @@ class GameDetailsContent(Gtk.Box):
 
         runner = self.controller.get_runner(self.game.runner)
         if runner and runner.command:
-            try:
-                print(f"Launching game: {self.game.title} with command: {runner.command}")
-                cmd = runner.command.split()
+            # Launch the game
+            launch_success = self.controller.process_tracker.launch_game(
+                self.game,
+                runner.command,
+                self._update_playtime_ui  # Callback when game exits
+            )
 
-                # Launch the game
-                process = subprocess.Popen(cmd)
-
-                # Save the PID to the PID file
-                self.controller.data_handler.save_game_pid(self.game, process.pid)
-
+            if launch_success:
                 # Update the button state immediately
                 self.play_button.set_label("Playing...")
                 self.play_button.set_sensitive(False)
 
-                # Only increment play count if game launched successfully
-                self.controller.data_handler.increment_play_count(self.game)
-
-                # Update play count in UI
+                # Update play count in UI (incremented by process tracker)
                 self.play_count_label.set_text(f"Play Count: {self.game.play_count}")
 
                 # Update last played timestamp (get it from the file)
@@ -104,19 +95,15 @@ class GameDetailsContent(Gtk.Box):
                     if window:
                         # Create a short delay to ensure changes are saved before refreshing
                         GLib.timeout_add(100, self._delayed_grid_refresh)
-
-                # Start tracking the process to monitor play time
-                self.monitor_game_process(process.pid, self.game)
-
-            except Exception as e:
-                print(f"Error launching game: {e}")
+            else:
+                # Show error dialog if launch failed
                 dialog = Gtk.MessageDialog(
                     transient_for=self.get_ancestor(Gtk.Window),
                     modal=True,
                     message_type=Gtk.MessageType.ERROR,
                     buttons=Gtk.ButtonsType.OK,
                     text="Failed to launch game",
-                    secondary_text=f"Error: {str(e)}"
+                    secondary_text="Could not start the game process"
                 )
                 dialog.connect("response", lambda dialog, response: dialog.destroy())
                 dialog.show()
@@ -133,70 +120,6 @@ class GameDetailsContent(Gtk.Box):
                     search_text=search_text
                 )
         return False  # Don't repeat the timeout
-
-    def monitor_game_process(self, pid: int, game: Game):
-        """
-        Monitor a game process and update playtime when it exits.
-
-        Args:
-            pid: The process ID to monitor
-            game: The game being played
-        """
-        # Start a new thread to monitor the process
-        monitor_thread = threading.Thread(
-            target=self._process_monitor_thread,
-            args=(pid, game),
-            daemon=True  # Make it a daemon so it doesn't block program exit
-        )
-        monitor_thread.start()
-
-    def _process_monitor_thread(self, pid: int, game: Game):
-        """
-        Thread function to monitor a game process and update playtime.
-
-        Args:
-            pid: The process ID to monitor
-            game: The game being played
-        """
-        try:
-            # Get the file creation time for the pid.yaml file to use as our start time
-            pid_file = Path(game.get_pid_path(self.controller.data_handler.data_dir))
-            start_time = pid_file.stat().st_ctime
-
-            # Try to get the process
-            try:
-                process = psutil.Process(pid)
-                # Wait for process to exit
-                process.wait()
-            except psutil.NoSuchProcess:
-                # Process doesn't exist or already exited
-                print(f"Process {pid} for game {game.title} no longer exists or has already exited")
-                # We'll continue to update the playtime anyway
-
-            # Calculate play time
-            end_time = time.time()
-            seconds_played = int(end_time - start_time)
-
-            # Don't count very short sessions (less than 1 second)
-            if seconds_played < 1:
-                seconds_played = 1  # At least record 1 second for very short sessions
-
-            print(f"Game {game.title} played for {seconds_played} seconds")
-
-            # Update the play time in the data handler
-            self.controller.data_handler.increment_play_time(game, seconds_played)
-
-            # Remove the PID file since the process has exited
-            self.controller.data_handler.clear_game_pid(game)
-
-            # Update the UI on the main thread if this game is currently displayed
-            GLib.idle_add(self._update_playtime_ui, game)
-
-        except Exception as e:
-            print(f"Error monitoring game process: {e}")
-            # Make sure to clean up the PID file in case of error
-            self.controller.data_handler.clear_game_pid(game)
-
 
     def _update_playtime_ui(self, game: Game):
         """
@@ -342,6 +265,10 @@ class DetailsController:
     def __init__(self, main_controller):
         self.main_controller = main_controller
         self.details_content = None
+
+        # Create process tracker
+        if not hasattr(main_controller, 'process_tracker'):
+            main_controller.process_tracker = ProcessTracker(main_controller.data_handler)
 
     def setup_details_panel(self, details_content, details_panel):
         self.details_content = details_content

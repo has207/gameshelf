@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf
 from data_handler import DataHandler, Game, Runner
+from process_tracking import ProcessTracker
 
 from controllers.details_controller import GameDetailsContent, DetailsController
 from controllers.dialogs_controller import GameDialog
@@ -24,6 +25,9 @@ class GameShelfController:
         self.current_filter = None
         self.window = None
         self.actions = {}
+
+        # Initialize process tracker
+        self.process_tracker = ProcessTracker(data_handler)
 
         # Initialize sorting parameters
         self.sort_field = "title"
