@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <requires lib="libadwaita" version="1.0"/>
+  <template class="RunnersManagerDialog" parent="AdwWindow">
+    <property name="title">Runners Manager</property>
+    <property name="default-width">600</property>
+    <property name="default-height">500</property>
+    <property name="modal">true</property>
+    <property name="hide-on-close">true</property>
+    
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">0</property>
+        
+        <!-- Header -->
+        <child>
+          <object class="AdwHeaderBar">
+            <property name="show-start-title-buttons">false</property>
+            <property name="show-end-title-buttons">false</property>
+            <property name="title-widget">
+              <object class="AdwWindowTitle">
+                <property name="title">Manage Runners</property>
+              </object>
+            </property>
+            
+            <!-- Close Button -->
+            <child type="end">
+              <object class="GtkButton" id="close_button">
+                <property name="label">Close</property>
+                <signal name="clicked" handler="on_close_clicked"/>
+              </object>
+            </child>
+            
+            <!-- Add Runner Button -->
+            <child type="start">
+              <object class="GtkButton" id="add_runner_button">
+                <property name="icon-name">list-add-symbolic</property>
+                <property name="tooltip-text">Add Runner</property>
+                <signal name="clicked" handler="on_add_runner_clicked"/>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <!-- Content -->
+        <child>
+          <object class="GtkScrolledWindow">
+            <property name="hexpand">true</property>
+            <property name="vexpand">true</property>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">16</property>
+                <property name="margin-start">16</property>
+                <property name="margin-end">16</property>
+                <property name="margin-top">16</property>
+                <property name="margin-bottom">16</property>
+                
+                <!-- Runners List -->
+                <child>
+                  <object class="GtkListBox" id="runners_listbox">
+                    <property name="selection-mode">none</property>
+                    <style>
+                      <class name="boxed-list"/>
+                    </style>
+                  </object>
+                </child>
+                
+                <!-- Empty State (shown when no runners) -->
+                <child>
+                  <object class="GtkBox" id="empty_state">
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">12</property>
+                    <property name="halign">center</property>
+                    <property name="valign">center</property>
+                    <property name="vexpand">true</property>
+                    <property name="visible">false</property>
+                    <style>
+                      <class name="dim-label"/>
+                    </style>
+                    
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon-name">system-run-symbolic</property>
+                        <property name="pixel-size">64</property>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">No runners found</property>
+                        <style>
+                          <class name="title-2"/>
+                        </style>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">Click the + button to add a runner</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

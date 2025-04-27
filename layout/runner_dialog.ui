@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <requires lib="libadwaita" version="1.0"/>
+  <template class="RunnerDialog" parent="AdwWindow">
+    <property name="title">Runner Dialog</property>
+    <property name="default-width">500</property>
+    <property name="default-height">400</property>
+    <property name="modal">true</property>
+    <property name="hide-on-close">true</property>
+    
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">0</property>
+        
+        <!-- Header -->
+        <child>
+          <object class="AdwHeaderBar">
+            <property name="show-start-title-buttons">false</property>
+            <property name="show-end-title-buttons">false</property>
+            <property name="title-widget">
+              <object class="AdwWindowTitle" id="dialog_title">
+                <property name="title">Runner Dialog</property>
+              </object>
+            </property>
+            
+            <!-- Cancel Button -->
+            <child type="start">
+              <object class="GtkButton" id="cancel_button">
+                <property name="label">Cancel</property>
+                <signal name="clicked" handler="on_cancel_clicked"/>
+              </object>
+            </child>
+            
+            <!-- Action Button (Add/Save) -->
+            <child type="end">
+              <object class="GtkButton" id="action_button">
+                <property name="label">Action</property>
+                <property name="sensitive">false</property>
+                <style>
+                  <class name="suggested-action"/>
+                </style>
+                <signal name="clicked" handler="on_action_clicked"/>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <!-- Content -->
+        <child>
+          <object class="GtkScrolledWindow">
+            <property name="hexpand">true</property>
+            <property name="vexpand">true</property>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">24</property>
+                <style>
+                  <class name="dialog-content"/>
+                </style>
+                
+                <!-- Runner Information Section -->
+                <child>
+                  <object class="AdwPreferencesGroup">
+                    <child>
+                      <object class="AdwEntryRow" id="title_entry">
+                        <property name="title">Runner Name</property>
+                        <property name="use-underline">true</property>
+                        <signal name="changed" handler="on_entry_changed"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="AdwEntryRow" id="command_entry">
+                        <property name="title">Launch Command</property>
+                        <property name="tooltip-text">The command to execute when launching a game with this runner</property>
+                        <signal name="changed" handler="on_entry_changed"/>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <!-- Runner Icon Section -->
+                <child>
+                  <object class="AdwPreferencesGroup">
+                    <property name="title">Runner Icon</property>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="halign">center</property>
+                        <property name="spacing">12</property>
+                        <style>
+                          <class name="image-controls"/>
+                        </style>
+                        
+                        <!-- Preview Image -->
+                        <child>
+                          <object class="GtkBox" id="image_preview_container">
+                            <property name="halign">center</property>
+                            <property name="width-request">128</property>
+                            <property name="height-request">128</property>
+                            <style>
+                              <class name="card"/>
+                              <class name="image-preview"/>
+                            </style>
+                            <child>
+                              <object class="GtkPicture" id="image_preview">
+                                <property name="content-fit">scale-down</property>
+                                <property name="can-shrink">false</property>
+                                <property name="hexpand">true</property>
+                                <property name="vexpand">true</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Select Image Button -->
+                        <child>
+                          <object class="GtkButton" id="select_image_button">
+                            <property name="label">Select Icon</property>
+                            <signal name="clicked" handler="on_select_image_clicked"/>
+                          </object>
+                        </child>
+                        
+                        <!-- Clear Image Button (only for edit mode) -->
+                        <child>
+                          <object class="GtkBox" id="clear_image_container">
+                            <property name="visible">false</property>
+                            <child>
+                              <object class="GtkButton" id="clear_image_button">
+                                <property name="label">Clear Icon</property>
+                                <style>
+                                  <class name="destructive-action"/>
+                                </style>
+                                <signal name="clicked" handler="on_clear_image_clicked"/>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <!-- Remove Runner Button (only for edit mode) -->
+                <child>
+                  <object class="AdwPreferencesGroup" id="remove_runner_container">
+                    <property name="visible">false</property>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">8</property>
+                        <property name="margin-top">12</property>
+                        <child>
+                          <object class="GtkButton" id="remove_button">
+                            <property name="label">Remove Runner</property>
+                            <property name="halign">center</property>
+                            <style>
+                              <class name="destructive-action"/>
+                              <class name="pill"/>
+                            </style>
+                            <signal name="clicked" handler="on_remove_button_clicked"/>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

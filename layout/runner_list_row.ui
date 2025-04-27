@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <template class="RunnerListRow" parent="GtkListBoxRow">
+    <property name="activatable">true</property>
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">horizontal</property>
+        <property name="spacing">12</property>
+        <property name="margin-start">12</property>
+        <property name="margin-end">12</property>
+        <property name="margin-top">12</property>
+        <property name="margin-bottom">12</property>
+        
+        <!-- Runner Icon -->
+        <child>
+          <object class="GtkImage" id="runner_icon">
+            <property name="pixel-size">32</property>
+            <property name="icon-name">application-x-executable-symbolic</property>
+          </object>
+        </child>
+        
+        <!-- Runner Info -->
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">4</property>
+            <property name="hexpand">true</property>
+            
+            <!-- Runner Name -->
+            <child>
+              <object class="GtkLabel" id="title_label">
+                <property name="xalign">0</property>
+                <property name="hexpand">true</property>
+                <style>
+                  <class name="title"/>
+                </style>
+              </object>
+            </child>
+            
+            <!-- Runner Command -->
+            <child>
+              <object class="GtkLabel" id="command_label">
+                <property name="xalign">0</property>
+                <property name="hexpand">true</property>
+                <property name="ellipsize">end</property>
+                <style>
+                  <class name="dim-label"/>
+                  <class name="caption"/>
+                </style>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <!-- Edit Button -->
+        <child>
+          <object class="GtkButton" id="edit_button">
+            <property name="icon-name">document-edit-symbolic</property>
+            <property name="tooltip-text">Edit Runner</property>
+            <style>
+              <class name="flat"/>
+              <class name="circular"/>
+            </style>
+            <signal name="clicked" handler="on_edit_clicked"/>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>
