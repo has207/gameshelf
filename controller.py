@@ -149,11 +149,13 @@ class GameDetailsContent(Gtk.Box):
         # Toggle the hidden state using the controller
         self.controller.toggle_game_hidden(self.game)
 
-        # Update the button text based on the new state
+        # Update the button icon based on the new state
         if self.game.hidden:
-            self.toggle_hidden_button.set_label("Unhide Game")
+            self.toggle_hidden_button.set_icon_name("view-reveal-symbolic")
+            self.toggle_hidden_button.set_tooltip_text("Unhide Game")
         else:
-            self.toggle_hidden_button.set_label("Hide Game")
+            self.toggle_hidden_button.set_icon_name("view-conceal-symbolic")
+            self.toggle_hidden_button.set_tooltip_text("Hide Game")
 
     @Gtk.Template.Callback()
     def on_play_button_clicked(self, button):
@@ -381,11 +383,13 @@ class GameDetailsContent(Gtk.Box):
 
         self.runner_label.set_text(runner_name)
 
-        # Update the toggle hidden button label based on the game's hidden state
+        # Update the toggle hidden button icon based on the game's hidden state
         if game.hidden:
-            self.toggle_hidden_button.set_label("Unhide Game")
+            self.toggle_hidden_button.set_icon_name("view-reveal-symbolic")
+            self.toggle_hidden_button.set_tooltip_text("Unhide Game")
         else:
-            self.toggle_hidden_button.set_label("Hide Game")
+            self.toggle_hidden_button.set_icon_name("view-conceal-symbolic")
+            self.toggle_hidden_button.set_tooltip_text("Hide Game")
 
         if self.controller:
             if game.created:

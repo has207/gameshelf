@@ -62,7 +62,7 @@
       </object>
     </child>
 
-    <!-- Play and Edit buttons -->
+    <!-- Action buttons -->
     <child>
       <object class="GtkBox">
         <property name="spacing">12</property>
@@ -83,12 +83,25 @@
           </object>
         </child>
         
+        <!-- Hide/Unhide Button -->
+        <child>
+          <object class="GtkButton" id="toggle_hidden_button">
+            <property name="tooltip-text">Hide/Unhide Game</property>
+            <property name="icon-name">view-conceal-symbolic</property>
+            <style>
+              <class name="circular"/>
+            </style>
+            <signal name="clicked" handler="on_toggle_hidden_clicked"/>
+          </object>
+        </child>
+        
         <!-- Edit Button -->
         <child>
           <object class="GtkButton" id="edit_button">
-            <property name="label">Edit Game</property>
+            <property name="tooltip-text">Edit Game</property>
+            <property name="icon-name">document-edit-symbolic</property>
             <style>
-              <class name="pill"/>
+              <class name="circular"/>
             </style>
             <signal name="clicked" handler="on_edit_button_clicked"/>
           </object>
@@ -242,28 +255,6 @@
       </object>
     </child>
 
-    <!-- Toggle Hidden Button at bottom -->
-    <child>
-      <object class="GtkBox">
-        <property name="orientation">vertical</property>
-        <property name="spacing">12</property>
-        <style>
-          <class name="actions-container"/>
-          <class name="details-panel-actions"/>
-        </style>
-        
-        <!-- Toggle Hidden Button -->
-        <child>
-          <object class="GtkButton" id="toggle_hidden_button">
-            <property name="label">Hide Game</property>
-            <style>
-              <class name="pill"/>
-            </style>
-            <signal name="clicked" handler="on_toggle_hidden_clicked"/>
-          </object>
-        </child>
-      </object>
-    </child>
 
   </template>
 </interface>
