@@ -446,9 +446,18 @@ class GameDialog(Adw.Window):
         if not self.game:
             return
 
+        # Track if the main game.yaml needs updating
+        need_to_save_game_yaml = False
+
         # Get the updated values
         title = self.title_entry.get_text().strip()
         runner_id = self.selected_runner.id if self.selected_runner else ""
+
+        # Check if title or runner ID changed (these are stored in game.yaml)
+        if title != self.game.title or runner_id != self.game.runner:
+            self.game.title = title
+            self.game.runner = runner_id
+            need_to_save_game_yaml = True
 
         # Get play statistics
         try:
@@ -483,10 +492,6 @@ class GameDialog(Adw.Window):
                 # Remove the cover image using the data handler
                 self.controller.data_handler.remove_game_image(self.game.id)
 
-        # Update the game object
-        self.game.title = title
-        self.game.runner = runner_id
-
         # Update completion status if needed
         if self.selected_completion_status != self.game.completion_status:
             # Update the completion status
@@ -495,8 +500,12 @@ class GameDialog(Adw.Window):
                 self.selected_completion_status
             )
 
-        # Save the updated game
-        if self.controller.add_game(self.game):
+        # Only save game.yaml if necessary
+        success = True
+        if need_to_save_game_yaml:
+            success = self.controller.data_handler.save_game(self.game)
+
+        if success:
             # Update the details panel if open and showing this game
             if (self.parent_window.current_selected_game and
                 self.parent_window.current_selected_game.id == self.game.id):

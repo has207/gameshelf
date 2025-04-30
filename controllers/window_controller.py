@@ -117,9 +117,10 @@ class GameShelfController:
         Returns:
             True if successful, False otherwise
         """
+        # Update the hidden state
         game.hidden = not game.hidden
 
-        # Save the updated game
+        # Save the updated game - hidden flag is stored in game.yaml
         result = self.data_handler.save_game(game)
         if result:
             # Refresh the game list
