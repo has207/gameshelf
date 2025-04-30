@@ -83,6 +83,7 @@ class GameDetailsContent(Gtk.Box):
     play_count_label: Gtk.Label = Gtk.Template.Child()
     last_played_label: Gtk.Label = Gtk.Template.Child()
     play_time_label: Gtk.Label = Gtk.Template.Child()
+    completion_status_label: Gtk.Label = Gtk.Template.Child()
     description_label: Gtk.Label = Gtk.Template.Child()
 
     def __init__(self):
@@ -302,6 +303,12 @@ class GameDetailsContent(Gtk.Box):
                 self.play_time_label.set_text(f"Play Time: {formatted_time}")
             else:
                 self.play_time_label.set_text("Play Time: Not played")
+
+            # Set completion status
+            if game.completion_status:
+                self.completion_status_label.set_text(f"Status: {game.completion_status}")
+            else:
+                self.completion_status_label.set_text("Status: Not set")
 
             last_played = game.get_last_played_time(self.controller.data_handler.data_dir)
             if last_played and game.play_count > 0:

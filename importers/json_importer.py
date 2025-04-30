@@ -144,13 +144,42 @@ class JsonImporter:
         if "Description" in game_data and game_data["Description"]:
             description = game_data["Description"]
 
+        # Extract completion status if available
+        completion_status = None
+        if "CompletionStatus" in game_data and isinstance(game_data["CompletionStatus"], dict):
+            # Map GUID to completion status name
+            completion_status_mapping = {
+                "03113e48-ab80-4860-ad60-515092cb1d71": "Playing",
+                "24e0d267-000d-41fb-96a7-5993c714b989": "On Hold",
+                "261c9bdf-a355-474b-8a3a-7f20e060d2b6": "Beaten",
+                "37db65b9-4727-4e5d-b6c6-88ec8a03f3ac": "Completed",
+                "53df16bc-2c3a-4b3b-9362-d26cf10ccdea": "Not Played",
+                "ad05e067-fc33-48d4-b299-7470312ac711": "Played",
+                "b0a131bb-df0d-4c7e-9e59-09eafef5e460": "Abandoned",
+                "ba3d457a-f685-414d-90e0-07bdac9daf54": "Plan to Play"
+            }
+
+            # Check for GUID in ID field
+            guid = None
+            if "Id" in game_data["CompletionStatus"]:
+                guid = game_data["CompletionStatus"]["Id"]
+            elif "$oid" in game_data["CompletionStatus"]:
+                guid = game_data["CompletionStatus"]["$oid"]
+
+            if guid and guid in completion_status_mapping:
+                completion_status = completion_status_mapping[guid]
+            elif "Name" in game_data["CompletionStatus"]:
+                # Use name directly if available and no mapping found
+                completion_status = game_data["CompletionStatus"]["Name"]
+
         # Create a new game object
         game = Game(
             id="",  # ID will be assigned by data handler
             title=title,
             hidden=game_data.get("Hidden", False),
             created=created_timestamp,  # Use parsed timestamp for creation date
-            description=description
+            description=description,
+            completion_status=completion_status
         )
 
         # Process playtime if available
@@ -234,6 +263,10 @@ class JsonImporter:
         # Save description if available
         if game.description:
             self.data_handler.update_game_description(game, game.description)
+
+        # Save completion status if available
+        if game.completion_status:
+            self.data_handler.update_completion_status(game, game.completion_status)
 
         # Process modified timestamp
         modified_timestamp = None

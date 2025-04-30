@@ -23,7 +23,8 @@ class Runner:
 @dataclass
 class Game:
     def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None,
-                 created: Optional[float] = None, hidden: bool = False, description: Optional[str] = None):
+                 created: Optional[float] = None, hidden: bool = False, description: Optional[str] = None,
+                 completion_status: Optional[str] = None):
         self.id = id.lower()
         self.title = title
         self.runner = runner.lower() if runner else ""
@@ -32,6 +33,7 @@ class Game:
         self.play_time = 0  # Total play time in seconds
         self.hidden = hidden  # Whether the game is hidden from the main grid
         self.description = description  # Game description text
+        self.completion_status = completion_status  # Game completion status
 
     def _get_game_dir_path(self, data_dir: Path) -> Path:
         """
@@ -68,6 +70,10 @@ class Game:
     def get_description_path(self, data_dir: Path) -> str:
         """Get the path to the game's description file"""
         return str(self._get_game_dir_path(data_dir) / "description.yaml")
+
+    def get_completion_status_path(self, data_dir: Path) -> str:
+        """Get the path to the game's completion status file"""
+        return str(self._get_game_dir_path(data_dir) / "completion_status.yaml")
 
     def get_last_played_time(self, data_dir: Path) -> Optional[float]:
         play_count_file = Path(self.get_play_count_path(data_dir))
@@ -154,6 +160,17 @@ class DataHandler:
                                     game.description = desc_data.get("text")
                         except Exception as desc_err:
                             print(f"Error loading description for {game_id}: {desc_err}")
+
+                    # Load completion status if exists
+                    completion_status_file = game_file.parent / "completion_status.yaml"
+                    if completion_status_file.exists():
+                        try:
+                            with open(completion_status_file, "r") as status_file:
+                                status_data = yaml.safe_load(status_file)
+                                if status_data and isinstance(status_data, dict):
+                                    game.completion_status = status_data.get("status")
+                        except Exception as status_err:
+                            print(f"Error loading completion status for {game_id}: {status_err}")
 
                     games.append(game)
             except Exception as e:
@@ -586,6 +603,36 @@ class DataHandler:
             return True
         except Exception as e:
             print(f"Error updating description for {game.id}: {e}")
+            return False
+
+    def update_completion_status(self, game: Game, status: str) -> bool:
+        """
+        Update the completion status for a game and save it to the completion_status.yaml file.
+
+        Args:
+            game: The game to update the completion status for
+            status: The new completion status text
+
+        Returns:
+            True if the completion status was successfully updated, False otherwise
+        """
+        game_dir = self._get_game_dir_from_id(game.id)
+        status_file = game_dir / "completion_status.yaml"
+
+        try:
+            # Update the completion status in the game object
+            game.completion_status = status
+
+            # Create the status data
+            status_data = {"status": status}
+
+            # Write to the file
+            with open(status_file, "w") as f:
+                yaml.dump(status_data, f)
+
+            return True
+        except Exception as e:
+            print(f"Error updating completion status for {game.id}: {e}")
             return False
 
     def increment_play_time(self, game: Game, seconds_to_add: int) -> bool:

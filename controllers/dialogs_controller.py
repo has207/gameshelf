@@ -93,6 +93,7 @@ class GameDialog(Adw.Window):
     play_stats_group: Adw.PreferencesGroup = Gtk.Template.Child()
     play_count_entry: Adw.EntryRow = Gtk.Template.Child()
     play_time_entry: Adw.EntryRow = Gtk.Template.Child()
+    completion_status_dropdown: Adw.ComboRow = Gtk.Template.Child()
     remove_game_container: Adw.PreferencesGroup = Gtk.Template.Child()
     remove_button: Gtk.Button = Gtk.Template.Child()
 
@@ -105,7 +106,12 @@ class GameDialog(Adw.Window):
         self.selected_image_path = None
         self.original_image_path = None
         self.runners_data = []
+        self.completion_status_data = []
+        self.selected_completion_status = None
         self.game = None
+
+        # Set up completion status dropdown
+        self._populate_completion_status_dropdown()
 
         # Configure UI based on mode (add or edit)
         if edit_mode:
@@ -147,6 +153,19 @@ class GameDialog(Adw.Window):
         # Set play statistics
         self.play_count_entry.set_text(str(game.play_count))
         self.play_time_entry.set_text(str(game.play_time))
+
+        # Set completion status if available
+        if game.completion_status:
+            # Find the index of the completion status in completion_status_data
+            for i, status in enumerate(self.completion_status_data):
+                if status == game.completion_status:
+                    self.completion_status_dropdown.set_selected(i)
+                    self.selected_completion_status = status
+                    break
+        else:
+            # Select "[none]" if no completion status
+            self.completion_status_dropdown.set_selected(0)
+            self.selected_completion_status = None
 
         # Populate runners dropdown
         self.populate_runners(self.controller.get_runners())
@@ -191,6 +210,39 @@ class GameDialog(Adw.Window):
         self.runner_dropdown.set_selected(0)
         self.selected_runner = None
 
+    def _populate_completion_status_dropdown(self):
+        """Populate the completion status dropdown with predefined statuses"""
+        # Define completion status options
+        status_options = [
+            "[none]",
+            "Not Played",
+            "Plan to Play",
+            "Playing",
+            "On Hold",
+            "Abandoned",
+            "Played",
+            "Beaten",
+            "Completed"
+        ]
+
+        # Create a string list for displaying status names
+        string_list = Gtk.StringList()
+
+        # Add all statuses
+        for status in status_options:
+            string_list.append(status)
+
+        # Store actual values for reference when selected
+        # Store None for "[none]" and the status string for others
+        self.completion_status_data = [None if status == "[none]" else status for status in status_options]
+
+        # Set up the dropdown with the string list
+        self.completion_status_dropdown.set_model(string_list)
+
+        # Select "[none]" by default
+        self.completion_status_dropdown.set_selected(0)
+        self.selected_completion_status = None
+
     @Gtk.Template.Callback()
     def on_entry_changed(self, entry, *args):
         self.validate_form()
@@ -204,6 +256,17 @@ class GameDialog(Adw.Window):
             self.selected_runner = self.runners_data[selected_index]
         else:
             self.selected_runner = None
+        self.validate_form()
+
+    @Gtk.Template.Callback()
+    def on_completion_status_selected(self, dropdown, gparam):
+        """Handler for completion status selection changes"""
+        selected_index = dropdown.get_selected()
+        if selected_index >= 0 and selected_index < len(self.completion_status_data):
+            # Get the completion status from our stored data using the index
+            self.selected_completion_status = self.completion_status_data[selected_index]
+        else:
+            self.selected_completion_status = None
         self.validate_form()
 
     @Gtk.Template.Callback()
@@ -323,6 +386,14 @@ class GameDialog(Adw.Window):
             except (ValueError, TypeError):
                 pass
 
+            # Check completion status changes
+            current_status = self.selected_completion_status
+            game_status = self.game.completion_status
+            if (current_status is None and game_status is not None) or \
+               (current_status is not None and game_status is None) or \
+               (current_status != game_status):
+                has_changes = True
+
             # Check image change
             if self.selected_image_path is not None:  # Only if image was explicitly changed
                 has_changes = True
@@ -415,6 +486,14 @@ class GameDialog(Adw.Window):
         # Update the game object
         self.game.title = title
         self.game.runner = runner_id
+
+        # Update completion status if needed
+        if self.selected_completion_status != self.game.completion_status:
+            # Update the completion status
+            self.controller.data_handler.update_completion_status(
+                self.game,
+                self.selected_completion_status
+            )
 
         # Save the updated game
         if self.controller.add_game(self.game):

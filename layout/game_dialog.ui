@@ -99,6 +99,12 @@
                         <signal name="activate" handler="on_entry_changed"/>
                       </object>
                     </child>
+                    <child>
+                      <object class="AdwComboRow" id="completion_status_dropdown">
+                        <property name="title">Completion Status</property>
+                        <signal name="notify::selected" handler="on_completion_status_selected"/>
+                      </object>
+                    </child>
                   </object>
                 </child>
                 
