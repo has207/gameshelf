@@ -3,6 +3,7 @@
 import sys
 import gi
 import os
+import signal
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 gi.require_version('Gdk', '4.0')
@@ -65,5 +66,15 @@ class GameShelfApp(Adw.Application):
 
 if __name__ == "__main__":
     app = GameShelfApp()
+
+    # Set up signal handler for Ctrl+C (SIGINT)
+    def signal_handler(sig, frame):
+        """Handle interrupt signals gracefully"""
+        print("Kill signal received, exiting...\n")
+        if hasattr(app, 'win') and app.win:
+            app.on_shutdown(app)
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
     app.run(sys.argv)
 
