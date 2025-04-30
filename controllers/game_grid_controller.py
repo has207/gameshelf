@@ -1,10 +1,19 @@
 from typing import List, Optional
 
-from gi.repository import Gtk, Gio, Gdk
+from gi.repository import Gtk, Gio, Gdk, GObject
 from data_handler import Game, Runner
 
 from controllers.sidebar_controller import SidebarItem
 from controllers.common import get_template_path
+
+
+# Create a GObject-based wrapper for Game objects to use in ListStore
+class GameObject(GObject.GObject):
+    __gtype_name__ = 'GameObject'
+
+    def __init__(self, game: Game):
+        super().__init__()
+        self.game = game
 
 
 @Gtk.Template(filename=get_template_path("game_item.ui"))
@@ -204,12 +213,15 @@ class GameGridController:
         self.last_selected_position = -1  # Track the last selected position for range selection
 
     def bind_gridview(self, grid_view: Gtk.GridView):
-        self.games_model = Gio.ListStore(item_type=Gtk.Widget)
+        # Store GameObject wrappers that hold Game objects
+        self.games_model = Gio.ListStore(item_type=GameObject)
         self.grid_view = grid_view
 
+        # Create factory for on-demand widget creation
         factory = Gtk.SignalListItemFactory()
         factory.connect("setup", self._on_factory_setup)
         factory.connect("bind", self._on_factory_bind)
+        factory.connect("unbind", self._on_factory_unbind)  # Release resources when scrolling
 
         # Create multi-selection model that doesn't auto-select the first item
         self.selection_model = Gtk.MultiSelection(model=self.games_model)
@@ -227,51 +239,220 @@ class GameGridController:
         self.populate_games()
 
     def _on_factory_setup(self, factory, list_item):
-        # Create a simple container box to hold our game items
+        """Set up the container for a grid item - called once per visible item"""
+        # Create a simple container box to hold our game item elements
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        box.add_css_class("game-item-container")
+
+        # Create the game UI elements that will be reused
+        image = Gtk.Picture()
+        image.set_size_request(180, 240)  # Maintain consistent image size
+
+        label = Gtk.Label()
+        label.set_ellipsize(3)  # PANGO_ELLIPSIZE_END = 3
+        label.set_max_width_chars(20)
+        label.set_lines(2)
+        label.set_wrap(True)
+
+        # Store references to the UI elements
+        box.image = image
+        box.label = label
+
+        # Add the UI elements to the box
+        box.append(image)
+        box.append(label)
+
+        # Add gestures for interactions
+        click_gesture = Gtk.GestureClick.new()
+        click_gesture.connect("released", self._on_item_clicked, list_item)
+        box.add_controller(click_gesture)
+
+        right_click = Gtk.GestureClick.new()
+        right_click.set_button(3)  # Right mouse button
+        right_click.connect("pressed", self._on_item_right_click, list_item)
+        box.add_controller(right_click)
+
         list_item.set_child(box)
 
     def _on_factory_bind(self, factory, list_item):
+        """Bind data to an item when it becomes visible"""
         box = list_item.get_child()
-        # Remove any existing children
-        while child := box.get_first_child():
-            box.remove(child)
-
-        # Add our game item
         position = list_item.get_position()
+
+        # Get the game object from the model
         if position < self.games_model.get_n_items():
-            game_item = self.games_model.get_item(position)
-            box.append(game_item)
+            game_obj = self.games_model.get_item(position)
+            game = game_obj.game  # Unwrap the actual Game from GameObject
+
+            # Update the game item with data
+            box.label.set_text(game.title)
+
+            # Try to load the game image only when the item is visible
+            pixbuf = self.main_controller.get_game_pixbuf(game)
+            if pixbuf:
+                box.image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
+            else:
+                # Get a default icon paintable from the data handler
+                icon_paintable = self.main_controller.data_handler.get_default_icon_paintable("applications-games-symbolic")
+                box.image.set_paintable(icon_paintable)
+
+            # Store reference to the game for event handlers
+            box.game = game
 
             # Add selected style based on selection state
             selection = self.selection_model.get_selection()
             if selection.contains(position):
                 box.add_css_class("selected-game-item")
-                # Also add style to the game item itself for better visibility
-                if hasattr(game_item, 'add_css_class'):
-                    game_item.add_css_class("selected-item")
             else:
                 box.remove_css_class("selected-game-item")
-                # Remove style from the game item
-                if hasattr(game_item, 'remove_css_class'):
-                    game_item.remove_css_class("selected-item")
+
+    def _on_factory_unbind(self, factory, list_item):
+        """Clean up when item scrolls out of view"""
+        # This is where you would release any heavy resources
+        # For now, just clear the image to save memory
+        box = list_item.get_child()
+        if box and hasattr(box, 'image'):
+            box.image.set_paintable(None)
+
+    def _on_item_clicked(self, gesture, n_press, x, y, list_item):
+        """Handle clicks on game items"""
+        # Only handle left clicks (button 1)
+        if gesture.get_current_button() != 1:
+            return
+
+        position = list_item.get_position()
+        if position < 0 or position >= self.games_model.get_n_items():
+            return
+
+        game_obj = self.games_model.get_item(position)
+        game = game_obj.game  # Unwrap the Game from GameObject
+        box = list_item.get_child()
+
+        # Get keyboard state to check for shift key
+        shift_pressed = (gesture.get_current_event_state() & Gdk.ModifierType.SHIFT_MASK) != 0
+
+        # Find the main window
+        from controllers.window_controller import GameShelfWindow
+        window = self.grid_view.get_ancestor(GameShelfWindow)
+        if not window:
+            return
+
+        # If shift key is pressed, handle range selection
+        if shift_pressed and self.last_selected_position >= 0:
+            # Calculate range between last selected position and current position
+            start_pos = min(position, self.last_selected_position)
+            end_pos = max(position, self.last_selected_position) + 1
+
+            # For Gtk4 MultiSelection, we need to toggle each item's selection state
+            for i in range(start_pos, end_pos):
+                self.selection_model.select_item(i, True)
+
+            # Update the last selected position
+            self.last_selected_position = position
+
+        # Normal click (no modifier keys)
+        else:
+            # Clear all selections
+            for i in range(self.games_model.get_n_items()):
+                if self.selection_model.is_selected(i):
+                    self.selection_model.unselect_item(i)
+
+            # Store the selected game to maintain state across filtering
+            window.current_selected_game = game
+            window.details_content.set_game(game)
+            window.details_panel.set_reveal_flap(True)
+
+            # Save panel visibility and game selection to settings
+            window.controller.settings_manager.set_details_visible(True)
+            window.controller.settings_manager.set_current_game_id(game.id)
+
+            # Update the last selected position
+            self.last_selected_position = position
+
+    def _on_item_right_click(self, gesture, n_press, x, y, list_item):
+        """Handle right clicks on game items for context menu"""
+        position = list_item.get_position()
+        if position < 0 or position >= self.games_model.get_n_items():
+            return
+
+        game_obj = self.games_model.get_item(position)
+        game = game_obj.game  # Unwrap Game from GameObject
+        box = list_item.get_child()
+
+        # Find the main window
+        from controllers.window_controller import GameShelfWindow
+        window = self.grid_view.get_ancestor(GameShelfWindow)
+        if not window:
+            return
+
+        # Check if we have multiple items selected
+        selected_games = []
+        for i in range(self.games_model.get_n_items()):
+            if self.selection_model.is_selected(i):
+                game_obj = self.games_model.get_item(i)
+                selected_games.append(game_obj.game)  # Unwrap Game
+
+        # If current item is not in selection, select only this item
+        if not self.selection_model.is_selected(position):
+            # Clear existing selections
+            for i in range(self.games_model.get_n_items()):
+                if self.selection_model.is_selected(i):
+                    self.selection_model.unselect_item(i)
+
+            # Select current item
+            self.selection_model.select_item(position, True)
+            self.last_selected_position = position
+            selected_games = [game]
+
+            # Store single game in window state
+            window.current_selected_game = game
+
+        # Create appropriate menu based on selection count
+        if len(selected_games) > 1:
+            # Show multi-selection menu
+            menu = self.create_multi_context_menu(selected_games, box)
+        else:
+            # Show standard single-item menu
+            from controllers.dialogs_controller import GameContextMenu
+            menu = GameContextMenu(game, box)
+            menu.set_parent(box)
+            menu.set_autohide(True)
+
+        if not menu:
+            return
+
+        # Set the position to be at the mouse pointer
+        rect = Gdk.Rectangle()
+        rect.x = x
+        rect.y = y
+        rect.width = 1
+        rect.height = 1
+        menu.set_pointing_to(rect)
+
+        # Show the menu
+        menu.show()
 
     def populate_games(self, filter_runner: Optional[str] = None, search_text: str = ""):
+        """Populate the games grid with filtered games"""
         self.main_controller.current_filter = filter_runner
         self.games_model.remove_all()
         # Reset selection tracking when repopulating
         self.last_selected_position = -1
         games = self.main_controller.get_games()
 
+        print(f"Populating games grid with {len(games)} total games...")
+
         # Apply runner filter
         if filter_runner is not None:  # Filter is specifically set (including empty string)
             games = [g for g in games if g.runner == filter_runner]
+            print(f"After runner filter: {len(games)} games")
 
         # Apply search filter if search text is provided
         if search_text:
-            games = [g for g in games if search_text in g.title.lower()]
+            games = [g for g in games if search_text.lower() in g.title.lower()]
+            print(f"After search filter: {len(games)} games")
 
-        # Show only hidden or non-hidden games based on self.show_hidden setting
+        # Show only hidden or non-hidden games based on show_hidden setting
         if hasattr(self.main_controller, 'show_hidden'):
             if self.main_controller.show_hidden:
                 # When show_hidden is True, only show hidden games
@@ -279,6 +460,7 @@ class GameGridController:
             else:
                 # When show_hidden is False, only show non-hidden games
                 games = [g for g in games if not g.hidden]
+            print(f"After hidden filter: {len(games)} games")
 
         # Sort the games if sort parameters are set
         if hasattr(self.main_controller, 'sort_field') and hasattr(self.main_controller, 'sort_ascending'):
@@ -287,10 +469,12 @@ class GameGridController:
             # Default sorting by title ascending
             games = sorted(games, key=lambda g: g.title.lower())
 
-        # Create widgets for the games
+        # Wrap each Game in a GameObject before adding to the model
+        # Widgets will be created on-demand when the items become visible
         for game in games:
-            game_item = self.create_game_widget(game)
-            self.games_model.append(game_item)
+            self.games_model.append(GameObject(game))
+
+        print(f"Grid populated with {self.games_model.get_n_items()} games")
 
     def sort_games(self, games: List[Game], sort_field: str, ascending: bool) -> List[Game]:
         """
@@ -334,6 +518,7 @@ class GameGridController:
             # Default to title
             return sorted(games, key=lambda g: g.title.lower(), reverse=reverse)
 
+    # We need to keep these methods for compatibility with other parts of the code
     def create_game_widget(self, game: Game) -> Gtk.Widget:
         return GameItem(game, self.main_controller)
 
@@ -352,12 +537,11 @@ class GameGridController:
         """Handle delete key press by removing selected games"""
         # Get the selected games
         selected_games = []
-        # Find all selected items
+        # Find all selected items - extract Game objects from GameObject wrappers
         for i in range(self.games_model.get_n_items()):
             if self.selection_model.is_selected(i):
-                game_item = self.games_model.get_item(i)
-                if hasattr(game_item, 'game'):
-                    selected_games.append(game_item.game)
+                game_obj = self.games_model.get_item(i)
+                selected_games.append(game_obj.game)  # Unwrap Game from GameObject
 
         if not selected_games:
             return
