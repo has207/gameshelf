@@ -110,6 +110,13 @@ class GameDialog(Adw.Window):
         self.selected_completion_status = None
         self.game = None
 
+        # Adjust dialog height based on parent window height
+        parent_height = parent_window.get_height()
+        if parent_height > 0:
+            # Make the dialog about 80% of parent height, but not smaller than default
+            preferred_height = max(650, int(parent_height * 0.8))
+            self.set_default_size(500, preferred_height)
+
         # Set up completion status dropdown
         self._populate_completion_status_dropdown()
 
