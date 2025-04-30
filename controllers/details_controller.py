@@ -32,8 +32,13 @@ class GameDetailsContent(Gtk.Box):
     def on_close_details_clicked(self, button):
         from controllers.window_controller import GameShelfWindow
         window = self.get_ancestor(GameShelfWindow)
-        if window:
+        if window and window.controller:
+            # Hide the panel
             window.details_panel.set_reveal_flap(False)
+
+            # Save state to settings
+            window.controller.settings_manager.set_details_visible(False)
+            window.controller.settings_manager.set_current_game_id(None)
 
     @Gtk.Template.Callback()
     def on_toggle_hidden_clicked(self, button):
@@ -270,10 +275,34 @@ class DetailsController:
         self.details_content = details_content
         self.details_panel = details_panel
 
-        # Initialize details panel
-        if details_panel:
-            details_panel.set_reveal_flap(False)
+        # Restore details panel state from settings
+        should_reveal = self.main_controller.settings_manager.get_details_visible()
+        current_game_id = self.main_controller.settings_manager.get_current_game_id()
 
         # Set the controller for the details content
         if details_content:
             details_content.set_controller(self.main_controller)
+
+        # If we have a current game ID from settings, try to restore it
+        if current_game_id and should_reveal:
+            # Find the game with the saved ID
+            for game in self.main_controller.games:
+                if game.id == current_game_id:
+                    # Set the game in the details content
+                    if details_content:
+                        details_content.set_game(game)
+
+                    # Reveal the details panel
+                    if details_panel:
+                        details_panel.set_reveal_flap(True)
+
+                    # Store the current game in the window for state tracking
+                    if self.main_controller.window:
+                        self.main_controller.window.current_selected_game = game
+
+                    # Game found and loaded
+                    break
+        else:
+            # No game to restore, hide panel
+            if details_panel:
+                details_panel.set_reveal_flap(False)

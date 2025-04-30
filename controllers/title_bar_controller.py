@@ -21,9 +21,16 @@ class GameSortMenu(Gtk.Popover):
 
     def __init__(self):
         super().__init__()
-        # Sort order and field will be set by handlers
+        # Sort order and field will be initialized from main controller
+        # when shown for the first time
         self.ascending = True
         self.sort_field = "title"
+
+        # We'll initialize the correct buttons when the menu is first shown
+        self.connected = False
+
+        # Connect to the visibility signal to initialize values when first shown
+        self.connect("notify::visible", self.on_visible_notify)
 
     @Gtk.Template.Callback()
     def on_sort_order_toggled(self, button):
@@ -38,6 +45,39 @@ class GameSortMenu(Gtk.Popover):
         window = self.get_ancestor(GameShelfWindow)
         if window and window.controller:
             window.controller.title_bar_controller.update_sort(self.sort_field, self.ascending)
+
+    def on_visible_notify(self, popover, param):
+        """Called when the popover visibility changes"""
+        if popover.get_visible() and not self.connected:
+            # Only load settings the first time the menu is shown
+            self.connected = True
+
+            # Get window
+            from controllers.window_controller import GameShelfWindow
+            window = self.get_ancestor(GameShelfWindow)
+            if window and window.controller:
+                # Get sort settings
+                self.sort_field, self.ascending = window.controller.settings_manager.get_sort_settings()
+
+                # Set the correct sort field button
+                if self.sort_field == "title":
+                    self.sort_by_title.set_active(True)
+                elif self.sort_field == "last_played":
+                    self.sort_by_last_played.set_active(True)
+                elif self.sort_field == "play_time":
+                    self.sort_by_play_time.set_active(True)
+                elif self.sort_field == "play_count":
+                    self.sort_by_play_count.set_active(True)
+                elif self.sort_field == "date_added":
+                    self.sort_by_date_added.set_active(True)
+                elif self.sort_field == "date_modified":
+                    self.sort_by_date_modified.set_active(True)
+
+                # Set the correct sort order button
+                if self.ascending:
+                    self.sort_ascending_button.set_active(True)
+                else:
+                    self.sort_descending_button.set_active(True)
 
     @Gtk.Template.Callback()
     def on_sort_by_toggled(self, button):
@@ -75,10 +115,18 @@ class TitleBarController:
     def setup_search(self, search_entry):
         self.search_entry = search_entry
 
+        # Set initial search text from settings
+        saved_search = self.main_controller.settings_manager.get_search_text()
+        if saved_search:
+            search_entry.set_text(saved_search)
+
     def on_search_changed(self, search_entry):
         """Handle search entry text changes"""
         search_text = search_entry.get_text().strip().lower()
         print(f"Search text changed to: {search_text}")
+
+        # Save search text to settings
+        self.main_controller.settings_manager.set_search_text(search_text)
 
         # Update games grid directly without a full reload
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
@@ -98,10 +146,15 @@ class TitleBarController:
         self.main_controller.sort_field = sort_field
         self.main_controller.sort_ascending = ascending
 
+        # Save sort settings to persist across sessions
+        self.main_controller.settings_manager.set_sort_settings(sort_field, ascending)
+
         # Reload games with current filters and new sort
         search_text = ""
         if self.search_entry:
             search_text = self.search_entry.get_text().strip().lower()
+            # Save search text
+            self.main_controller.settings_manager.set_search_text(search_text)
 
         self.populate_games(filter_runner=self.main_controller.current_filter, search_text=search_text)
 

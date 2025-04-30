@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf
 from data_handler import DataHandler, Game, Runner
 from process_tracking import ProcessTracker
+from settings_manager import SettingsManager
 from controllers.common import get_template_path
 
 from controllers.details_controller import GameDetailsContent, DetailsController
@@ -18,23 +19,21 @@ class GameShelfController:
     Main controller class for the GameShelf application.
     Handles data management, game/runner operations, and UI coordination.
     """
-    def __init__(self, data_handler: DataHandler):
+    def __init__(self, data_handler: DataHandler, settings_manager: SettingsManager):
         self.data_handler = data_handler
+        self.settings_manager = settings_manager
         self.games = self.data_handler.load_games()
         self.runners = {runner.id: runner for runner in self.data_handler.load_runners()}
-        self.current_filter = None
         self.window = None
         self.actions = {}
 
         # Initialize process tracker
         self.process_tracker = ProcessTracker(data_handler)
 
-        # Initialize sorting parameters
-        self.sort_field = "title"
-        self.sort_ascending = True
-
-        # Initialize visibility settings
-        self.show_hidden = False  # When False, show normal games; when True, show only hidden games
+        # Load settings
+        self.current_filter = self.settings_manager.get_current_filter()
+        self.sort_field, self.sort_ascending = self.settings_manager.get_sort_settings()
+        self.show_hidden = self.settings_manager.get_show_hidden()
 
         # Sub-controllers will be initialized later when the window is created
         self.title_bar_controller = None
@@ -137,10 +136,15 @@ class GameShelfController:
         self.show_hidden = not self.show_hidden
         print(f"Toggled show_hidden to: {self.show_hidden}")
 
+        # Save state to settings
+        self.settings_manager.set_show_hidden(self.show_hidden)
+
         # Get search text from the window if available
         search_text = ""
         if self.window and hasattr(self.window, 'search_entry'):
             search_text = self.window.search_entry.get_text().strip().lower()
+            # Save search text
+            self.settings_manager.set_search_text(search_text)
 
         # Only refresh the grid, sidebar doesn't need to change when toggling visibility
         if hasattr(self, 'game_grid_controller') and self.game_grid_controller:
@@ -205,6 +209,21 @@ class GameShelfWindow(Adw.ApplicationWindow):
         print(f"Controller initialized: {self.controller}")
         print(f"Grid controller: {self.controller.game_grid_controller}")
         print(f"Sidebar controller: {self.controller.sidebar_controller}")
+
+        # Initialize visibility toggle with saved state
+        if hasattr(self, 'visibility_toggle') and self.visibility_toggle is not None:
+            show_hidden = self.controller.settings_manager.get_show_hidden()
+            self.visibility_toggle.set_active(show_hidden)
+
+            # Update the icon based on state
+            if show_hidden:
+                self.visibility_toggle.set_icon_name("view-reveal-symbolic")
+                self.visibility_toggle.set_tooltip_text("Showing Hidden Games")
+                self.visibility_toggle.add_css_class("destructive-action")
+            else:
+                self.visibility_toggle.set_icon_name("view-conceal-symbolic")
+                self.visibility_toggle.set_tooltip_text("Showing Normal Games")
+                self.visibility_toggle.remove_css_class("destructive-action")
 
         # Setup components in correct order
         # 1. First title bar (needed for search)

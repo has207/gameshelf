@@ -149,8 +149,13 @@ class SidebarController:
         self.sidebar_listview.set_factory(factory)
         self.sidebar_listview.set_model(selection)
 
-        # Select the first item
-        if self.sidebar_store.get_n_items() > 0:
+        # Select the saved item or the first item if none saved
+        saved_index = self.main_controller.settings_manager.get_sidebar_selection()
+        if saved_index >= 0 and saved_index < self.sidebar_store.get_n_items():
+            # Use saved selection
+            selection.set_selected(saved_index)
+        elif self.sidebar_store.get_n_items() > 0:
+            # Default to the first item
             selection.set_selected(0)
 
         print(f"Sidebar initialized with {self.sidebar_store.get_n_items()} items")
@@ -228,6 +233,9 @@ class SidebarController:
             self.__class__._last_selection = current_selection
             print(f"Sidebar selection changed to: {item.name}")
 
+            # Save selection index to settings
+            self.main_controller.settings_manager.set_sidebar_selection(index)
+
             # Get the window from the controller
             window = self.main_controller.window
 
@@ -235,6 +243,8 @@ class SidebarController:
             if window and hasattr(window, 'search_entry'):
                 if window.search_entry.get_text():
                     window.search_entry.set_text("")
+                    # Clear search text in settings
+                    self.main_controller.settings_manager.set_search_text("")
 
             # Update filter based on selection
             filter_value = None
@@ -248,6 +258,9 @@ class SidebarController:
             # Only update if filter changed
             if self.main_controller.current_filter != filter_value:
                 self.main_controller.current_filter = filter_value
+
+                # Save filter to settings
+                self.main_controller.settings_manager.set_current_filter(filter_value)
 
                 # Update grid without full reload
                 if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:

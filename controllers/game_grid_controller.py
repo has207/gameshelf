@@ -169,6 +169,10 @@ class GameItem(Gtk.Box):
             window.details_content.set_game(self.game)
             window.details_panel.set_reveal_flap(True)
 
+            # Save panel visibility and game selection to settings
+            window.controller.settings_manager.set_details_visible(True)
+            window.controller.settings_manager.set_current_game_id(self.game.id)
+
             # Update the last selected position
             grid_ctrl.last_selected_position = position
 
