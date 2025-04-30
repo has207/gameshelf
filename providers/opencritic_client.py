@@ -11,7 +11,28 @@ import json
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
-from metadata_provider import MetadataProvider, Game, Genre, Image, ImageCollection, SearchResultItem, Company, Platform
+from metadata_provider import MetadataProvider, Game, Genre, SearchResultItem, Company, Platform, Image, ImageCollection
+
+
+@dataclass
+class OpenCriticImage(Image):
+    """Image information for a game"""
+    og: Optional[str] = None
+    sm: Optional[str] = None
+
+    @property
+    def url(self) -> Optional[str]:
+        """Get the full URL for the original image"""
+        if self.og:
+            return f"https://img.opencritic.com/{self.og}"
+        return None
+
+    @property
+    def thumbnail_url(self) -> Optional[str]:
+        """Get the full URL for the thumbnail image"""
+        if self.sm:
+            return f"https://img.opencritic.com/{self.sm}"
+        return None
 
 
 class OpenCriticClient(MetadataProvider):
@@ -87,7 +108,7 @@ class OpenCriticClient(MetadataProvider):
 
             if "screenshots" in images_data and images_data["screenshots"]:
                 for screenshot in images_data["screenshots"]:
-                    screenshots.append(Image(
+                    screenshots.append(OpenCriticImage(
                         og=screenshot.get("og"),
                         sm=screenshot.get("sm")
                     ))
@@ -95,21 +116,21 @@ class OpenCriticClient(MetadataProvider):
             # Parse box, square, and masthead images
             box = None
             if "box" in images_data and images_data["box"]:
-                box = Image(
+                box = OpenCriticImage(
                     og=images_data["box"].get("og"),
                     sm=images_data["box"].get("sm")
                 )
 
             square = None
             if "square" in images_data and images_data["square"]:
-                square = Image(
+                square = OpenCriticImage(
                     og=images_data["square"].get("og"),
                     sm=images_data["square"].get("sm")
                 )
 
             masthead = None
             if "masthead" in images_data and images_data["masthead"]:
-                masthead = Image(
+                masthead = OpenCriticImage(
                     og=images_data["masthead"].get("og"),
                     sm=images_data["masthead"].get("sm")
                 )
@@ -169,7 +190,6 @@ class OpenCriticClient(MetadataProvider):
         return Game(
             id=data.get("id", 0),
             name=data.get("name", ""),
-            has_lootboxes=data.get("hasLootboxes"),
             is_major_release=data.get("isMajorRelease", False),
             images=images,
             num_reviews=data.get("numReviews", 0),

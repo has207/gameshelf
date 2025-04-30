@@ -7,6 +7,67 @@ from process_tracking import ProcessTracker
 
 from controllers.sidebar_controller import get_friendly_time, format_play_time
 from controllers.common import show_error_dialog, get_template_path
+import re
+import html
+
+def format_description_markup(description: str) -> str:
+    """
+    Convert text description to Pango markup, preserving line breaks and basic HTML formatting.
+
+    Args:
+        description: The raw text description, may contain HTML tags
+
+    Returns:
+        Formatted description with Pango markup
+    """
+    if not description:
+        return "No description available"
+
+    # First, let's determine if this description seems to contain HTML
+    has_html = bool(re.search(r'<[a-z]+[^>]*>', description.lower()))
+
+    if has_html:
+        # Process HTML-like description
+        # Escape any special characters that would interfere with Pango markup
+        escaped_desc = description.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+        # Convert common HTML tags to Pango markup
+        # Bold
+        escaped_desc = re.sub(r'&lt;b&gt;(.*?)&lt;/b&gt;', r'<b>\1</b>', escaped_desc, flags=re.DOTALL)
+        escaped_desc = re.sub(r'&lt;strong&gt;(.*?)&lt;/strong&gt;', r'<b>\1</b>', escaped_desc, flags=re.DOTALL)
+
+        # Italic
+        escaped_desc = re.sub(r'&lt;i&gt;(.*?)&lt;/i&gt;', r'<i>\1</i>', escaped_desc, flags=re.DOTALL)
+        escaped_desc = re.sub(r'&lt;em&gt;(.*?)&lt;/em&gt;', r'<i>\1</i>', escaped_desc, flags=re.DOTALL)
+
+        # Underline
+        escaped_desc = re.sub(r'&lt;u&gt;(.*?)&lt;/u&gt;', r'<u>\1</u>', escaped_desc, flags=re.DOTALL)
+
+        # Paragraph breaks
+        escaped_desc = re.sub(r'&lt;p&gt;(.*?)&lt;/p&gt;', r'\1\n\n', escaped_desc, flags=re.DOTALL)
+
+        # Convert HTML breaks to newlines
+        escaped_desc = re.sub(r'&lt;br\s*/?&gt;', '\n', escaped_desc)
+
+        # Handle lists
+        escaped_desc = re.sub(r'&lt;li&gt;(.*?)&lt;/li&gt;', r'• \1\n', escaped_desc, flags=re.DOTALL)
+
+        # Strip any remaining HTML tags
+        escaped_desc = re.sub(r'&lt;[^&]*?&gt;', '', escaped_desc)
+
+    else:
+        # Plain text - just escape for Pango markup but preserve newlines
+        escaped_desc = html.escape(description)
+        # Make sure newlines are preserved
+        escaped_desc = escaped_desc.replace('\n', '\n')
+
+    # Replace multiple consecutive newlines with just two
+    escaped_desc = re.sub(r'\n{3,}', '\n\n', escaped_desc)
+
+    # For Pango markup, we need to explicitly represent newlines
+    escaped_desc = escaped_desc.replace('\n', '&#10;')
+
+    return escaped_desc
 
 @Gtk.Template(filename=get_template_path("details_panel.ui"))
 class GameDetailsContent(Gtk.Box):
@@ -22,6 +83,7 @@ class GameDetailsContent(Gtk.Box):
     play_count_label: Gtk.Label = Gtk.Template.Child()
     last_played_label: Gtk.Label = Gtk.Template.Child()
     play_time_label: Gtk.Label = Gtk.Template.Child()
+    description_label: Gtk.Label = Gtk.Template.Child()
 
     def __init__(self):
         super().__init__()
@@ -247,6 +309,13 @@ class GameDetailsContent(Gtk.Box):
                 self.last_played_label.set_text(f"Last Played: {friendly_time}")
             else:
                 self.last_played_label.set_text("Last Played: Never")
+
+            # Set description if available with markup support
+            if game.description:
+                formatted_description = format_description_markup(game.description)
+                self.description_label.set_markup(formatted_description)
+            else:
+                self.description_label.set_text("No description available")
 
         can_play = False
         if self.controller and game.runner:

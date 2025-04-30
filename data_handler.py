@@ -22,7 +22,8 @@ class Runner:
 
 @dataclass
 class Game:
-    def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None, created: Optional[float] = None, hidden: bool = False):
+    def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None,
+                 created: Optional[float] = None, hidden: bool = False, description: Optional[str] = None):
         self.id = id.lower()
         self.title = title
         self.runner = runner.lower() if runner else ""
@@ -30,6 +31,7 @@ class Game:
         self.play_count = 0
         self.play_time = 0  # Total play time in seconds
         self.hidden = hidden  # Whether the game is hidden from the main grid
+        self.description = description  # Game description text
 
     def _get_game_dir_path(self, data_dir: Path) -> Path:
         """
@@ -62,6 +64,10 @@ class Game:
 
     def get_pid_path(self, data_dir: Path) -> str:
         return str(self._get_game_dir_path(data_dir) / "pid.yaml")
+
+    def get_description_path(self, data_dir: Path) -> str:
+        """Get the path to the game's description file"""
+        return str(self._get_game_dir_path(data_dir) / "description.yaml")
 
     def get_last_played_time(self, data_dir: Path) -> Optional[float]:
         play_count_file = Path(self.get_play_count_path(data_dir))
@@ -137,6 +143,17 @@ class DataHandler:
                                     game.play_time = play_time_data.get("seconds", 0)
                         except Exception as pt_err:
                             print(f"Error loading play time for {game_id}: {pt_err}")
+
+                    # Load description if exists
+                    description_file = game_file.parent / "description.yaml"
+                    if description_file.exists():
+                        try:
+                            with open(description_file, "r") as desc_file:
+                                desc_data = yaml.safe_load(desc_file)
+                                if desc_data and isinstance(desc_data, dict):
+                                    game.description = desc_data.get("text")
+                        except Exception as desc_err:
+                            print(f"Error loading description for {game_id}: {desc_err}")
 
                     games.append(game)
             except Exception as e:
@@ -539,6 +556,36 @@ class DataHandler:
             return True
         except Exception as e:
             print(f"Error updating play time for {game.id}: {e}")
+            return False
+
+    def update_game_description(self, game: Game, description: str) -> bool:
+        """
+        Update the description for a game and save it to the description.yaml file.
+
+        Args:
+            game: The game to update the description for
+            description: The new description text
+
+        Returns:
+            True if the description was successfully updated, False otherwise
+        """
+        game_dir = self._get_game_dir_from_id(game.id)
+        description_file = game_dir / "description.yaml"
+
+        try:
+            # Update the description in the game object
+            game.description = description
+
+            # Create the description data
+            desc_data = {"text": description}
+
+            # Write to the file
+            with open(description_file, "w") as f:
+                yaml.dump(desc_data, f)
+
+            return True
+        except Exception as e:
+            print(f"Error updating description for {game.id}: {e}")
             return False
 
     def increment_play_time(self, game: Game, seconds_to_add: int) -> bool:

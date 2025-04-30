@@ -139,12 +139,18 @@ class JsonImporter:
             except Exception as e:
                 print(f"Failed to parse Added date for '{title}': {str(e)}")
 
+        # Extract description if available
+        description = None
+        if "Description" in game_data and game_data["Description"]:
+            description = game_data["Description"]
+
         # Create a new game object
         game = Game(
             id="",  # ID will be assigned by data handler
             title=title,
             hidden=game_data.get("Hidden", False),
-            created=created_timestamp  # Use parsed timestamp for creation date
+            created=created_timestamp,  # Use parsed timestamp for creation date
+            description=description
         )
 
         # Process playtime if available
@@ -224,6 +230,10 @@ class JsonImporter:
         # Update play time if needed
         if game.play_time > 0:
             self.data_handler.update_play_time(game, game.play_time)
+
+        # Save description if available
+        if game.description:
+            self.data_handler.update_game_description(game, game.description)
 
         # Process modified timestamp
         modified_timestamp = None

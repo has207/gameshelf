@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 @dataclass
 class BaseModel:
-    """Base model for OpenCritic entities"""
+    """Base model for metadata entities"""
     id: int
     name: str
 
@@ -37,26 +37,10 @@ class Platform(BaseModel):
     release_date: Optional[datetime.datetime] = None
 
 
-@dataclass
-class Image:
-    """Image information for a game"""
-    og: Optional[str] = None
-    sm: Optional[str] = None
-
-    @property
-    def url(self) -> Optional[str]:
-        """Get the full URL for the original image"""
-        if self.og:
-            return f"https://img.opencritic.com/{self.og}"
-        return None
-
-    @property
-    def thumbnail_url(self) -> Optional[str]:
-        """Get the full URL for the thumbnail image"""
-        if self.sm:
-            return f"https://img.opencritic.com/{self.sm}"
-        return None
-
+class Image(ABC):
+    @abstractmethod
+    def url(self):
+        pass
 
 @dataclass
 class ImageCollection:
@@ -69,8 +53,7 @@ class ImageCollection:
 
 @dataclass
 class Game(BaseModel):
-    """Detailed game information from the OpenCritic API"""
-    has_lootboxes: Optional[bool] = None
+    """Detailed game information"""
     is_major_release: bool = False
     images: Optional[ImageCollection] = None
     num_reviews: int = 0
@@ -109,7 +92,7 @@ class MetadataProvider(ABC):
         Get detailed information about a game
 
         Args:
-            game_id: The OpenCritic game ID
+            game_id: game ID
 
         Returns:
             Detailed game information or None if not found
