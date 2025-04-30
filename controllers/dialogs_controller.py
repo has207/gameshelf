@@ -70,9 +70,9 @@ class GameContextMenu(Gtk.Popover):
         self.popdown()
         from controllers.window_controller import GameShelfWindow
         window = self.get_ancestor(GameShelfWindow)
-        if window:
-            window.details_content.set_game(self.game)
-            window.details_content.on_remove_button_clicked(None)
+        if window and window.controller and window.controller.game_grid_controller:
+            # Use the grid controller's existing delete confirmation functionality
+            window.controller.game_grid_controller._show_multi_delete_confirmation([self.game])
 
 
 @Gtk.Template(filename=get_template_path("game_dialog.ui"))
