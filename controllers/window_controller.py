@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf
 from data_handler import DataHandler, Game, Runner
 from process_tracking import ProcessTracker
-from settings_manager import SettingsManager
+from app_state_manager import AppStateManager
 from controllers.common import get_template_path
 
 from controllers.details_controller import GameDetailsContent, DetailsController
@@ -19,7 +19,7 @@ class GameShelfController:
     Main controller class for the GameShelf application.
     Handles data management, game/runner operations, and UI coordination.
     """
-    def __init__(self, data_handler: DataHandler, settings_manager: SettingsManager):
+    def __init__(self, data_handler: DataHandler, settings_manager: AppStateManager):
         self.data_handler = data_handler
         self.settings_manager = settings_manager
         self.games = self.data_handler.load_games()

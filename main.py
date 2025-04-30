@@ -6,7 +6,7 @@ gi.require_version('Adw', '1')
 gi.require_version('Gdk', '4.0')
 from gi.repository import Gtk, Adw, Gio, Gdk
 from data_handler import DataHandler
-from settings_manager import SettingsManager
+from app_state_manager import AppStateManager
 # Import controllers
 from controllers import GameShelfController, GameShelfWindow
 
@@ -23,9 +23,9 @@ class GameShelfApp(Adw.Application):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
-        # Initialize data handler and settings manager
+        # Initialize data handler and app state manager
         self.data_handler = DataHandler()
-        self.settings_manager = SettingsManager()
+        self.settings_manager = AppStateManager()
 
         # Create main controller with handlers
         self.controller = GameShelfController(self.data_handler, self.settings_manager)

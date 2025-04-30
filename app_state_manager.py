@@ -4,7 +4,7 @@ import yaml
 from typing import Dict, Optional, Any, List, Tuple
 
 
-class SettingsManager:
+class AppStateManager:
     def __init__(self, data_dir: str = "data"):
         """
         Initialize the settings manager
@@ -13,7 +13,7 @@ class SettingsManager:
             data_dir: The data directory path
         """
         self.data_dir = Path(data_dir)
-        self.settings_file = self.data_dir / "settings.yaml"
+        self.settings_file = self.data_dir / "app_state.yaml"
         self.settings = self._load_settings()
 
     def _load_settings(self) -> Dict[str, Any]:
