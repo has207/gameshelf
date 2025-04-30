@@ -29,6 +29,13 @@
                 <signal name="clicked" handler="on_manage_runners_clicked"/>
               </object>
             </child>
+            <child type="start">
+              <object class="GtkButton" id="import_games_button">
+                <property name="icon-name">document-open-symbolic</property>
+                <property name="tooltip-text">Import Games</property>
+                <signal name="clicked" handler="on_import_games_clicked"/>
+              </object>
+            </child>
             
             <property name="title-widget">
               <object class="GtkBox">

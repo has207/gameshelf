@@ -210,10 +210,9 @@ class GameShelfWindow(Adw.ApplicationWindow):
         print(f"Grid controller: {self.controller.game_grid_controller}")
         print(f"Sidebar controller: {self.controller.sidebar_controller}")
 
-        # Initialize visibility toggle with saved state
+        # Initialize visibility button with saved state
         if hasattr(self, 'visibility_toggle') and self.visibility_toggle is not None:
             show_hidden = self.controller.settings_manager.get_show_hidden()
-            self.visibility_toggle.set_active(show_hidden)
 
             # Update the icon based on state
             if show_hidden:
@@ -265,6 +264,14 @@ class GameShelfWindow(Adw.ApplicationWindow):
     def on_manage_runners_clicked(self, button):
         # Open the runners manager dialog
         dialog = RunnersManagerDialog(self, self.controller, self)
+        dialog.set_transient_for(self)
+        dialog.show()
+
+    @Gtk.Template.Callback()
+    def on_import_games_clicked(self, button):
+        # Open the import dialog
+        from controllers.import_dialog import ImportDialog
+        dialog = ImportDialog(self, self.controller)
         dialog.set_transient_for(self)
         dialog.show()
 

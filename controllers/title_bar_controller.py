@@ -165,14 +165,17 @@ class TitleBarController:
 
     def on_visibility_toggle_clicked(self, button):
         """Handle visibility toggle button click"""
-        # Update the icon based on toggle state
-        if button.get_active():
-            # When toggled on, we're showing hidden games
+        # Toggle the show_hidden state
+        show_hidden = not self.main_controller.show_hidden
+
+        # Update the icon based on the new state
+        if show_hidden:
+            # When showing hidden games
             button.set_icon_name("view-reveal-symbolic")
             button.set_tooltip_text("Showing Hidden Games")
             button.add_css_class("destructive-action")  # Make the button red when showing hidden games
         else:
-            # When toggled off, we're showing normal games
+            # When showing normal games
             button.set_icon_name("view-conceal-symbolic")
             button.set_tooltip_text("Showing Normal Games")
             button.remove_css_class("destructive-action")  # Remove the red styling

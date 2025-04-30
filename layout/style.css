@@ -265,3 +265,65 @@ searchentry:focus {
 .details-panel-actions {
   margin-top: 12px;
 }
+
+/* Import dialog styling */
+.import-dialog-content {
+  margin: 0;
+}
+
+.import-dialog-main-box {
+  margin: 24px;
+}
+
+.import-dialog-frame {
+  margin-bottom: 12px;
+}
+
+.import-dialog-source-box {
+  margin: 12px;
+}
+
+.import-dialog-field-box {
+  margin-bottom: 8px;
+}
+
+.import-dialog-label {
+  min-width: 150px;
+}
+
+.import-dialog-browse-button {
+  margin-left: 6px;
+}
+
+.import-dialog-progress-area {
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.import-dialog-progress-label {
+  margin-bottom: 6px;
+}
+
+.import-dialog-progress-bar {
+  margin-top: 6px;
+}
+
+.import-dialog-results-area {
+  margin-top: 12px;
+}
+
+.import-dialog-results-label {
+  margin-bottom: 12px;
+  font-weight: bold;
+}
+
+.import-dialog-error-scroll {
+  min-height: 100px;
+  margin-top: 6px;
+}
+
+.import-dialog-error-view {
+  padding: 8px;
+  background-color: alpha(@card_bg_color, 0.5);
+  border-radius: 8px;
+}
