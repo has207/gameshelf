@@ -23,7 +23,31 @@ class JsonImporter:
         """Initialize the importer with a data handler"""
         self.data_handler = data_handler
 
-    def import_from_file(self, json_path: str, cover_base_dir: str, limit: Optional[int] = None) -> Tuple[int, List[str]]:
+    def get_game_count(self, json_path: str) -> int:
+        """
+        Get the number of games in a JSON file without importing them
+
+        Args:
+            json_path: Path to the JSON file
+
+        Returns:
+            Number of games in the file, or 0 if file is invalid
+        """
+        try:
+            if not os.path.exists(json_path):
+                return 0
+
+            with open(json_path, 'r', encoding='utf-8') as f:
+                games_data = json.load(f)
+
+            if isinstance(games_data, list):
+                return len(games_data)
+            return 0
+        except Exception:
+            return 0
+
+    def import_from_file(self, json_path: str, cover_base_dir: str, limit: Optional[int] = None,
+                         progress_callback: Optional[callable] = None) -> Tuple[int, List[str]]:
         """
         Import games from a JSON file
 
@@ -31,6 +55,8 @@ class JsonImporter:
             json_path: Path to the JSON file
             cover_base_dir: Base directory for cover images
             limit: Optional limit on number of games to import (for testing)
+            progress_callback: Optional callback function to report progress
+                             Takes (current_index, total_count, game_title) as arguments
 
         Returns:
             Tuple of (number of games imported, list of error messages)
@@ -61,8 +87,17 @@ class JsonImporter:
             games_data = games_data[:limit]
             print(f"Limiting import to {limit} games")
 
+        total_games = len(games_data)
+
         for index, game_data in enumerate(games_data):
             try:
+                # Get game title for progress reporting
+                game_title = game_data.get("Name", f"Game {index}")
+
+                # Report progress if callback provided
+                if progress_callback:
+                    progress_callback(index, total_games, game_title)
+
                 result = self._import_game(game_data, cover_base_dir)
                 if result:
                     imported_count += 1
@@ -70,6 +105,10 @@ class JsonImporter:
                     errors.append(f"Failed to import game at index {index}")
             except Exception as e:
                 errors.append(f"Error importing game at index {index}: {str(e)}")
+
+        # Final progress update (100%)
+        if progress_callback:
+            progress_callback(total_games, total_games, "Complete")
 
         return imported_count, errors
 

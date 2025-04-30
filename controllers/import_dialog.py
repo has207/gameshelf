@@ -235,13 +235,42 @@ class ImportDialog(Gtk.Dialog):
     def _import_thread(self, importer, json_path, cover_dir):
         """Run the import in a separate thread"""
         try:
-            # Do the import
-            imported_count, errors = importer.import_from_file(json_path, cover_dir)
+            # Get game count from the importer
+            total_count = importer.get_game_count(json_path)
+
+            # Update UI to show total game count
+            if total_count > 0:
+                GLib.idle_add(self._update_progress_label, f"Preparing to import {total_count} games...")
+
+            # Do the import with progress reporting
+            imported_count, errors = importer.import_from_file(
+                json_path,
+                cover_dir,
+                progress_callback=self._update_progress
+            )
 
             # Update UI from main thread
             GLib.idle_add(self._import_complete, imported_count, errors)
         except Exception as e:
             GLib.idle_add(self._import_failed, str(e))
+
+    def _update_progress(self, current, total, game_title):
+        """Update progress UI from the callback"""
+        if total > 0:
+            fraction = current / total
+            # Update UI in main thread
+            GLib.idle_add(self._update_progress_ui, fraction, current, total, game_title)
+
+    def _update_progress_ui(self, fraction, current, total, game_title):
+        """Update progress UI in the main thread"""
+        self.progress_bar.set_fraction(fraction)
+        self.progress_label.set_text(f"Importing {current+1} of {total}: {game_title}")
+        return False  # Remove from idle
+
+    def _update_progress_label(self, text):
+        """Update just the progress label"""
+        self.progress_label.set_text(text)
+        return False  # Remove from idle
 
     def _import_complete(self, imported_count, errors):
         """Handle import completion"""
@@ -259,17 +288,15 @@ class ImportDialog(Gtk.Dialog):
         else:
             self.error_buffer.set_text("No errors.")
 
-        # Change dialog buttons
-        self.import_button.set_label("Close")
-        self.import_button.set_sensitive(True)
-
-        # Remove Cancel button
+        # Remove existing buttons
         cancel_button = self.get_widget_for_response(Gtk.ResponseType.CANCEL)
         if cancel_button:
             cancel_button.set_visible(False)
 
-        # Change import button to OK
-        self.set_response_from_widget(self.import_button, Gtk.ResponseType.OK)
+        # Remove import button and add a close button
+        self.import_button.set_visible(False)
+        close_button = self.add_button("Close", Gtk.ResponseType.OK)
+        close_button.set_sensitive(True)
 
         # Refresh game list
         self.controller.reload_data()
@@ -286,16 +313,14 @@ class ImportDialog(Gtk.Dialog):
         self.results_label.set_text("Import failed!")
         self.error_buffer.set_text(f"Error: {error_message}")
 
-        # Change dialog buttons
-        self.import_button.set_label("Close")
-        self.import_button.set_sensitive(True)
-
-        # Remove Cancel button
+        # Remove existing buttons
         cancel_button = self.get_widget_for_response(Gtk.ResponseType.CANCEL)
         if cancel_button:
             cancel_button.set_visible(False)
 
-        # Change import button to OK
-        self.set_response_from_widget(self.import_button, Gtk.ResponseType.OK)
+        # Remove import button and add a close button
+        self.import_button.set_visible(False)
+        close_button = self.add_button("Close", Gtk.ResponseType.OK)
+        close_button.set_sensitive(True)
 
         return False  # Remove from idle
