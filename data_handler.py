@@ -31,23 +31,37 @@ class Game:
         self.play_time = 0  # Total play time in seconds
         self.hidden = hidden  # Whether the game is hidden from the main grid
 
+    def _get_game_dir_path(self, data_dir: Path) -> Path:
+        """
+        Get the game's directory path using the new structured format.
+        For example, game ID 23 would be in data/games/000/000/023/
+        """
+        # Ensure ID is padded to 9 digits
+        padded_id = self.id.zfill(9)
+
+        # Split into 3 groups of 3 digits
+        dir1, dir2, dir3 = padded_id[:3], padded_id[3:6], padded_id[6:]
+
+        # Return the full path
+        return data_dir / "games" / dir1 / dir2 / dir3
+
     def get_cover_path(self, data_dir: Path) -> str:
-        return str(data_dir / "games" / self.id / "cover.jpg")
+        return str(self._get_game_dir_path(data_dir) / "cover.jpg")
 
     def get_modified_time(self, data_dir: Path) -> Optional[float]:
-        game_file = data_dir / "games" / self.id / "game.yaml"
+        game_file = self._get_game_dir_path(data_dir) / "game.yaml"
         if game_file.exists():
             return game_file.stat().st_mtime
         return None
 
     def get_play_count_path(self, data_dir: Path) -> str:
-        return str(data_dir / "games" / self.id / "play_count.yaml")
+        return str(self._get_game_dir_path(data_dir) / "play_count.yaml")
 
     def get_play_time_path(self, data_dir: Path) -> str:
-        return str(data_dir / "games" / self.id / "playtime.yaml")
+        return str(self._get_game_dir_path(data_dir) / "playtime.yaml")
 
     def get_pid_path(self, data_dir: Path) -> str:
-        return str(data_dir / "games" / self.id / "pid.yaml")
+        return str(self._get_game_dir_path(data_dir) / "pid.yaml")
 
     def get_last_played_time(self, data_dir: Path) -> Optional[float]:
         play_count_file = Path(self.get_play_count_path(data_dir))
@@ -87,9 +101,10 @@ class DataHandler:
 
     def load_games(self) -> List[Game]:
         games = []
-        for game_file in self.games_dir.glob("*/game.yaml"):
+        for game_file in self.games_dir.glob("*/*/*/game.yaml"):
             try:
-                game_id = game_file.parent.name
+                # Extract the game ID from the directory structure
+                game_id = self._extract_game_id_from_path(game_file)
 
                 with open(game_file, "r") as f:
                     game_data = yaml.safe_load(f)
@@ -163,7 +178,7 @@ class DataHandler:
             game_data["hidden"] = game.hidden
 
         try:
-            game_dir = self.games_dir / game.id
+            game_dir = self._get_game_dir_from_id(game.id)
             game_dir.mkdir(parents=True, exist_ok=True)
 
             game_file = game_dir / "game.yaml"
@@ -208,7 +223,7 @@ class DataHandler:
 
         try:
             # Create game directory if it doesn't exist
-            game_dir = self.games_dir / game_id
+            game_dir = self._get_game_dir_from_id(game_id)
             game_dir.mkdir(parents=True, exist_ok=True)
 
             # Always save as cover.jpg
@@ -219,6 +234,27 @@ class DataHandler:
             return True
         except Exception as e:
             print(f"Error copying image: {e}")
+            return False
+
+    def remove_game_image(self, game_id: str) -> bool:
+        """
+        Remove a game's cover image if it exists.
+
+        Args:
+            game_id: ID of the game
+
+        Returns:
+            True if the image was successfully removed or didn't exist, False if error
+        """
+        try:
+            game_dir = self._get_game_dir_from_id(game_id)
+            cover_path = game_dir / "cover.jpg"
+
+            if cover_path.exists():
+                cover_path.unlink()
+            return True
+        except Exception as e:
+            print(f"Error removing cover image for game {game_id}: {e}")
             return False
 
     def create_game_with_image(self, title: str, runner_id: Optional[str], image_path: Optional[str] = None) -> Game:
@@ -315,6 +351,58 @@ class DataHandler:
         # The empty list is for icon sizes, 1 is scale factor, Gtk.TextDirection.LTR is text direction
         return icon_theme.lookup_icon(icon_name, [], size, 1, Gtk.TextDirection.LTR, 0)
 
+    def _get_game_dir_from_id(self, game_id: str) -> Path:
+        """
+        Get the game directory path from a game ID using the new structured format.
+        For example, game ID 23 would be in data/games/000/000/023/
+
+        Args:
+            game_id: The ID of the game (will be converted to string and padded)
+
+        Returns:
+            Path to the game's directory
+        """
+        # Convert to string if it's an integer
+        game_id_str = str(game_id)
+
+        # Ensure ID is padded to 9 digits
+        padded_id = game_id_str.zfill(9)
+
+        # Split into 3 groups of 3 digits
+        dir1, dir2, dir3 = padded_id[:3], padded_id[3:6], padded_id[6:]
+
+        # Return the full path
+        return self.games_dir / dir1 / dir2 / dir3
+
+    def _extract_game_id_from_path(self, game_path: Path) -> str:
+        """
+        Extract a game ID from a directory path structured as 000/000/023.
+        Handles the reverse of _get_game_dir_from_id.
+
+        Args:
+            game_path: Path to a game directory or file within it
+
+        Returns:
+            The game ID as a string with leading zeros removed
+        """
+        # If we're given a file, get its parent directory
+        if game_path.is_file():
+            game_path = game_path.parent
+
+        # Extract the directory components
+        dir3 = game_path.name
+        dir2 = game_path.parent.name
+        dir1 = game_path.parent.parent.name
+
+        # Combine directory parts to get the padded ID
+        padded_id = dir1 + dir2 + dir3
+
+        # Convert to integer and back to string to remove leading zeros
+        if padded_id.isdigit():
+            return str(int(padded_id))
+        else:
+            return padded_id
+
     def get_next_game_id(self) -> int:
         """
         Get the next available game ID by finding the highest existing numeric ID
@@ -324,21 +412,22 @@ class DataHandler:
             The next available numeric ID for a game
         """
         try:
-            # Look for the highest existing ID in the games directory
+            # Look for the highest existing ID across all game directories
             highest_id = -1
-            for game_dir in self.games_dir.iterdir():
-                # Only consider directories
-                if not game_dir.is_dir():
-                    continue
 
-                # Check if the directory has a game.yaml file (it's a game directory)
-                if not (game_dir / "game.yaml").exists():
-                    continue
+            # Recursively search through all directories that might contain games
+            for game_yaml in self.games_dir.glob("*/*/*/game.yaml"):
+                try:
+                    # Extract the ID from the path, which handles removing leading zeros
+                    game_id = self._extract_game_id_from_path(game_yaml)
 
-                # Extract the ID from the directory name and see if it's a number
-                dir_id = game_dir.name
-                if dir_id.isdigit():
-                    highest_id = max(highest_id, int(dir_id))
+                    # Convert to integer for comparison
+                    if game_id.isdigit():
+                        id_int = int(game_id)
+                        highest_id = max(highest_id, id_int)
+                except Exception as inner_e:
+                    print(f"Error parsing game ID from {game_yaml}: {inner_e}")
+                    continue
 
             # Start from the next ID after the highest found, or 0 if no numeric IDs exist
             return highest_id + 1
@@ -379,7 +468,7 @@ class DataHandler:
         Returns:
             True if the play count was successfully updated, False otherwise
         """
-        game_dir = self.games_dir / game.id
+        game_dir = self._get_game_dir_from_id(game.id)
         play_count_file = game_dir / "play_count.yaml"
 
         try:
@@ -422,7 +511,7 @@ class DataHandler:
         Returns:
             True if the play time was successfully updated, False otherwise
         """
-        game_dir = self.games_dir / game.id
+        game_dir = self._get_game_dir_from_id(game.id)
         play_time_file = game_dir / "playtime.yaml"
 
         try:
@@ -472,7 +561,7 @@ class DataHandler:
         Returns:
             True if the PID was successfully saved, False otherwise
         """
-        game_dir = self.games_dir / game.id
+        game_dir = self._get_game_dir_from_id(game.id)
         pid_file = game_dir / "pid.yaml"
 
         try:
@@ -545,12 +634,23 @@ class DataHandler:
         Returns:
             True if the game was successfully removed, False otherwise
         """
-        game_dir = self.games_dir / game.id
+        game_dir = self._get_game_dir_from_id(game.id)
 
         try:
             if game_dir.exists():
                 # Remove the entire game directory (which includes the cover image)
                 shutil.rmtree(game_dir)
+
+                # Try to clean up empty parent directories
+                parent = game_dir.parent
+                if parent.exists() and not any(parent.iterdir()):
+                    parent.rmdir()
+
+                    # Try to clean up grandparent if empty too
+                    grandparent = parent.parent
+                    if grandparent.exists() and not any(grandparent.iterdir()):
+                        grandparent.rmdir()
+
                 return True
             else:
                 print(f"Game directory {game_dir} not found")

@@ -405,14 +405,8 @@ class GameDialog(Adw.Window):
                     self.game.id
                 )
             else:  # Image was cleared
-                # Delete the cover.jpg file if it exists
-                game_dir = self.controller.data_handler.games_dir / self.game.id
-                cover_path = game_dir / "cover.jpg"
-                if cover_path.exists():
-                    try:
-                        cover_path.unlink()
-                    except Exception as e:
-                        print(f"Error removing cover image: {e}")
+                # Remove the cover image using the data handler
+                self.controller.data_handler.remove_game_image(self.game.id)
 
         # Update the game object
         self.game.title = title
