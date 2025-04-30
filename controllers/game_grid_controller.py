@@ -1,6 +1,8 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
+import threading
+import time
 
-from gi.repository import Gtk, Gio, Gdk, GObject
+from gi.repository import Gtk, Gio, Gdk, GObject, GLib
 from data_handler import Game, Runner
 
 from controllers.sidebar_controller import SidebarItem
@@ -211,6 +213,11 @@ class GameGridController:
         self.main_controller = main_controller
         self.games_model = None
         self.last_selected_position = -1  # Track the last selected position for range selection
+        self.image_cache = {}  # Cache for game cover images
+        self.is_scrolling = False
+        self.scroll_timeout_id = None
+        self.last_scroll_time = 0
+        self.pending_image_loads = []  # Queue of image loads to process when scrolling stops
 
     def bind_gridview(self, grid_view: Gtk.GridView):
         # Store GameObject wrappers that hold Game objects
@@ -235,6 +242,14 @@ class GameGridController:
         key_controller = Gtk.EventControllerKey.new()
         key_controller.connect("key-pressed", self._on_key_pressed)
         grid_view.add_controller(key_controller)
+
+        # Add scroll controller to detect scrolling
+        scroll_controller = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.VERTICAL)
+        scroll_controller.connect("scroll", self._on_scroll_start)
+        grid_view.add_controller(scroll_controller)
+
+        # Setup timer to detect when scrolling stops
+        GLib.timeout_add(100, self._check_scrolling_stopped)
 
         self.populate_games()
 
@@ -287,17 +302,10 @@ class GameGridController:
             # Update the game item with data
             box.label.set_text(game.title)
 
-            # Try to load the game image only when the item is visible
-            pixbuf = self.main_controller.get_game_pixbuf(game)
-            if pixbuf:
-                box.image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
-            else:
-                # Get a default icon paintable from the data handler
-                icon_paintable = self.main_controller.data_handler.get_default_icon_paintable("applications-games-symbolic")
-                box.image.set_paintable(icon_paintable)
-
-            # Store reference to the game for event handlers
+            # Store reference to the game and position for event handlers
             box.game = game
+            box.game_id = game.id
+            box.position = position
 
             # Add selected style based on selection state
             selection = self.selection_model.get_selection()
@@ -306,13 +314,109 @@ class GameGridController:
             else:
                 box.remove_css_class("selected-game-item")
 
+            # First check cache for fast loading
+            if game.id in self.image_cache:
+                paintable = self.image_cache[game.id]
+                box.image.set_paintable(paintable)
+            else:
+                # Set default icon first for fast rendering
+                icon_paintable = self.main_controller.data_handler.get_default_icon_paintable("applications-games-symbolic")
+                box.image.set_paintable(icon_paintable)
+
+                # If we're not scrolling, load the image immediately
+                # Otherwise, queue it to load when scrolling stops
+                if not self.is_scrolling:
+                    self._load_game_image(box, game)
+                else:
+                    # Add to queue for loading when scrolling stops
+                    self.pending_image_loads.append((box, game))
+
     def _on_factory_unbind(self, factory, list_item):
         """Clean up when item scrolls out of view"""
-        # This is where you would release any heavy resources
-        # For now, just clear the image to save memory
+        # Remove from pending loads if it's in the queue
         box = list_item.get_child()
-        if box and hasattr(box, 'image'):
-            box.image.set_paintable(None)
+        if box and hasattr(box, 'game'):
+            # Remove from pending loads if it exists
+            self.pending_image_loads = [(b, g) for b, g in self.pending_image_loads
+                                      if b != box]
+
+    def _on_scroll_start(self, controller, dx, dy):
+        """Called when scrolling starts or continues"""
+        self.is_scrolling = True
+        self.last_scroll_time = time.time()
+        return False  # Allow event propagation
+
+    def _check_scrolling_stopped(self):
+        """Periodically check if scrolling has stopped"""
+        current_time = time.time()
+        # If no scrolling for 200ms, consider it stopped
+        if self.is_scrolling and (current_time - self.last_scroll_time) > 0.2:
+            self.is_scrolling = False
+            # Process pending image loads
+            self._process_pending_image_loads()
+
+        # Keep the timeout active
+        return True
+
+    def _process_pending_image_loads(self):
+        """Load images for visible items after scrolling stops"""
+        # Make a copy of the pending loads and clear the original
+        loads = self.pending_image_loads.copy()
+        self.pending_image_loads = []
+
+        # Load images for visible items only
+        for box, game in loads:
+            # Only load if the box is still a child of a visible item
+            if box.get_parent() is not None:
+                self._load_game_image(box, game)
+
+    def _load_game_image(self, box, game):
+        """Load an image for a game with caching"""
+        # Check cache first
+        if game.id in self.image_cache:
+            paintable = self.image_cache[game.id]
+            if box and hasattr(box, 'image'):
+                box.image.set_paintable(paintable)
+            return
+
+        # Load image in background
+        thread = threading.Thread(
+            target=self._background_load_image,
+            args=(box, game)
+        )
+        thread.daemon = True
+        thread.start()
+
+    def _background_load_image(self, box, game):
+        """Load image in background thread and update UI in main thread"""
+        try:
+            # Load the image
+            pixbuf = self.main_controller.get_game_pixbuf(game)
+
+            if pixbuf:
+                # Create paintable from pixbuf
+                paintable = Gdk.Texture.new_for_pixbuf(pixbuf)
+
+                # Limit cache size to 200 images to prevent memory issues
+                if len(self.image_cache) > 200:
+                    # Remove oldest entries (first 50 keys)
+                    keys_to_remove = list(self.image_cache.keys())[:50]
+                    for key in keys_to_remove:
+                        self.image_cache.pop(key, None)
+
+                # Store in cache
+                self.image_cache[game.id] = paintable
+
+                # Update UI in main thread if box is still visible
+                GLib.idle_add(self._update_image_ui, box, paintable, game.id)
+        except Exception as e:
+            print(f"Error loading image for game {game.id}: {e}")
+
+    def _update_image_ui(self, box, paintable, game_id):
+        """Update the UI with loaded image (called in main thread)"""
+        if box and hasattr(box, 'image') and hasattr(box, 'game_id') and box.game_id == game_id:
+            box.image.set_paintable(paintable)
+        return False  # Remove from idle queue
 
     def _on_item_clicked(self, gesture, n_press, x, y, list_item):
         """Handle clicks on game items"""
