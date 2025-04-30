@@ -160,11 +160,22 @@ class DataHandler:
                 print(f"Error loading runner {runner_file}: {e}")
         return runners
 
-    def save_game(self, game: Game) -> bool:
+    def save_game(self, game: Game, preserve_created_time: bool = False) -> bool:
+        """
+        Save a game to disk.
+
+        Args:
+            game: The game to save
+            preserve_created_time: If True, won't overwrite game.created when assigning a new ID
+
+        Returns:
+            True if successful, False otherwise
+        """
         if not game.id:
             next_id = self.get_next_game_id()
             game.id = str(next_id)
-            game.created = time.time()
+            if not preserve_created_time or game.created is None:
+                game.created = time.time()
 
         game_data = {
             "title": game.title,

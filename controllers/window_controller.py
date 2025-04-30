@@ -65,12 +65,8 @@ class GameShelfController:
         return result
 
     def remove_game(self, game: Game) -> bool:
-        """Remove a game and refresh the UI"""
-        result = self.data_handler.remove_game(game)
-        if result:
-            # Reload data to refresh the UI
-            self.reload_data()
-        return result
+        """Remove a game"""
+        return self.data_handler.remove_game(game)
 
     def reload_data(self, refresh_sidebar=True, refresh_grid=True):
         """Reload all data from storage and refresh the UI

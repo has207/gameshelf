@@ -281,6 +281,10 @@ class GameDialog(Adw.Window):
                 if window and window.details_panel:
                     window.details_panel.set_reveal_flap(False)
                     window.current_selected_game = None
+
+                # Reload data to refresh the UI
+                self.controller.reload_data()
+
                 self.close()
 
         # Destroy the dialog in any case

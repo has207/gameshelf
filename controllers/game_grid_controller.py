@@ -688,8 +688,12 @@ class GameGridController:
                 window.details_panel.set_reveal_flap(False)
                 window.current_selected_game = None
 
-            # Show feedback message
+            # Refresh UI once after all games are removed
             if removed_count > 0:
+                # Reload data to refresh the UI
+                self.main_controller.reload_data()
+
+                # Show feedback message
                 self._show_feedback_message(f"{removed_count} games removed")
 
         # Destroy the dialog
@@ -757,15 +761,16 @@ class GameGridController:
             # Set hidden state
             game.hidden = new_hidden_state
 
-            # Save through the controller
+            # Save through the controller's data handler directly (no UI refresh)
             if self.main_controller.data_handler.save_game(game):
                 processed_count += 1
 
-        # Reload the UI
-        self.main_controller.reload_data()
-
-        # Show feedback message
+        # Reload the UI once after all updates are done
         if processed_count > 0:
+            # Reload the UI
+            self.main_controller.reload_data()
+
+            # Show feedback message
             action = "hidden" if new_hidden_state else "unhidden"
             self._show_feedback_message(f"{processed_count} games {action}")
 
