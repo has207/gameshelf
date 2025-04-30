@@ -1,4 +1,4 @@
-GameShelf is a game library manager / launcher.
+GameShelf is a game library manager / launcher for Linux.
 
 Features:
 
