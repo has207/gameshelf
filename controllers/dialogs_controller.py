@@ -1,7 +1,7 @@
 from typing import List, Optional
 from pathlib import Path
 
-from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk
+from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk, GLib
 
 from data_handler import Game, Runner, CompletionStatus
 from controllers.common import get_template_path, show_image_chooser_dialog
@@ -333,10 +333,11 @@ class GameDialog(Adw.Window):
                     window.details_panel.set_reveal_flap(False)
                     window.current_selected_game = None
 
-                # Reload data to refresh the UI
-                self.controller.reload_data()
-
+                # Close dialog first
                 self.close()
+
+                # Schedule data reload and sidebar refresh async after dialog closes
+                GLib.timeout_add(50, lambda: self.controller.reload_data(refresh_sidebar=True) or False)
 
         # Destroy the dialog in any case
         dialog.destroy()
@@ -424,8 +425,11 @@ class GameDialog(Adw.Window):
             self.selected_image_path = None
             self.image_preview.set_paintable(None)
 
-            # Close the dialog
+            # Close the dialog first
             self.close()
+
+            # Schedule sidebar refresh after dialog closes (async)
+            GLib.timeout_add(50, lambda: self.controller.reload_data(refresh_sidebar=True) or False)
 
     def _save_game_changes(self):
         """Save changes to an existing game (edit mode)"""
@@ -497,5 +501,8 @@ class GameDialog(Adw.Window):
                 self.parent_window.current_selected_game.id == self.game.id):
                 self.parent_window.details_content.set_game(self.game)
 
-            # Close the dialog
+            # Close the dialog first
             self.close()
+
+            # Schedule sidebar refresh after dialog closes (async)
+            GLib.timeout_add(50, lambda: self.controller.reload_data(refresh_sidebar=True) or False)

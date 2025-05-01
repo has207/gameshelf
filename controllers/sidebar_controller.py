@@ -188,14 +188,14 @@ class SidebarController:
         click_gesture.connect("released", self._on_all_games_clicked)
         all_games_box.add_controller(click_gesture)
 
-        # Style the row as selected initially only if no active filters
-        if not self.active_filters:
-            all_games_box.add_css_class("selected-sidebar-item")
+        # Store reference to the all_games_row
+        self.all_games_row = all_games_box
 
-        # Set initial label text based on active filters
+        # Update the label and styling based on active filters
         self._update_all_games_label()
 
-        return all_games_box
+        # Return the created box (which is already stored in self.all_games_row)
+        return self.all_games_row
 
     def _update_all_games_label(self):
         """Update the All Games row label based on whether filters are active"""
@@ -392,37 +392,49 @@ class SidebarController:
             runner_id = game.runner or ""
             runner_counts[runner_id] = runner_counts.get(runner_id, 0) + 1
 
-        # Add "No Runner" option
-        no_runner_item = ValueItem(
-            name="No Runner",
-            icon_name="dialog-question-symbolic",
-            count=runner_counts.get("", 0),
-            value_id="",
-            parent_category="runner"
+        # Add "No Runner" option if there are games with no runner or if it's already selected
+        no_runner_count = runner_counts.get("", 0)
+        is_selected = (
+            "runner" in self.active_filters and
+            "" in self.active_filters.get("runner", set())
         )
-        no_runner_row = FilterValueRow(no_runner_item)
-        no_runner_row.value_id = ""
-        no_runner_row.parent_category_id = "runner"
+        if no_runner_count > 0 or is_selected:
+            no_runner_item = ValueItem(
+                name="No Runner",
+                icon_name="dialog-question-symbolic",
+                count=no_runner_count,
+                value_id="",
+                parent_category="runner"
+            )
+            no_runner_row = FilterValueRow(no_runner_item)
+            no_runner_row.value_id = ""
+            no_runner_row.parent_category_id = "runner"
 
-        # Add left-click handler
-        left_click = Gtk.GestureClick.new()
-        left_click.set_button(1)  # Left button
-        left_click.connect("released", self._on_filter_value_clicked, no_runner_row, False)
-        no_runner_row.add_controller(left_click)
+            # Add left-click handler
+            left_click = Gtk.GestureClick.new()
+            left_click.set_button(1)  # Left button
+            left_click.connect("released", self._on_filter_value_clicked, no_runner_row, False)
+            no_runner_row.add_controller(left_click)
 
-        # Add right-click handler for multi-select
-        right_click = Gtk.GestureClick.new()
-        right_click.set_button(3)  # Right button
-        right_click.connect("released", self._on_filter_value_clicked, no_runner_row, True)
-        no_runner_row.add_controller(right_click)
+            # Add right-click handler for multi-select
+            right_click = Gtk.GestureClick.new()
+            right_click.set_button(3)  # Right button
+            right_click.connect("released", self._on_filter_value_clicked, no_runner_row, True)
+            no_runner_row.add_controller(right_click)
 
-        category_row.add_value_row(no_runner_row)
+            category_row.add_value_row(no_runner_row)
 
         # Add rows for each runner
         runners = self.main_controller.get_runners()
         for runner in runners:
-            # Skip if no games use this runner
-            if runner.id not in runner_counts or runner_counts[runner.id] == 0:
+            # Check if this runner is currently selected
+            is_selected = (
+                "runner" in self.active_filters and
+                runner.id in self.active_filters.get("runner", set())
+            )
+
+            # Skip if no games use this runner and it's not selected
+            if (runner.id not in runner_counts or runner_counts[runner.id] == 0) and not is_selected:
                 continue
 
             icon_name = self.main_controller.data_handler.get_runner_icon(runner.id)
@@ -481,15 +493,27 @@ class SidebarController:
             status_key = status.name
             status_counts[status_key] = status_counts.get(status_key, 0) + 1
 
-        # Add all status options
+        # Add status options with games or if they're already selected
         for status in CompletionStatus:
             status_key = status.name
+            status_count = status_counts.get(status_key, 0)
+
+            # Check if this status is currently selected
+            is_selected = (
+                "completion_status" in self.active_filters and
+                status_key in self.active_filters.get("completion_status", set())
+            )
+
+            # Skip statuses with no games unless they're already selected
+            if status_count == 0 and not is_selected:
+                continue
+
             icon_name = get_completion_status_icon(status)
 
             status_item = ValueItem(
                 name=status.value,
                 icon_name=icon_name,
-                count=status_counts.get(status_key, 0),
+                count=status_count,
                 value_id=status_key,
                 parent_category="completion_status"
             )

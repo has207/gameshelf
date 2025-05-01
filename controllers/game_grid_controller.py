@@ -728,8 +728,8 @@ class GameGridController:
 
             # Refresh UI once after all games are removed
             if removed_count > 0:
-                # Reload data to refresh the UI
-                self.main_controller.reload_data()
+                # Schedule data reload and sidebar refresh async
+                GLib.timeout_add(50, lambda: self.main_controller.reload_data(refresh_sidebar=True) or False)
 
                 # Show feedback message
                 self._show_feedback_message(f"{removed_count} games removed")
@@ -805,8 +805,8 @@ class GameGridController:
 
         # Reload the UI once after all updates are done
         if processed_count > 0:
-            # Reload the UI
-            self.main_controller.reload_data()
+            # Schedule data reload and sidebar refresh async
+            GLib.timeout_add(50, lambda: self.main_controller.reload_data(refresh_sidebar=True) or False)
 
             # Show feedback message
             action = "hidden" if new_hidden_state else "unhidden"

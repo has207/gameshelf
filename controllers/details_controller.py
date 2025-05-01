@@ -173,16 +173,13 @@ class GameDetailsContent(Gtk.Box):
                 )
 
     def _delayed_grid_refresh(self):
-        """Refresh the game grid after a short delay to ensure data is saved"""
+        """Refresh the game grid and sidebar after a short delay to ensure data is saved"""
         if self.controller:
-            from controllers.window_controller import GameShelfWindow
-            window = self.get_ancestor(GameShelfWindow)
-            if window:
-                search_text = window.search_entry.get_text().strip().lower() if window.search_entry else ""
-                self.controller.title_bar_controller.populate_games(
-                    filter_runner=self.controller.current_filter,
-                    search_text=search_text
-                )
+            # Force a full reload with sidebar refresh
+            self.controller.reload_data(refresh_sidebar=True)
+
+            # This is a cleaner approach than using title_bar_controller.populate_games
+            # as it ensures everything is refreshed properly
         return False  # Don't repeat the timeout
 
     def _update_playtime_ui(self, game: Game):
@@ -212,22 +209,10 @@ class GameDetailsContent(Gtk.Box):
                 self.play_button.set_label("Play Game")
                 self.play_button.set_sensitive(can_play)
 
-            # Refresh the game grid to reflect updated sorting if we're sorting by play-related criteria
+            # Always refresh data including sidebar after game has stopped running
             if self.controller:
-                # Check if current sort field is affected by playing a game
-                sort_field = getattr(self.controller, 'sort_field', None)
-                play_related_fields = ['last_played', 'play_time', 'play_count']
-
-                if sort_field in play_related_fields:
-                    # Refresh the game grid with current sorting and filtering settings
-                    from controllers.window_controller import GameShelfWindow
-                    window = self.get_ancestor(GameShelfWindow)
-                    if window:
-                        # Trigger a refresh by calling populate_games with existing parameters
-                        self.controller.title_bar_controller.populate_games(
-                            filter_runner=self.controller.current_filter,
-                            search_text=window.search_entry.get_text().strip().lower() if window.search_entry else ""
-                        )
+                # Force a full data reload to ensure all UI elements are up to date
+                GLib.timeout_add(100, lambda: self.controller.reload_data(refresh_sidebar=True) or False)
 
         return False  # Return False to remove this function from the idle queue
 

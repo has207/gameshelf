@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from gi.repository import Gtk, Adw, Gio, GdkPixbuf
+from gi.repository import Gtk, Adw, Gio, GdkPixbuf, GLib
 from data_handler import DataHandler, Game, Runner
 from process_tracking import ProcessTracker
 from app_state_manager import AppStateManager
@@ -55,13 +55,15 @@ class GameShelfController:
     def add_game(self, game: Game) -> bool:
         result = self.data_handler.save_game(game)
         if result:
-            self.reload_data()
+            # Force sidebar refresh when a game is added
+            self.reload_data(refresh_sidebar=True)
         return result
 
     def add_runner(self, runner: Runner) -> bool:
         result = self.data_handler.save_runner(runner)
         if result:
-            self.reload_data()
+            # Force sidebar refresh when a runner is added
+            self.reload_data(refresh_sidebar=True)
         return result
 
     def remove_game(self, game: Game) -> bool:
@@ -136,8 +138,8 @@ class GameShelfController:
         # Save the updated game - hidden flag is stored in game.yaml
         result = self.data_handler.save_game(game)
         if result:
-            # Refresh the game list
-            self.reload_data()
+            # Schedule refresh async after the operation completes
+            GLib.timeout_add(50, lambda: self.reload_data(refresh_sidebar=True) or False)
 
         return result
 
