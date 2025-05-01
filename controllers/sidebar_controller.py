@@ -128,7 +128,16 @@ class SidebarController:
         self.filter_categories = {}  # Maps category_id to CategoryItem
 
         # Load active filters from settings
+        # Structure will be {category_id: Set[value_id]} to support multiple selections per category
         self.active_filters = self.main_controller.settings_manager.get_sidebar_active_filters()
+
+        # Convert old format (if needed)
+        if self.active_filters and not all(isinstance(values, set) for values in self.active_filters.values()):
+            converted_filters = {}
+            for category, value in self.active_filters.items():
+                if value is not None:
+                    converted_filters[category] = {value}
+            self.active_filters = converted_filters
 
     def setup_sidebar(self, sidebar_container):
         print(f"Setting up sidebar with container: {sidebar_container}")
@@ -193,8 +202,11 @@ class SidebarController:
         if not self.all_games_row:
             return
 
+        # Check if any filters are active
+        has_active_filters = bool(self.active_filters) and any(values for values in self.active_filters.values())
+
         # Change label to "Clear Filters" if any filters are active, otherwise "All Games"
-        if self.active_filters:
+        if has_active_filters:
             # Has active filters - show "Clear Filters"
             self.all_games_row.label.set_text("Clear Filters")
             # Change icon to match the clear action
@@ -217,8 +229,11 @@ class SidebarController:
 
     def _on_all_games_clicked(self, gesture, n_press, x, y):
         """Handle clicks on the All Games row"""
+        # Check if any filters are active
+        has_active_filters = bool(self.active_filters) and any(values for values in self.active_filters.values())
+
         # If we already have no active filters, don't do anything
-        if not self.active_filters:
+        if not has_active_filters:
             return
 
         print("Clearing all active filters")
@@ -231,7 +246,7 @@ class SidebarController:
         self.main_controller.settings_manager.save_settings()
 
         # Update UI to show this as selected
-        self._update_selection_state(None)
+        self._update_selection_state()
 
         # Update "All Games" row text
         self._update_all_games_label()
@@ -293,12 +308,13 @@ class SidebarController:
         category_id = category_item.category_id
         print(f"Category {category_item.name} ({category_id}) toggled to {category_item.expanded}")
 
-        # Check if this category has an active filter
-        has_active_filter = category_id in self.active_filters and self.active_filters[category_id] is not None
+        # Check if this category has active filters
+        has_active_filters = (category_id in self.active_filters and
+                             self.active_filters.get(category_id))
 
-        # If trying to collapse a category with an active filter, prevent it
-        if has_active_filter and not category_item.expanded:
-            print(f"Preventing collapse of category {category_id} because it has an active filter")
+        # If trying to collapse a category with active filters, prevent it
+        if has_active_filters and not category_item.expanded:
+            print(f"Preventing collapse of category {category_id} because it has active filters")
 
             # Find the category row and force it to stay expanded
             category_row = self._find_category_row(category_id)
@@ -388,10 +404,17 @@ class SidebarController:
         no_runner_row.value_id = ""
         no_runner_row.parent_category_id = "runner"
 
-        # Add click handler
-        click_gesture = Gtk.GestureClick.new()
-        click_gesture.connect("released", self._on_filter_value_clicked, no_runner_row)
-        no_runner_row.add_controller(click_gesture)
+        # Add left-click handler
+        left_click = Gtk.GestureClick.new()
+        left_click.set_button(1)  # Left button
+        left_click.connect("released", self._on_filter_value_clicked, no_runner_row, False)
+        no_runner_row.add_controller(left_click)
+
+        # Add right-click handler for multi-select
+        right_click = Gtk.GestureClick.new()
+        right_click.set_button(3)  # Right button
+        right_click.connect("released", self._on_filter_value_clicked, no_runner_row, True)
+        no_runner_row.add_controller(right_click)
 
         category_row.add_value_row(no_runner_row)
 
@@ -415,10 +438,17 @@ class SidebarController:
             runner_row.value_id = runner.id
             runner_row.parent_category_id = "runner"
 
-            # Add click handler
-            click_gesture = Gtk.GestureClick.new()
-            click_gesture.connect("released", self._on_filter_value_clicked, runner_row)
-            runner_row.add_controller(click_gesture)
+            # Add left-click handler
+            left_click = Gtk.GestureClick.new()
+            left_click.set_button(1)  # Left button
+            left_click.connect("released", self._on_filter_value_clicked, runner_row, False)
+            runner_row.add_controller(left_click)
+
+            # Add right-click handler for multi-select
+            right_click = Gtk.GestureClick.new()
+            right_click.set_button(3)  # Right button
+            right_click.connect("released", self._on_filter_value_clicked, runner_row, True)
+            runner_row.add_controller(right_click)
 
             category_row.add_value_row(runner_row)
 
@@ -468,31 +498,60 @@ class SidebarController:
             status_row.value_id = status_key
             status_row.parent_category_id = "completion_status"
 
-            # Add click handler
-            click_gesture = Gtk.GestureClick.new()
-            click_gesture.connect("released", self._on_filter_value_clicked, status_row)
-            status_row.add_controller(click_gesture)
+            # Add left-click handler
+            left_click = Gtk.GestureClick.new()
+            left_click.set_button(1)  # Left button
+            left_click.connect("released", self._on_filter_value_clicked, status_row, False)
+            status_row.add_controller(left_click)
+
+            # Add right-click handler for multi-select
+            right_click = Gtk.GestureClick.new()
+            right_click.set_button(3)  # Right button
+            right_click.connect("released", self._on_filter_value_clicked, status_row, True)
+            status_row.add_controller(right_click)
 
             category_row.add_value_row(status_row)
 
-    def _on_filter_value_clicked(self, gesture, n_press, x, y, value_row):
-        """Handle clicks on filter value rows with toggle behavior"""
+    def _on_filter_value_clicked(self, gesture, n_press, x, y, value_row, multi_select=False):
+        """Handle clicks on filter value rows with toggle behavior
+
+        Args:
+            gesture: The gesture that triggered this callback
+            n_press: Number of presses (clicks)
+            x: X coordinate of click
+            y: Y coordinate of click
+            value_row: The filter value row that was clicked
+            multi_select: If True, preserves other selections (right-click behavior)
+        """
         if not hasattr(value_row, 'value_id') or not hasattr(value_row, 'parent_category_id'):
             return
 
         value_id = value_row.value_id
         category_id = value_row.parent_category_id
 
+        # Initialize the category's filter set if it doesn't exist
+        if category_id not in self.active_filters:
+            self.active_filters[category_id] = set()
+
         # Toggle behavior: If this value is already selected, deselect it
-        if category_id in self.active_filters and self.active_filters[category_id] == value_id:
+        if value_id in self.active_filters.get(category_id, set()):
             print(f"Toggling off filter {category_id}={value_id}")
-            self.active_filters.pop(category_id)
-            selected_row = None  # No row is selected for this category now
+            # Remove this value from the filter set
+            self.active_filters[category_id].remove(value_id)
+
+            # If the category has no more filters, remove it from active_filters
+            if not self.active_filters[category_id]:
+                self.active_filters.pop(category_id)
         else:
-            # Set the new filter value
-            print(f"Setting filter {category_id}={value_id}")
-            self.active_filters[category_id] = value_id
-            selected_row = value_row
+            # If not multi-select (left click), clear existing filters for this category
+            if not multi_select and category_id in self.active_filters:
+                self.active_filters[category_id].clear()
+
+            # Add the new filter value
+            print(f"Adding filter {category_id}={value_id}")
+            if category_id not in self.active_filters:
+                self.active_filters[category_id] = set()
+            self.active_filters[category_id].add(value_id)
 
             # Ensure the category is expanded when a filter is selected
             category_row = self._find_category_row(category_id)
@@ -509,15 +568,15 @@ class SidebarController:
         self.main_controller.settings_manager.set_sidebar_active_filters(self.active_filters)
         self.main_controller.settings_manager.save_settings()
 
-        # Update UI to show the correct item as selected
-        self._update_selection_state(selected_row)
+        # Update UI to show the correct items as selected
+        self._update_selection_state()
 
         # Update "All Games" row text based on whether filters are active
         self._update_all_games_label()
 
         # Apply filters to the grid
-        runner_filter = self.active_filters.get("runner")
-        completion_status_filter = self.active_filters.get("completion_status")
+        runner_filters = self.active_filters.get("runner", set())
+        completion_status_filters = self.active_filters.get("completion_status", set())
 
         # Clear search text if any
         window = self.main_controller.window
@@ -528,74 +587,61 @@ class SidebarController:
 
         # Update grid with selected filters
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
-            print(f"Filtering by: runner={runner_filter}, completion_status={completion_status_filter}")
+            print(f"Filtering by: runners={runner_filters}, completion_statuses={completion_status_filters}")
             self.main_controller.game_grid_controller.populate_games(
-                filter_runner=runner_filter,
-                filter_completion_status=completion_status_filter
+                filter_runners=runner_filters,
+                filter_completion_statuses=completion_status_filters
             )
 
-    def _update_selection_state(self, selected_row):
-        """Update the UI to show the selected filter value"""
-        # Clear selection from All Games row
+    def _update_selection_state(self):
+        """Update the UI to show all selected filter values"""
+        # Check if any filters are active
+        has_active_filters = bool(self.active_filters) and any(values for values in self.active_filters.values())
+
+        # Handle All Games row selection state
         if self.all_games_row:
-            if selected_row is None:
+            if not has_active_filters:
                 self.all_games_row.add_css_class("selected-sidebar-item")
             else:
                 self.all_games_row.remove_css_class("selected-sidebar-item")
 
-        # Clear selection from all values
+        # Update selection state for all filter values
         for category_id, category_item in self.filter_categories.items():
             # Find category row
-            category_row = None
-            child = self.sidebar_box.get_first_child()
-            while child:
-                if isinstance(child, FilterCategoryRow) and hasattr(child, 'category_id') and child.category_id == category_id:
-                    category_row = child
-                    break
-                child = child.get_next_sibling()
-
-            if not category_row:
-                continue
-
-            # Check all filter value rows
-            value_container = category_row.values_container
-            child = value_container.get_first_child()
-            while child:
-                if hasattr(child, 'value_id'):
-                    # Clear selection
-                    child.remove_css_class("selected-sidebar-item")
-
-                    # Set selected if this is the selected row
-                    if child == selected_row:
-                        child.add_css_class("selected-sidebar-item")
-                child = child.get_next_sibling()
-
-    def _restore_filter_selections(self):
-        """Restore selected filter values from active_filters"""
-        if not self.active_filters:
-            # If no active filters, select "All Games"
-            self._update_selection_state(None)
-            return
-
-        # For each category, find the selected value and update the UI
-        for category_id, value_id in self.active_filters.items():
             category_row = self._find_category_row(category_id)
             if not category_row:
                 continue
 
-            # Find the value row in this category
-            found_value_row = None
-            child = category_row.values_container.get_first_child()
+            # Get selected values for this category
+            selected_values = self.active_filters.get(category_id, set())
+
+            # Update each value row in this category
+            value_container = category_row.values_container
+            child = value_container.get_first_child()
             while child:
-                if hasattr(child, 'value_id') and hasattr(child, 'parent_category_id') and \
-                   child.parent_category_id == category_id and child.value_id == value_id:
-                    found_value_row = child
-                    break
+                if hasattr(child, 'value_id'):
+                    # Clear selection first
+                    child.remove_css_class("selected-sidebar-item")
+
+                    # Add selection class if this value is selected
+                    if child.value_id in selected_values:
+                        child.add_css_class("selected-sidebar-item")
+
                 child = child.get_next_sibling()
 
-            if found_value_row:
-                # Update UI to show this value as selected
-                self._update_selection_state(found_value_row)
+    def _restore_filter_selections(self):
+        """Restore selected filter values from active_filters"""
+        # Check if any filters are active
+        has_active_filters = bool(self.active_filters) and any(values for values in self.active_filters.values())
+
+        # Update selection state
+        self._update_selection_state()
+
+        if not has_active_filters:
+            # If no active filters, nothing more to do
+            return
+
+        # All selection state is handled by _update_selection_state
 
     def _find_category_row(self, category_id: str) -> Optional[FilterCategoryRow]:
         """Find a category row by its ID"""

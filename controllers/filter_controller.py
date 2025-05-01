@@ -61,6 +61,11 @@ class FilterCategoryRow(Gtk.Box):
         self.label.set_label(category_item.name)
         self.icon.set_from_icon_name(category_item.icon_name)
 
+        # Add tooltip explaining multi-selection
+        tooltip_text = "Left-click to select a filter value. Right-click to add or remove from multiple selections."
+        self.set_tooltip_text(tooltip_text)
+        self.header_box.set_tooltip_text(tooltip_text)
+
         # Apply initial expanded state
         self._update_expand_button()
         self.values_container.set_visible(category_item.expanded)
@@ -137,6 +142,9 @@ class FilterValueRow(Gtk.Box):
         # Set alignment through GTK properties
         self.count_label.set_xalign(0.5)  # Horizontally centered
         self.count_label.set_yalign(0.5)  # Vertically centered
+
+        # Add tooltip explaining multi-selection
+        self.set_tooltip_text("Left-click to select. Right-click to toggle selection without affecting other selected values.")
 
 
 def get_completion_status_icon(status: CompletionStatus) -> str:

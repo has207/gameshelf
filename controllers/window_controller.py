@@ -93,21 +93,22 @@ class GameShelfController:
         # Refresh games grid if requested
         if refresh_grid:
             # Get active filters from sidebar controller if available
-            filter_runner = None
-            filter_completion_status = None
+            filter_runners = None
+            filter_completion_statuses = None
 
             if self.sidebar_controller:
-                filter_runner = self.sidebar_controller.active_filters.get("runner")
-                filter_completion_status = self.sidebar_controller.active_filters.get("completion_status")
+                filter_runners = self.sidebar_controller.active_filters.get("runner", set())
+                filter_completion_statuses = self.sidebar_controller.active_filters.get("completion_status", set())
             else:
                 # Fall back to legacy filter if sidebar controller not available
-                filter_runner = self.current_filter
+                if self.current_filter is not None:
+                    filter_runners = {self.current_filter}
 
             if hasattr(self, 'game_grid_controller') and self.game_grid_controller:
-                print(f"Populating games with filters: runner={filter_runner}, completion_status={filter_completion_status}")
+                print(f"Populating games with filters: runners={filter_runners}, completion_statuses={filter_completion_statuses}")
                 self.game_grid_controller.populate_games(
-                    filter_runner=filter_runner,
-                    filter_completion_status=filter_completion_status,
+                    filter_runners=filter_runners,
+                    filter_completion_statuses=filter_completion_statuses,
                     search_text=search_text
                 )
 
@@ -157,7 +158,19 @@ class GameShelfController:
 
         # Only refresh the grid, sidebar doesn't need to change when toggling visibility
         if hasattr(self, 'game_grid_controller') and self.game_grid_controller:
-            self.game_grid_controller.populate_games(filter_runner=self.current_filter, search_text=search_text)
+            # Get active filters from sidebar controller if available
+            filter_runners = None
+            filter_completion_statuses = None
+
+            if hasattr(self, 'sidebar_controller') and self.sidebar_controller:
+                filter_runners = self.sidebar_controller.active_filters.get("runner", set())
+                filter_completion_statuses = self.sidebar_controller.active_filters.get("completion_status", set())
+
+            self.game_grid_controller.populate_games(
+                filter_runners=filter_runners,
+                filter_completion_statuses=filter_completion_statuses,
+                search_text=search_text
+            )
 
     def add_action(self, action: Gio.SimpleAction):
         """
@@ -250,16 +263,23 @@ class GameShelfWindow(Adw.ApplicationWindow):
 
             # Initialize with active filters from settings
             active_filters = self.controller.settings_manager.get_sidebar_active_filters()
-            runner_filter = active_filters.get("runner")
-            completion_status_filter = active_filters.get("completion_status")
+            filter_runners = active_filters.get("runner", set())
+            filter_completion_statuses = active_filters.get("completion_status", set())
+
+            # Convert old format if needed
+            if filter_runners and not isinstance(filter_runners, set):
+                filter_runners = {filter_runners} if filter_runners is not None else set()
+
+            if filter_completion_statuses and not isinstance(filter_completion_statuses, set):
+                filter_completion_statuses = {filter_completion_statuses} if filter_completion_statuses is not None else set()
 
             # Get search text from settings
             search_text = self.controller.settings_manager.get_search_text()
 
             # Populate games with stored filters
             self.controller.game_grid_controller.populate_games(
-                filter_runner=runner_filter,
-                filter_completion_status=completion_status_filter,
+                filter_runners=filter_runners,
+                filter_completion_statuses=filter_completion_statuses,
                 search_text=search_text
             )
 

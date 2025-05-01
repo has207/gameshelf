@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Set
 import threading
 import time
 
@@ -538,16 +538,20 @@ class GameGridController:
 
     def populate_games(self, filter_runner: Optional[str] = None,
                     filter_completion_status: Optional[str] = None,
+                    filter_runners: Optional[Set[str]] = None,
+                    filter_completion_statuses: Optional[Set[str]] = None,
                     search_text: str = ""):
         """
         Populate the games grid with filtered games
 
         Args:
-            filter_runner: Runner ID to filter by, or None for no filter
-            filter_completion_status: Completion status enum name to filter by, or None for no filter
+            filter_runner: (Legacy) Runner ID to filter by, or None for no filter
+            filter_completion_status: (Legacy) Completion status enum name to filter by, or None for no filter
+            filter_runners: Set of runner IDs to filter by (OR within this category), or None for no filter
+            filter_completion_statuses: Set of completion status enum names to filter by (OR within this category), or None for no filter
             search_text: Text to search in game titles
         """
-        # For backward compatibility, store runner filter in main controller
+        # For backward compatibility, store single runner filter in main controller
         self.main_controller.current_filter = filter_runner
 
         # Clear the current games model
@@ -560,15 +564,30 @@ class GameGridController:
         games = self.main_controller.get_games()
         print(f"Populating games grid with {len(games)} total games...")
 
-        # Apply runner filter
-        if filter_runner is not None:  # Filter is specifically set (including empty string)
-            games = [g for g in games if g.runner == filter_runner]
-            print(f"After runner filter: {len(games)} games")
+        # For backward compatibility, convert legacy filters to sets if provided
+        if filter_runners is None and filter_runner is not None:
+            # Handle case where filter_runner might already be a set
+            if isinstance(filter_runner, set):
+                filter_runners = filter_runner
+            else:
+                filter_runners = {filter_runner}
 
-        # Apply completion status filter
-        if filter_completion_status is not None:
-            games = [g for g in games if g.completion_status.name == filter_completion_status]
-            print(f"After completion status filter: {len(games)} games")
+        if filter_completion_statuses is None and filter_completion_status is not None:
+            # Handle case where filter_completion_status might already be a set
+            if isinstance(filter_completion_status, set):
+                filter_completion_statuses = filter_completion_status
+            else:
+                filter_completion_statuses = {filter_completion_status}
+
+        # Apply runner filters (OR within category)
+        if filter_runners:
+            games = [g for g in games if g.runner in filter_runners]
+            print(f"After runner filters ({len(filter_runners)} selected): {len(games)} games")
+
+        # Apply completion status filters (OR within category)
+        if filter_completion_statuses:
+            games = [g for g in games if g.completion_status.name in filter_completion_statuses]
+            print(f"After completion status filters ({len(filter_completion_statuses)} selected): {len(games)} games")
 
         # Apply search filter if search text is provided
         if search_text:
