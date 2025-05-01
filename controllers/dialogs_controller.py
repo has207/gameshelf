@@ -107,7 +107,7 @@ class GameDialog(Adw.Window):
         self.original_image_path = None
         self.runners_data = []
         self.completion_status_data = []
-        self.selected_completion_status = None
+        self.selected_completion_status = "Not Played"
         self.game = None
 
         # Adjust dialog height based on parent window height
@@ -161,18 +161,13 @@ class GameDialog(Adw.Window):
         self.play_count_entry.set_text(str(game.play_count))
         self.play_time_entry.set_text(str(game.play_time))
 
-        # Set completion status if available
-        if game.completion_status:
-            # Find the index of the completion status in completion_status_data
-            for i, status in enumerate(self.completion_status_data):
-                if status == game.completion_status:
-                    self.completion_status_dropdown.set_selected(i)
-                    self.selected_completion_status = status
-                    break
-        else:
-            # Select "[none]" if no completion status
-            self.completion_status_dropdown.set_selected(0)
-            self.selected_completion_status = None
+        # Set completion status
+        # Find the index of the completion status in completion_status_data
+        for i, status in enumerate(self.completion_status_data):
+            if status == game.completion_status:
+                self.completion_status_dropdown.set_selected(i)
+                self.selected_completion_status = status
+                break
 
         # Populate runners dropdown
         self.populate_runners(self.controller.get_runners())
@@ -221,7 +216,6 @@ class GameDialog(Adw.Window):
         """Populate the completion status dropdown with predefined statuses"""
         # Define completion status options
         status_options = [
-            "[none]",
             "Not Played",
             "Plan to Play",
             "Playing",
@@ -240,15 +234,14 @@ class GameDialog(Adw.Window):
             string_list.append(status)
 
         # Store actual values for reference when selected
-        # Store None for "[none]" and the status string for others
-        self.completion_status_data = [None if status == "[none]" else status for status in status_options]
+        self.completion_status_data = status_options
 
         # Set up the dropdown with the string list
         self.completion_status_dropdown.set_model(string_list)
 
-        # Select "[none]" by default
+        # Select "Not Played" by default
         self.completion_status_dropdown.set_selected(0)
-        self.selected_completion_status = None
+        self.selected_completion_status = "Not Played"
 
     @Gtk.Template.Callback()
     def on_entry_changed(self, entry, *args):
@@ -273,7 +266,7 @@ class GameDialog(Adw.Window):
             # Get the completion status from our stored data using the index
             self.selected_completion_status = self.completion_status_data[selected_index]
         else:
-            self.selected_completion_status = None
+            self.selected_completion_status = "Not Played"
         self.validate_form()
 
     @Gtk.Template.Callback()
@@ -396,9 +389,7 @@ class GameDialog(Adw.Window):
             # Check completion status changes
             current_status = self.selected_completion_status
             game_status = self.game.completion_status
-            if (current_status is None and game_status is not None) or \
-               (current_status is not None and game_status is None) or \
-               (current_status != game_status):
+            if current_status != game_status:
                 has_changes = True
 
             # Check image change

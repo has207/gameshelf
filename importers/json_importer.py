@@ -145,7 +145,7 @@ class JsonImporter:
             description = game_data["Description"]
 
         # Extract completion status if available
-        completion_status = None
+        completion_status = "Not Played"  # Default to "Not Played"
         if "CompletionStatus" in game_data and isinstance(game_data["CompletionStatus"], dict):
             # Map GUID to completion status name
             completion_status_mapping = {
@@ -264,9 +264,8 @@ class JsonImporter:
         if game.description:
             self.data_handler.update_game_description(game, game.description)
 
-        # Save completion status if available
-        if game.completion_status:
-            self.data_handler.update_completion_status(game, game.completion_status)
+        # Save completion status
+        self.data_handler.update_completion_status(game, game.completion_status)
 
         # Process modified timestamp
         modified_timestamp = None

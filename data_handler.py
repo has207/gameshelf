@@ -24,7 +24,7 @@ class Runner:
 class Game:
     def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None,
                  created: Optional[float] = None, hidden: bool = False, description: Optional[str] = None,
-                 completion_status: Optional[str] = None):
+                 completion_status: str = "Not Played"):
         self.id = id.lower()
         self.title = title
         self.runner = runner.lower() if runner else ""
@@ -71,9 +71,6 @@ class Game:
         """Get the path to the game's description file"""
         return str(self._get_game_dir_path(data_dir) / "description.yaml")
 
-    def get_completion_status_path(self, data_dir: Path) -> str:
-        """Get the path to the game's completion status file"""
-        return str(self._get_game_dir_path(data_dir) / "completion_status.yaml")
 
     def get_last_played_time(self, data_dir: Path) -> Optional[float]:
         play_count_file = Path(self.get_play_count_path(data_dir))
@@ -125,7 +122,8 @@ class DataHandler:
                         runner=game_data.get("runner"),
                         id=game_id,
                         created=game_data.get("created"),
-                        hidden=game_data.get("hidden", False)
+                        hidden=game_data.get("hidden", False),
+                        completion_status=game_data.get("completion_status")
                     )
 
                     # Load play count if exists
@@ -161,16 +159,6 @@ class DataHandler:
                         except Exception as desc_err:
                             print(f"Error loading description for {game_id}: {desc_err}")
 
-                    # Load completion status if exists
-                    completion_status_file = game_file.parent / "completion_status.yaml"
-                    if completion_status_file.exists():
-                        try:
-                            with open(completion_status_file, "r") as status_file:
-                                status_data = yaml.safe_load(status_file)
-                                if status_data and isinstance(status_data, dict):
-                                    game.completion_status = status_data.get("status")
-                        except Exception as status_err:
-                            print(f"Error loading completion status for {game_id}: {status_err}")
 
                     games.append(game)
             except Exception as e:
@@ -213,6 +201,7 @@ class DataHandler:
 
         game_data = {
             "title": game.title,
+            "completion_status": game.completion_status
         }
 
         if game.runner:
@@ -323,7 +312,8 @@ class DataHandler:
             id=game_id,
             title=title,
             runner=runner_id,
-            created=time.time()
+            created=time.time(),
+            completion_status="Not Played"
         )
 
         # Save image if provided
@@ -607,7 +597,7 @@ class DataHandler:
 
     def update_completion_status(self, game: Game, status: str) -> bool:
         """
-        Update the completion status for a game and save it to the completion_status.yaml file.
+        Update the completion status for a game and save it to game.yaml.
 
         Args:
             game: The game to update the completion status for
@@ -616,21 +606,12 @@ class DataHandler:
         Returns:
             True if the completion status was successfully updated, False otherwise
         """
-        game_dir = self._get_game_dir_from_id(game.id)
-        status_file = game_dir / "completion_status.yaml"
-
         try:
             # Update the completion status in the game object
             game.completion_status = status
 
-            # Create the status data
-            status_data = {"status": status}
-
-            # Write to the file
-            with open(status_file, "w") as f:
-                yaml.dump(status_data, f)
-
-            return True
+            # Save the game to update the yaml file
+            return self.save_game(game, True)
         except Exception as e:
             print(f"Error updating completion status for {game.id}: {e}")
             return False

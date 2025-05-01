@@ -305,10 +305,7 @@ class GameDetailsContent(Gtk.Box):
                 self.play_time_label.set_text("Play Time: Not played")
 
             # Set completion status
-            if game.completion_status:
-                self.completion_status_label.set_text(f"Status: {game.completion_status}")
-            else:
-                self.completion_status_label.set_text("Status: Not set")
+            self.completion_status_label.set_text(f"Status: {game.completion_status}")
 
             last_played = game.get_last_played_time(self.controller.data_handler.data_dir)
             if last_played and game.play_count > 0:
