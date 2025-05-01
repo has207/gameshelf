@@ -171,6 +171,9 @@ class SidebarController:
         label.add_css_class("sidebar-label")
         all_games_box.append(label)
 
+        # Store reference to the label for updating later
+        all_games_box.label = label
+
         # Add click gesture
         click_gesture = Gtk.GestureClick.new()
         click_gesture.connect("released", self._on_all_games_clicked)
@@ -180,7 +183,37 @@ class SidebarController:
         if not self.active_filters:
             all_games_box.add_css_class("selected-sidebar-item")
 
+        # Set initial label text based on active filters
+        self._update_all_games_label()
+
         return all_games_box
+
+    def _update_all_games_label(self):
+        """Update the All Games row label based on whether filters are active"""
+        if not self.all_games_row:
+            return
+
+        # Change label to "Clear Filters" if any filters are active, otherwise "All Games"
+        if self.active_filters:
+            # Has active filters - show "Clear Filters"
+            self.all_games_row.label.set_text("Clear Filters")
+            # Change icon to match the clear action
+            first_child = self.all_games_row.get_first_child()
+            if first_child and isinstance(first_child, Gtk.Image):
+                first_child.set_from_icon_name("edit-clear-all-symbolic")
+            # Apply error styling
+            self.all_games_row.remove_css_class("selected-sidebar-item")
+            self.all_games_row.add_css_class("clear-filters-row")
+        else:
+            # No active filters - show "All Games"
+            self.all_games_row.label.set_text("All Games")
+            # Restore original icon
+            first_child = self.all_games_row.get_first_child()
+            if first_child and isinstance(first_child, Gtk.Image):
+                first_child.set_from_icon_name("view-grid-symbolic")
+            # Apply normal selected styling
+            self.all_games_row.add_css_class("selected-sidebar-item")
+            self.all_games_row.remove_css_class("clear-filters-row")
 
     def _on_all_games_clicked(self, gesture, n_press, x, y):
         """Handle clicks on the All Games row"""
@@ -199,6 +232,9 @@ class SidebarController:
 
         # Update UI to show this as selected
         self._update_selection_state(None)
+
+        # Update "All Games" row text
+        self._update_all_games_label()
 
         # Clear search text if any
         window = self.main_controller.window
@@ -440,33 +476,44 @@ class SidebarController:
             category_row.add_value_row(status_row)
 
     def _on_filter_value_clicked(self, gesture, n_press, x, y, value_row):
-        """Handle clicks on filter value rows"""
+        """Handle clicks on filter value rows with toggle behavior"""
         if not hasattr(value_row, 'value_id') or not hasattr(value_row, 'parent_category_id'):
             return
 
         value_id = value_row.value_id
         category_id = value_row.parent_category_id
 
-        # Store the filter selection
-        self.active_filters[category_id] = value_id
+        # Toggle behavior: If this value is already selected, deselect it
+        if category_id in self.active_filters and self.active_filters[category_id] == value_id:
+            print(f"Toggling off filter {category_id}={value_id}")
+            self.active_filters.pop(category_id)
+            selected_row = None  # No row is selected for this category now
+        else:
+            # Set the new filter value
+            print(f"Setting filter {category_id}={value_id}")
+            self.active_filters[category_id] = value_id
+            selected_row = value_row
 
-        # Ensure the category is expanded when a filter is selected
-        category_row = self._find_category_row(category_id)
-        if category_row and not category_row.is_expanded():
-            print(f"Auto-expanding category {category_id} because a filter was selected")
-            category_row.set_expanded(True)
+            # Ensure the category is expanded when a filter is selected
+            category_row = self._find_category_row(category_id)
+            if category_row and not category_row.is_expanded():
+                print(f"Auto-expanding category {category_id} because a filter was selected")
+                category_row.set_expanded(True)
 
-            # Also update the stored expanded states
-            expanded_categories = self.main_controller.settings_manager.get_sidebar_expanded_categories()
-            expanded_categories[category_id] = True
-            self.main_controller.settings_manager.set_sidebar_expanded_categories(expanded_categories)
+                # Also update the stored expanded states
+                expanded_categories = self.main_controller.settings_manager.get_sidebar_expanded_categories()
+                expanded_categories[category_id] = True
+                self.main_controller.settings_manager.set_sidebar_expanded_categories(expanded_categories)
 
         # Save to settings
         self.main_controller.settings_manager.set_sidebar_active_filters(self.active_filters)
         self.main_controller.settings_manager.save_settings()
 
-        # Update UI to show this item as selected
-        self._update_selection_state(value_row)
+        # Update UI to show the correct item as selected
+        self._update_selection_state(selected_row)
+
+        # Update "All Games" row text based on whether filters are active
+        self._update_all_games_label()
 
         # Apply filters to the grid
         runner_filter = self.active_filters.get("runner")

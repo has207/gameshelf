@@ -95,6 +95,13 @@
   font-weight: bold;
 }
 
+/* Clear Filters button styling */
+.clear-filters-row {
+  background-color: alpha(@error_color, 0.1);
+  color: @error_color;
+  font-weight: bold;
+}
+
 .filter-category-header {
   border-radius: 6px;
   padding: 4px 6px;
