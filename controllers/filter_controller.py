@@ -160,7 +160,7 @@ def get_completion_status_icon(status: CompletionStatus) -> str:
     elif status == CompletionStatus.ABANDONED:
         return "user-trash-symbolic"
     elif status == CompletionStatus.PLAYED:
-        return "object-select-symbolic"
+        return "content-loading-symbolic"
     elif status == CompletionStatus.BEATEN:
         return "emblem-ok-symbolic"
     elif status == CompletionStatus.COMPLETED:
