@@ -71,7 +71,24 @@
                       </object>
                     </child>
                     <child>
+                      <object class="AdwActionRow">
+                        <property name="title">Download Metadata</property>
+                        <property name="subtitle">Search for your game to download its details from OpenCritic</property>
+                        <child>
+                          <object class="GtkButton" id="download_metadata_button">
+                            <property name="valign">center</property>
+                            <property name="label">Search</property>
+                            <style>
+                              <class name="accent"/>
+                            </style>
+                            <signal name="clicked" handler="on_download_metadata_clicked"/>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
                       <object class="AdwComboRow" id="runner_dropdown">
+                        <property name="visible">false</property>
                         <property name="title">Runner</property>
                         <signal name="notify::selected" handler="on_runner_selected"/>
                       </object>
@@ -161,6 +178,36 @@
                                   <class name="destructive-action"/>
                                 </style>
                                 <signal name="clicked" handler="on_clear_image_clicked"/>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <!-- Game Description (hidden by default, shown when metadata is available) -->
+                <child>
+                  <object class="AdwPreferencesGroup" id="description_group">
+                    <property name="title">Description</property>
+                    <property name="visible">false</property>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">8</property>
+                        <child>
+                          <object class="GtkScrolledWindow">
+                            <property name="height-request">150</property>
+                            <property name="hscrollbar-policy">never</property>
+                            <child>
+                              <object class="GtkTextView" id="description_text">
+                                <property name="editable">false</property>
+                                <property name="wrap-mode">word</property>
+                                <property name="left-margin">12</property>
+                                <property name="right-margin">12</property>
+                                <property name="top-margin">8</property>
+                                <property name="bottom-margin">8</property>
                               </object>
                             </child>
                           </object>

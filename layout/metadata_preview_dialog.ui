@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <requires lib="libadwaita" version="1.0"/>
+  <template class="MetadataPreviewDialog" parent="AdwWindow">
+    <property name="title">Game Metadata Preview</property>
+    <property name="default-width">600</property>
+    <property name="default-height">600</property>
+    <property name="modal">true</property>
+    <property name="hide-on-close">true</property>
+    
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">0</property>
+        
+        <!-- Header -->
+        <child>
+          <object class="AdwHeaderBar">
+            <property name="show-start-title-buttons">false</property>
+            <property name="show-end-title-buttons">false</property>
+            <property name="title-widget">
+              <object class="AdwWindowTitle" id="dialog_title">
+                <property name="title">Game Metadata Preview</property>
+              </object>
+            </property>
+            
+            <!-- Cancel Button -->
+            <child type="start">
+              <object class="GtkButton" id="cancel_button">
+                <property name="label">Cancel</property>
+                <signal name="clicked" handler="on_cancel_clicked"/>
+              </object>
+            </child>
+            
+            <!-- Accept Button -->
+            <child type="end">
+              <object class="GtkButton" id="accept_button">
+                <property name="label">Use Metadata</property>
+                <style>
+                  <class name="suggested-action"/>
+                </style>
+                <signal name="clicked" handler="on_accept_clicked"/>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <!-- Content -->
+        <child>
+          <object class="GtkScrolledWindow">
+            <property name="hexpand">true</property>
+            <property name="vexpand">true</property>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">24</property>
+                <property name="margin-top">16</property>
+                <property name="margin-bottom">24</property>
+                <property name="margin-start">16</property>
+                <property name="margin-end">16</property>
+                
+                <!-- Game Info and Image in Horizontal Layout -->
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="spacing">24</property>
+                    <property name="halign">center</property>
+                    
+                    <!-- Image -->
+                    <child>
+                      <object class="GtkBox" id="image_container">
+                        <property name="width-request">200</property>
+                        <property name="height-request">260</property>
+                        <style>
+                          <class name="card"/>
+                          <class name="image-preview"/>
+                        </style>
+                        <child>
+                          <object class="GtkPicture" id="game_image">
+                            <property name="content-fit">cover</property>
+                            <property name="can-shrink">false</property>
+                            <property name="hexpand">true</property>
+                            <property name="vexpand">true</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    
+                    <!-- Game Info -->
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">12</property>
+                        <property name="valign">center</property>
+                        <property name="width-request">320</property>
+                        
+                        <!-- Title -->
+                        <child>
+                          <object class="GtkLabel" id="game_title">
+                            <property name="label">Game Title</property>
+                            <property name="halign">start</property>
+                            <property name="wrap">true</property>
+                            <property name="wrap-mode">word-char</property>
+                            <property name="max-width-chars">40</property>
+                            <style>
+                              <class name="title-1"/>
+                            </style>
+                          </object>
+                        </child>
+                        
+                        <!-- Release Date -->
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">horizontal</property>
+                            <property name="spacing">8</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Release Date:</property>
+                                <property name="halign">start</property>
+                                <style>
+                                  <class name="heading"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="release_date">
+                                <property name="label">Unknown</property>
+                                <property name="halign">start</property>
+                                <property name="hexpand">true</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Publishers -->
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">horizontal</property>
+                            <property name="spacing">8</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Publishers:</property>
+                                <property name="halign">start</property>
+                                <style>
+                                  <class name="heading"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="publishers">
+                                <property name="label">Unknown</property>
+                                <property name="halign">start</property>
+                                <property name="hexpand">true</property>
+                                <property name="wrap">true</property>
+                                <property name="max-width-chars">30</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Developers -->
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">horizontal</property>
+                            <property name="spacing">8</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Developers:</property>
+                                <property name="halign">start</property>
+                                <style>
+                                  <class name="heading"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="developers">
+                                <property name="label">Unknown</property>
+                                <property name="halign">start</property>
+                                <property name="hexpand">true</property>
+                                <property name="wrap">true</property>
+                                <property name="max-width-chars">30</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Platforms -->
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">horizontal</property>
+                            <property name="spacing">8</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Platforms:</property>
+                                <property name="halign">start</property>
+                                <style>
+                                  <class name="heading"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="platforms">
+                                <property name="label">Unknown</property>
+                                <property name="halign">start</property>
+                                <property name="hexpand">true</property>
+                                <property name="wrap">true</property>
+                                <property name="max-width-chars">30</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Genres -->
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">horizontal</property>
+                            <property name="spacing">8</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Genres:</property>
+                                <property name="halign">start</property>
+                                <style>
+                                  <class name="heading"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="genres">
+                                <property name="label">Unknown</property>
+                                <property name="halign">start</property>
+                                <property name="hexpand">true</property>
+                                <property name="wrap">true</property>
+                                <property name="max-width-chars">30</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Score -->
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">horizontal</property>
+                            <property name="spacing">8</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Score:</property>
+                                <property name="halign">start</property>
+                                <style>
+                                  <class name="heading"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="score">
+                                <property name="label">Unknown</property>
+                                <property name="halign">start</property>
+                                <property name="hexpand">true</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <!-- Description Section -->
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">8</property>
+                    
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">Description</property>
+                        <property name="halign">start</property>
+                        <style>
+                          <class name="title-3"/>
+                        </style>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkScrolledWindow">
+                        <property name="height-request">180</property>
+                        <property name="hscrollbar-policy">never</property>
+                        <style>
+                          <class name="card"/>
+                        </style>
+                        <child>
+                          <object class="GtkTextView" id="description_text">
+                            <property name="editable">false</property>
+                            <property name="wrap-mode">word</property>
+                            <property name="left-margin">12</property>
+                            <property name="right-margin">12</property>
+                            <property name="top-margin">8</property>
+                            <property name="bottom-margin">8</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

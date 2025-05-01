@@ -11,7 +11,7 @@ import json
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
-from metadata_provider import MetadataProvider, Game, Genre, SearchResultItem, Company, Platform, Image, ImageCollection
+from providers.metadata_provider import MetadataProvider, Game, Genre, SearchResultItem, Company, Platform, Image, ImageCollection
 
 
 @dataclass

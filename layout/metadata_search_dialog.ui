@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <requires lib="libadwaita" version="1.0"/>
+  <template class="MetadataSearchDialog" parent="AdwWindow">
+    <property name="title">Search Results</property>
+    <property name="default-width">500</property>
+    <property name="default-height">500</property>
+    <property name="modal">true</property>
+    <property name="hide-on-close">true</property>
+    
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">0</property>
+        
+        <!-- Header -->
+        <child>
+          <object class="AdwHeaderBar">
+            <property name="show-start-title-buttons">false</property>
+            <property name="show-end-title-buttons">false</property>
+            <property name="title-widget">
+              <object class="AdwWindowTitle" id="dialog_title">
+                <property name="title">Search Results</property>
+              </object>
+            </property>
+            
+            <!-- Cancel Button -->
+            <child type="start">
+              <object class="GtkButton" id="cancel_button">
+                <property name="label">Cancel</property>
+                <signal name="clicked" handler="on_cancel_clicked"/>
+              </object>
+            </child>
+            
+            <!-- Search Button -->
+            <child type="end">
+              <object class="GtkButton" id="search_button">
+                <property name="label">Search</property>
+                <property name="sensitive">false</property>
+                <style>
+                  <class name="suggested-action"/>
+                </style>
+                <signal name="clicked" handler="on_search_clicked"/>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <!-- Content -->
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">16</property>
+            <property name="margin-top">24</property>
+            <property name="margin-bottom">24</property>
+            <property name="margin-start">16</property>
+            <property name="margin-end">16</property>
+            
+            <!-- Search Entry -->
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">horizontal</property>
+                <property name="spacing">8</property>
+                <property name="margin-bottom">16</property>
+                
+                <child>
+                  <object class="GtkSearchEntry" id="search_entry">
+                    <property name="hexpand">true</property>
+                    <property name="placeholder-text">Enter game title to search...</property>
+                    <signal name="search-changed" handler="on_search_changed"/>
+                    <signal name="activate" handler="on_search_entry_activated"/>
+                  </object>
+                </child>
+              </object>
+            </child>
+            
+            <!-- Results or Status -->
+            <child>
+              <object class="GtkBox" id="results_container">
+                <property name="orientation">vertical</property>
+                <property name="spacing">8</property>
+                <property name="vexpand">true</property>
+                
+                <!-- Initial state - spinner and message -->
+                <child>
+                  <object class="GtkBox" id="status_container">
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">16</property>
+                    <property name="valign">center</property>
+                    <property name="vexpand">true</property>
+                    <style>
+                      <class name="status-container"/>
+                    </style>
+                    
+                    <child>
+                      <object class="GtkSpinner" id="loading_spinner">
+                        <property name="spinning">false</property>
+                        <property name="width-request">32</property>
+                        <property name="height-request">32</property>
+                        <property name="halign">center</property>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkLabel" id="status_label">
+                        <property name="label">Enter a search term to find games</property>
+                        <property name="halign">center</property>
+                        <style>
+                          <class name="status-label"/>
+                        </style>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <!-- Search Results List -->
+                <child>
+                  <object class="GtkScrolledWindow" id="results_scroll">
+                    <property name="visible">false</property>
+                    <property name="vexpand">true</property>
+                    <property name="hscrollbar-policy">never</property>
+                    <child>
+                      <object class="GtkListBox" id="results_list">
+                        <property name="selection-mode">single</property>
+                        <style>
+                          <class name="results-list"/>
+                          <class name="boxed-list"/>
+                        </style>
+                        <signal name="row-selected" handler="on_result_selected"/>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>
