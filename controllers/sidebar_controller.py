@@ -251,12 +251,8 @@ class SidebarController:
         # Update "All Games" row text
         self._update_all_games_label()
 
-        # Clear search text if any
-        window = self.main_controller.window
-        if window and hasattr(window, 'search_entry'):
-            if window.search_entry.get_text():
-                window.search_entry.set_text("")
-                self.main_controller.settings_manager.set_search_text("")
+        # Don't clear search text for individual filter changes
+        # Only clear when "Clear Filters" (all games) is clicked
 
         # Update grid without filter
         self.main_controller.current_filter = None
@@ -264,9 +260,17 @@ class SidebarController:
 
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
             print("Showing all games")
+            # When clearing all filters, also clear search
+            window = self.main_controller.window
+            if window and hasattr(window, 'search_entry'):
+                if window.search_entry.get_text():
+                    window.search_entry.set_text("")
+                    self.main_controller.settings_manager.set_search_text("")
+
             self.main_controller.game_grid_controller.populate_games(
                 filter_runner=None,
-                filter_completion_status=None
+                filter_completion_status=None,
+                search_text=""
             )
 
     def add_filter_categories(self):
@@ -602,19 +606,19 @@ class SidebarController:
         runner_filters = self.active_filters.get("runner", set())
         completion_status_filters = self.active_filters.get("completion_status", set())
 
-        # Clear search text if any
+        # Get current search text if any
+        search_text = ""
         window = self.main_controller.window
         if window and hasattr(window, 'search_entry'):
-            if window.search_entry.get_text():
-                window.search_entry.set_text("")
-                self.main_controller.settings_manager.set_search_text("")
+            search_text = window.search_entry.get_text()
 
-        # Update grid with selected filters
+        # Update grid with selected filters and preserve search text
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
-            print(f"Filtering by: runners={runner_filters}, completion_statuses={completion_status_filters}")
+            print(f"Filtering by: runners={runner_filters}, completion_statuses={completion_status_filters}, search={search_text}")
             self.main_controller.game_grid_controller.populate_games(
                 filter_runners=runner_filters,
-                filter_completion_statuses=completion_status_filters
+                filter_completion_statuses=completion_status_filters,
+                search_text=search_text
             )
 
     def _update_selection_state(self):

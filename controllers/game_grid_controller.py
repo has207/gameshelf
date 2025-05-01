@@ -592,7 +592,7 @@ class GameGridController:
         # Apply search filter if search text is provided
         if search_text:
             games = [g for g in games if search_text.lower() in g.title.lower()]
-            print(f"After search filter: {len(games)} games")
+            print(f"After search filter '{search_text}': {len(games)} games")
 
         # Show only hidden or non-hidden games based on show_hidden setting
         if hasattr(self.main_controller, 'show_hidden'):
