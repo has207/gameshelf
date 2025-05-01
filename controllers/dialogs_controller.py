@@ -3,7 +3,7 @@ from pathlib import Path
 
 from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk
 
-from data_handler import Game, Runner
+from data_handler import Game, Runner, CompletionStatus
 from controllers.common import get_template_path, show_image_chooser_dialog
 
 
@@ -161,8 +161,8 @@ class GameDialog(Adw.Window):
         self.play_count_entry.set_text(str(game.play_count))
         self.play_time_entry.set_text(str(game.play_time))
 
-        # Set completion status
-        # Find the index of the completion status in completion_status_data
+        # Set completion status from enum
+        # Find the index of the completion status enum in completion_status_data
         for i, status in enumerate(self.completion_status_data):
             if status == game.completion_status:
                 self.completion_status_dropdown.set_selected(i)
@@ -213,35 +213,23 @@ class GameDialog(Adw.Window):
         self.selected_runner = None
 
     def _populate_completion_status_dropdown(self):
-        """Populate the completion status dropdown with predefined statuses"""
-        # Define completion status options
-        status_options = [
-            "Not Played",
-            "Plan to Play",
-            "Playing",
-            "On Hold",
-            "Abandoned",
-            "Played",
-            "Beaten",
-            "Completed"
-        ]
-
+        """Populate the completion status dropdown with predefined statuses from the enum"""
         # Create a string list for displaying status names
         string_list = Gtk.StringList()
 
-        # Add all statuses
-        for status in status_options:
-            string_list.append(status)
+        # Add all statuses from the enum
+        for status in CompletionStatus:
+            string_list.append(status.value)
 
-        # Store actual values for reference when selected
-        self.completion_status_data = status_options
+        # Store enum values for reference when selected
+        self.completion_status_data = list(CompletionStatus)
 
         # Set up the dropdown with the string list
         self.completion_status_dropdown.set_model(string_list)
 
         # Select "Not Played" by default
-        self.completion_status_dropdown.set_selected(0)
-        self.selected_completion_status = "Not Played"
+        self.completion_status_dropdown.set_selected(0)  # CompletionStatus.NOT_PLAYED is first
+        self.selected_completion_status = CompletionStatus.NOT_PLAYED
 
     @Gtk.Template.Callback()
     def on_entry_changed(self, entry, *args):
@@ -263,10 +251,10 @@ class GameDialog(Adw.Window):
         """Handler for completion status selection changes"""
         selected_index = dropdown.get_selected()
         if selected_index >= 0 and selected_index < len(self.completion_status_data):
-            # Get the completion status from our stored data using the index
+            # Get the enum value from our stored data using the index
             self.selected_completion_status = self.completion_status_data[selected_index]
         else:
-            self.selected_completion_status = "Not Played"
+            self.selected_completion_status = CompletionStatus.NOT_PLAYED
         self.validate_form()
 
     @Gtk.Template.Callback()

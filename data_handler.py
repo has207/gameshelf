@@ -2,13 +2,60 @@ import os
 import yaml
 import time
 import shutil
+import enum
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Union
 
 import gi
 gi.require_version('GdkPixbuf', '2.0')
 from gi.repository import GdkPixbuf
+
+
+class InvalidCompletionStatusError(Exception):
+    """Exception raised when an invalid completion status is encountered."""
+    pass
+
+
+class CompletionStatus(enum.Enum):
+    NOT_PLAYED = "Not Played"
+    PLAN_TO_PLAY = "Plan to Play"
+    PLAYING = "Playing"
+    ON_HOLD = "On Hold"
+    ABANDONED = "Abandoned"
+    PLAYED = "Played"
+    BEATEN = "Beaten"
+    COMPLETED = "Completed"
+
+    @classmethod
+    def from_string(cls, status_str: Optional[str]) -> 'CompletionStatus':
+        """
+        Convert a string to the corresponding enum value
+
+        Args:
+            status_str: String representation of completion status
+
+        Returns:
+            CompletionStatus enum value
+
+        Raises:
+            InvalidCompletionStatusError: If the string doesn't match any valid status
+        """
+        if not status_str:
+            return cls.NOT_PLAYED
+
+        # Try direct match first
+        for status in cls:
+            if status.value == status_str:
+                return status
+
+        # Try case-insensitive match
+        for status in cls:
+            if status.value.lower() == status_str.lower():
+                return status
+
+        # Raise exception if no match found
+        raise InvalidCompletionStatusError(f"Invalid completion status: {status_str}")
 
 
 @dataclass
@@ -24,7 +71,7 @@ class Runner:
 class Game:
     def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None,
                  created: Optional[float] = None, hidden: bool = False, description: Optional[str] = None,
-                 completion_status: str = "Not Played"):
+                 completion_status: Union[CompletionStatus, str] = CompletionStatus.NOT_PLAYED):
         self.id = id.lower()
         self.title = title
         self.runner = runner.lower() if runner else ""
@@ -33,7 +80,16 @@ class Game:
         self.play_time = 0  # Total play time in seconds
         self.hidden = hidden  # Whether the game is hidden from the main grid
         self.description = description  # Game description text
-        self.completion_status = completion_status  # Game completion status
+
+        # Handle string or enum for completion_status
+        if isinstance(completion_status, str):
+            try:
+                self.completion_status = CompletionStatus.from_string(completion_status)
+            except InvalidCompletionStatusError as e:
+                print(f"Error with game '{title}' - invalid completion status value '{completion_status}': {e}")
+                self.completion_status = CompletionStatus.NOT_PLAYED
+        else:
+            self.completion_status = completion_status
 
     def _get_game_dir_path(self, data_dir: Path) -> Path:
         """
@@ -117,13 +173,25 @@ class DataHandler:
 
                 with open(game_file, "r") as f:
                     game_data = yaml.safe_load(f)
+                    # Get the completion status string from game.yaml
+                    completion_status_str = game_data.get("completion_status")
+                    try:
+                        # Convert string to enum
+                        if completion_status_str:
+                            completion_status = CompletionStatus.from_string(completion_status_str)
+                        else:
+                            completion_status = CompletionStatus.NOT_PLAYED
+                    except InvalidCompletionStatusError as e:
+                        print(f"Error loading game {game_id} - invalid completion status '{completion_status_str}': {e}")
+                        completion_status = CompletionStatus.NOT_PLAYED
+
                     game = Game(
                         title=game_data.get("title", "Unknown Game"),
                         runner=game_data.get("runner"),
                         id=game_id,
                         created=game_data.get("created"),
                         hidden=game_data.get("hidden", False),
-                        completion_status=game_data.get("completion_status")
+                        completion_status=completion_status
                     )
 
                     # Load play count if exists
@@ -201,7 +269,7 @@ class DataHandler:
 
         game_data = {
             "title": game.title,
-            "completion_status": game.completion_status
+            "completion_status": game.completion_status.value
         }
 
         if game.runner:
@@ -313,7 +381,7 @@ class DataHandler:
             title=title,
             runner=runner_id,
             created=time.time(),
-            completion_status="Not Played"
+            completion_status=CompletionStatus.NOT_PLAYED
         )
 
         # Save image if provided
@@ -595,13 +663,13 @@ class DataHandler:
             print(f"Error updating description for {game.id}: {e}")
             return False
 
-    def update_completion_status(self, game: Game, status: str) -> bool:
+    def update_completion_status(self, game: Game, status: CompletionStatus) -> bool:
         """
         Update the completion status for a game and save it to game.yaml.
 
         Args:
             game: The game to update the completion status for
-            status: The new completion status text
+            status: The new completion status (enum)
 
         Returns:
             True if the completion status was successfully updated, False otherwise

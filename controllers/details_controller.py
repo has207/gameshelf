@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from gi.repository import Gtk, GLib, Gdk
-from data_handler import Game
+from data_handler import Game, CompletionStatus
 from process_tracking import ProcessTracker
 
 from controllers.sidebar_controller import get_friendly_time, format_play_time
@@ -304,8 +304,8 @@ class GameDetailsContent(Gtk.Box):
             else:
                 self.play_time_label.set_text("Play Time: Not played")
 
-            # Set completion status
-            self.completion_status_label.set_text(f"Status: {game.completion_status}")
+            # Set completion status - use the enum value
+            self.completion_status_label.set_text(f"Status: {game.completion_status.value}")
 
             last_played = game.get_last_played_time(self.controller.data_handler.data_dir)
             if last_played and game.play_count > 0:
