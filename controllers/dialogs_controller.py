@@ -118,6 +118,7 @@ class GameDialog(Adw.Window):
         self.completion_status_data = []
         self.selected_completion_status = "Not Played"
         self.game = None
+        self.metadata_description = None
 
         # Adjust dialog height based on parent window height
         parent_height = parent_window.get_height()
@@ -156,6 +157,7 @@ class GameDialog(Adw.Window):
         self.game = game
         self.title_entry.set_text(game.title)
         self.selected_image_path = None
+        self.metadata_description = None  # Reset metadata description
 
         # Load the game image
         pixbuf = self.controller.get_game_pixbuf(game, width=200, height=260)
@@ -165,6 +167,12 @@ class GameDialog(Adw.Window):
             # Set default image if no image is available
             icon_paintable = self.controller.data_handler.get_default_icon_paintable("applications-games-symbolic", 128)
             self.image_preview.set_paintable(icon_paintable)
+
+        # Load the description if available
+        if game.description:
+            self.description_group.set_visible(True)
+            buffer = self.description_text.get_buffer()
+            buffer.set_text(game.description)
 
         # Set play statistics
         self.play_count_entry.set_text(str(game.play_count))
@@ -426,12 +434,22 @@ class GameDialog(Adw.Window):
         )
 
         # Save the game through the controller
-        if self.controller.add_game(game):
+        success = self.controller.add_game(game)
+
+        # If we have a description from metadata, save it
+        if success and self.metadata_description:
+            self.controller.data_handler.update_game_description(
+                game,
+                self.metadata_description
+            )
+
+        if success:
             # Reset form fields
             self.title_entry.set_text("")
             self.runner_dropdown.set_selected(0)  # Select "[none]"
             self.selected_runner = None
             self.selected_image_path = None
+            self.metadata_description = None
             self.image_preview.set_paintable(None)
 
             # Close the dialog first
@@ -499,6 +517,13 @@ class GameDialog(Adw.Window):
                 self.selected_completion_status
             )
 
+        # Update description if we have one from metadata
+        if self.metadata_description:
+            self.controller.data_handler.update_game_description(
+                self.game,
+                self.metadata_description
+            )
+
         # Only save game.yaml if necessary
         success = True
         if need_to_save_game_yaml:
@@ -547,6 +572,11 @@ class GameDialog(Adw.Window):
             # Set the description text in the TextView
             buffer = self.description_text.get_buffer()
             buffer.set_text(game_metadata.description)
+
+            # Store the description to save it when the game is created/updated
+            self.metadata_description = game_metadata.description
+        else:
+            self.metadata_description = None
 
         # Update the image if available
         if image_path:
