@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <template class="FilterCategoryRow" parent="GtkBox">
+    <property name="orientation">vertical</property>
+    <property name="spacing">4</property>
+    <style>
+      <class name="filter-category-row"/>
+    </style>
+
+    <!-- Header row with icon and category name -->
+    <child>
+      <object class="GtkBox" id="header_box">
+        <property name="orientation">horizontal</property>
+        <property name="spacing">12</property>
+        <style>
+          <class name="filter-category-header"/>
+        </style>
+
+        <!-- Category icon -->
+        <child>
+          <object class="GtkImage" id="icon">
+            <property name="icon-name">folder-symbolic</property>
+            <property name="icon-size">1</property>
+            <property name="valign">center</property>
+          </object>
+        </child>
+
+        <!-- Category label -->
+        <child>
+          <object class="GtkLabel" id="label">
+            <property name="xalign">0</property>
+            <property name="hexpand">true</property>
+            <property name="halign">start</property>
+            <property name="valign">center</property>
+            <style>
+              <class name="filter-category-label"/>
+            </style>
+          </object>
+        </child>
+
+        <!-- Expand/collapse button -->
+        <child>
+          <object class="GtkButton" id="expand_button">
+            <property name="icon-name">pan-down-symbolic</property>
+            <property name="valign">center</property>
+            <style>
+              <class name="flat"/>
+              <class name="circular"/>
+              <class name="filter-expander"/>
+            </style>
+          </object>
+        </child>
+      </object>
+    </child>
+
+    <!-- Container for filter value items -->
+    <child>
+      <object class="GtkBox" id="values_container">
+        <property name="orientation">vertical</property>
+        <property name="visible">true</property>
+        <style>
+          <class name="filter-values-container"/>
+        </style>
+      </object>
+    </child>
+  </template>
+</interface>

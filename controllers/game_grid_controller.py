@@ -536,20 +536,39 @@ class GameGridController:
         # Show the menu
         menu.show()
 
-    def populate_games(self, filter_runner: Optional[str] = None, search_text: str = ""):
-        """Populate the games grid with filtered games"""
+    def populate_games(self, filter_runner: Optional[str] = None,
+                    filter_completion_status: Optional[str] = None,
+                    search_text: str = ""):
+        """
+        Populate the games grid with filtered games
+
+        Args:
+            filter_runner: Runner ID to filter by, or None for no filter
+            filter_completion_status: Completion status enum name to filter by, or None for no filter
+            search_text: Text to search in game titles
+        """
+        # For backward compatibility, store runner filter in main controller
         self.main_controller.current_filter = filter_runner
+
+        # Clear the current games model
         self.games_model.remove_all()
+
         # Reset selection tracking when repopulating
         self.last_selected_position = -1
-        games = self.main_controller.get_games()
 
+        # Get all games
+        games = self.main_controller.get_games()
         print(f"Populating games grid with {len(games)} total games...")
 
         # Apply runner filter
         if filter_runner is not None:  # Filter is specifically set (including empty string)
             games = [g for g in games if g.runner == filter_runner]
             print(f"After runner filter: {len(games)} games")
+
+        # Apply completion status filter
+        if filter_completion_status is not None:
+            games = [g for g in games if g.completion_status.name == filter_completion_status]
+            print(f"After completion status filter: {len(games)} games")
 
         # Apply search filter if search text is provided
         if search_text:

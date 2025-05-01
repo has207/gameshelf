@@ -58,9 +58,9 @@
 
 /* Enhanced sidebar styling */
 .sidebar-row {
-  border-radius: 8px;
-  padding: 8px;
-  margin: 8px 12px;
+  border-radius: 6px;
+  padding: 6px;
+  margin: 2px 4px;
   transition: all 200ms ease;
 }
 
@@ -69,13 +69,81 @@
   font-size: 14px;
 }
 
-.sidebar-row:selected {
+.sidebar-row:selected, .sidebar-row.selected-sidebar-item {
   background-color: alpha(@accent_bg_color, 0.15);
   color: @accent_color;
 }
 
-.sidebar-row:hover:not(:selected) {
+.sidebar-row:hover:not(:selected):not(.selected-sidebar-item) {
   background-color: alpha(@card_bg_color, 0.5);
+}
+
+/* Filter category styling */
+.filter-category-row {
+  margin: 2px 4px;
+}
+
+.filter-values-container {
+  margin-left: 18px;
+  margin-top: 2px;
+  margin-bottom: 4px;
+}
+
+.selected-sidebar-item {
+  background-color: alpha(@accent_bg_color, 0.15);
+  color: @accent_color;
+  font-weight: bold;
+}
+
+.filter-category-header {
+  border-radius: 6px;
+  padding: 4px 6px;
+  transition: all 200ms ease;
+}
+
+.filter-category-header:hover {
+  background-color: alpha(@card_bg_color, 0.5);
+}
+
+.filter-category-locked {
+  background-color: alpha(@error_color, 0.2);
+  transition: background-color 300ms ease-out;
+}
+
+.filter-category-label {
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* Filter value styling */
+.filter-value-row {
+  border-radius: 6px;
+  padding: 4px 6px;
+  margin: 2px 0;
+  transition: all 200ms ease;
+}
+
+.filter-value-row:selected, .filter-value-row.selected-sidebar-item {
+  background-color: alpha(@accent_bg_color, 0.15);
+  color: @accent_color;
+}
+
+.filter-value-row:hover:not(:selected):not(.selected-sidebar-item) {
+  background-color: alpha(@card_bg_color, 0.5);
+}
+
+.filter-value-label {
+  font-weight: normal;
+  font-size: 14px;
+}
+
+.filter-count-badge {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background-color: alpha(@accent_bg_color, 0.2);
+  color: mix(@accent_color, @window_fg_color, 0.7);
+  min-width: 16px;
 }
 
 /* Grid styling */

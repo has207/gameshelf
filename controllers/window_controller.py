@@ -72,7 +72,7 @@ class GameShelfController:
         """Reload all data from storage and refresh the UI
 
         Args:
-            refresh_sidebar: Whether to refresh the sidebar runners
+            refresh_sidebar: Whether to refresh the sidebar filters
             refresh_grid: Whether to refresh the games grid
         """
         self.games = self.data_handler.load_games()
@@ -86,18 +86,30 @@ class GameShelfController:
             search_text = self.window.search_entry.get_text().strip().lower()
 
         # Refresh the sidebar if requested
-        if refresh_sidebar and self.window and hasattr(self.window, 'refresh_sidebar_runners'):
-            print("Refreshing sidebar runners from controller")
-            self.window.refresh_sidebar_runners()
+        if refresh_sidebar and self.sidebar_controller:
+            print("Refreshing sidebar filters")
+            self.sidebar_controller.refresh_filters()
 
         # Refresh games grid if requested
         if refresh_grid:
-            if hasattr(self, 'title_bar_controller') and self.title_bar_controller:
-                print("Populating games through title bar controller")
-                self.title_bar_controller.populate_games(filter_runner=self.current_filter, search_text=search_text)
-            elif hasattr(self, 'game_grid_controller') and self.game_grid_controller:
-                print("Populating games through game grid controller")
-                self.game_grid_controller.populate_games(filter_runner=self.current_filter, search_text=search_text)
+            # Get active filters from sidebar controller if available
+            filter_runner = None
+            filter_completion_status = None
+
+            if self.sidebar_controller:
+                filter_runner = self.sidebar_controller.active_filters.get("runner")
+                filter_completion_status = self.sidebar_controller.active_filters.get("completion_status")
+            else:
+                # Fall back to legacy filter if sidebar controller not available
+                filter_runner = self.current_filter
+
+            if hasattr(self, 'game_grid_controller') and self.game_grid_controller:
+                print(f"Populating games with filters: runner={filter_runner}, completion_status={filter_completion_status}")
+                self.game_grid_controller.populate_games(
+                    filter_runner=filter_runner,
+                    filter_completion_status=filter_completion_status,
+                    search_text=search_text
+                )
 
     def get_game_pixbuf(self, game: Game, width: int = 200, height: int = 260) -> Optional[GdkPixbuf.Pixbuf]:
         """Get a game's image as a pixbuf, using the data handler"""
@@ -171,6 +183,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
     games_grid: Gtk.GridView = Gtk.Template.Child()
     details_panel: Adw.Flap = Gtk.Template.Child()
     details_content: GameDetailsContent = Gtk.Template.Child()
+    sidebar_container: Gtk.ScrolledWindow = Gtk.Template.Child()
     sidebar_listview: Gtk.ListView = Gtk.Template.Child()
     add_game_button: Gtk.Button = Gtk.Template.Child()
     search_entry: Gtk.SearchEntry = Gtk.Template.Child()
@@ -185,7 +198,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
         self.current_selected_game = None
 
         # Debug to see if the UI template is loaded correctly
-        print("Sidebar ListView:", self.sidebar_listview)
+        print("Sidebar Container:", self.sidebar_container)
         print("Games Grid:", self.games_grid)
         print("Details Panel:", self.details_panel)
 
@@ -232,20 +245,38 @@ class GameShelfWindow(Adw.ApplicationWindow):
             print("Setting up games grid")
             self.controller.game_grid_controller.bind_gridview(self.games_grid)
 
+            # Clear old sidebar index selection to avoid interference with new filter system
+            self.controller.settings_manager.set_sidebar_selection(0)
+
+            # Initialize with active filters from settings
+            active_filters = self.controller.settings_manager.get_sidebar_active_filters()
+            runner_filter = active_filters.get("runner")
+            completion_status_filter = active_filters.get("completion_status")
+
+            # Get search text from settings
+            search_text = self.controller.settings_manager.get_search_text()
+
+            # Populate games with stored filters
+            self.controller.game_grid_controller.populate_games(
+                filter_runner=runner_filter,
+                filter_completion_status=completion_status_filter,
+                search_text=search_text
+            )
+
         # 3. Then details panel
         if hasattr(self, 'details_content') and hasattr(self, 'details_panel'):
             print("Setting up details panel")
             self.controller.details_controller.setup_details_panel(self.details_content, self.details_panel)
 
         # 4. Finally sidebar (which needs the others for filtering/selection)
-        if hasattr(self, 'sidebar_listview') and self.sidebar_listview is not None:
+        if hasattr(self, 'sidebar_container') and self.sidebar_container is not None:
             print("Setting up sidebar")
-            self.controller.sidebar_controller.setup_sidebar(self.sidebar_listview)
+            self.controller.sidebar_controller.setup_sidebar(self.sidebar_container)
 
     def refresh_sidebar_runners(self):
-        """Delegate to sidebar controller"""
+        """Delegate to sidebar controller - refresh filters"""
         if hasattr(self.controller, 'sidebar_controller') and self.controller.sidebar_controller:
-            self.controller.sidebar_controller.refresh_sidebar_runners()
+            self.controller.sidebar_controller.refresh_filters()
 
     @Gtk.Template.Callback()
     def on_add_game_clicked(self, button):

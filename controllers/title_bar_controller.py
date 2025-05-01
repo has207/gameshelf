@@ -128,10 +128,22 @@ class TitleBarController:
         # Save search text to settings
         self.main_controller.settings_manager.set_search_text(search_text)
 
+        # Get active filters from sidebar controller if available
+        filter_runner = None
+        filter_completion_status = None
+
+        if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
+            filter_runner = self.main_controller.sidebar_controller.active_filters.get("runner")
+            filter_completion_status = self.main_controller.sidebar_controller.active_filters.get("completion_status")
+        else:
+            # Fall back to legacy filter if sidebar controller not available
+            filter_runner = self.main_controller.current_filter
+
         # Update games grid directly without a full reload
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
             self.main_controller.game_grid_controller.populate_games(
-                filter_runner=self.main_controller.current_filter,
+                filter_runner=filter_runner,
+                filter_completion_status=filter_completion_status,
                 search_text=search_text
             )
 
@@ -159,9 +171,18 @@ class TitleBarController:
         self.populate_games(filter_runner=self.main_controller.current_filter, search_text=search_text)
 
     def populate_games(self, filter_runner: Optional[str] = None, search_text: str = ""):
+        # Get the completion status filter from sidebar if available
+        filter_completion_status = None
+        if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
+            filter_completion_status = self.main_controller.sidebar_controller.active_filters.get("completion_status")
+
         # Delegate to the grid controller to actually populate games
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
-            self.main_controller.game_grid_controller.populate_games(filter_runner=filter_runner, search_text=search_text)
+            self.main_controller.game_grid_controller.populate_games(
+                filter_runner=filter_runner,
+                filter_completion_status=filter_completion_status,
+                search_text=search_text
+            )
 
     def on_visibility_toggle_clicked(self, button):
         """Handle visibility toggle button click"""

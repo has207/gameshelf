@@ -81,6 +81,11 @@
               <object class="GtkScrolledWindow" id="sidebar_container">
                 <property name="vexpand">true</property>
                 <property name="min-content-width">220</property>
+                <property name="max-content-width">260</property>
+                <property name="hexpand">false</property>
+                <style>
+                  <class name="sidebar-container"/>
+                </style>
                 <child>
                   <object class="GtkListView" id="sidebar_listview">
                     <!-- No custom properties here that could cause problems -->

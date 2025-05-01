@@ -57,7 +57,12 @@ class AppStateManager:
                 "ascending": True
             },
             "sidebar": {
-                "selected_index": 0
+                "selected_index": 0,
+                "active_filters": {},
+                "expanded_categories": {
+                    "runner": True,
+                    "completion_status": True
+                }
             },
             "details": {
                 "visible": False,
@@ -255,3 +260,42 @@ class AppStateManager:
             game_id: Game ID or None
         """
         self.settings["details"]["current_game_id"] = game_id
+
+    def get_sidebar_active_filters(self) -> Dict[str, str]:
+        """
+        Get the active filters in the sidebar
+
+        Returns:
+            Dictionary mapping category IDs to value IDs
+        """
+        return self.settings["sidebar"].get("active_filters", {})
+
+    def set_sidebar_active_filters(self, active_filters: Dict[str, str]) -> None:
+        """
+        Set the active filters in the sidebar
+
+        Args:
+            active_filters: Dictionary mapping category IDs to value IDs
+        """
+        self.settings["sidebar"]["active_filters"] = active_filters
+
+    def get_sidebar_expanded_categories(self) -> Dict[str, bool]:
+        """
+        Get the expanded state of categories in the sidebar
+
+        Returns:
+            Dictionary mapping category IDs to expanded state (True/False)
+        """
+        return self.settings["sidebar"].get("expanded_categories", {
+            "runner": True,
+            "completion_status": True
+        })
+
+    def set_sidebar_expanded_categories(self, expanded_categories: Dict[str, bool]) -> None:
+        """
+        Set the expanded state of categories in the sidebar
+
+        Args:
+            expanded_categories: Dictionary mapping category IDs to expanded state
+        """
+        self.settings["sidebar"]["expanded_categories"] = expanded_categories
