@@ -6,7 +6,8 @@ from typing import Dict, List, Optional, Tuple, Set
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk, GObject, GLib
-from data_handler import DataHandler, Game, Runner, CompletionStatus
+from data_handler import DataHandler, Game, Runner
+from data_mapping import CompletionStatus
 from controllers.common import get_template_path
 from controllers.filter_controller import (
     FilterCategoryRow, FilterValueRow,

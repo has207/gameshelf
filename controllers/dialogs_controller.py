@@ -7,7 +7,8 @@ from io import BytesIO
 
 from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk, GLib
 
-from data_handler import Game, Runner, CompletionStatus
+from data_handler import Game, Runner
+from data_mapping import CompletionStatus
 from controllers.common import get_template_path, show_image_chooser_dialog
 from providers.opencritic_client import OpenCriticClient
 from providers.metadata_provider import SearchResultItem, Game as MetadataGame

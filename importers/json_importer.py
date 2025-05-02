@@ -5,7 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
-from data_handler import DataHandler, Game, CompletionStatus, InvalidCompletionStatusError
+from data_handler import DataHandler, Game
+from data_mapping import CompletionStatus, InvalidCompletionStatusError
 
 
 class JsonImporter:

@@ -6,7 +6,7 @@ gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk, GObject, GLib
 
 from controllers.common import get_template_path
-from data_handler import CompletionStatus
+from data_mapping import CompletionStatus
 
 
 class FilterItem(GObject.GObject):
