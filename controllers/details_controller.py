@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from gi.repository import Gtk, GLib, Gdk
-from data_handler import Game
+from data import Game
 from data_mapping import CompletionStatus
 from process_tracking import ProcessTracker
 

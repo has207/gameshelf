@@ -1,7 +1,7 @@
 import os
 from typing import Optional, Any, List, Dict, Callable
 from gi.repository import Gtk, Gio, GdkPixbuf, GObject
-from data_handler import Game, Runner
+from data import Game, Runner
 
 
 def show_error_dialog(parent: Gtk.Window, title: str, message: str) -> None:

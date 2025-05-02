@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional, Callable
 
 from gi.repository import GLib
-from data_handler import Game
+from data import Game
 
 
 class ProcessTracker:

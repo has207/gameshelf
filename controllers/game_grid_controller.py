@@ -3,10 +3,10 @@ import threading
 import time
 
 from gi.repository import Gtk, Gio, Gdk, GObject, GLib
-from data_handler import Game, Runner
 
 from controllers.sidebar_controller import SidebarItem
 from controllers.common import get_template_path
+from data import Game, Runner
 
 
 # Create a GObject-based wrapper for Game objects to use in ListStore
