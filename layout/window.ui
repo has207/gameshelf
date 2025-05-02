@@ -80,8 +80,8 @@
             <child>
               <object class="GtkScrolledWindow" id="sidebar_container">
                 <property name="vexpand">true</property>
-                <property name="min-content-width">220</property>
-                <property name="max-content-width">260</property>
+                <property name="min-content-width">310</property>
+                <property name="max-content-width">350</property>
                 <property name="hexpand">false</property>
                 <style>
                   <class name="sidebar-container"/>

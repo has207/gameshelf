@@ -170,6 +170,21 @@ gridview.games-grid {
   border-right: 1px solid alpha(@borders, 0.5);
 }
 
+/* Filter row styling */
+.filter-value-row {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.filter-count-badge {
+  font-size: 11px;
+  padding: 1px 4px;
+  min-width: 24px;
+  border-radius: 8px;
+}
+
 /* Details panel styling */
 .details-panel {
   background-color: @window_bg_color;
