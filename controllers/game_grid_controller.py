@@ -517,7 +517,7 @@ class GameGridController:
             menu = self.create_multi_context_menu(selected_games, box)
         else:
             # Show standard single-item menu
-            from controllers.dialogs_controller import GameContextMenu
+            from controllers.game_context_menu_controller import GameContextMenu
             menu = GameContextMenu(game, box)
             menu.set_parent(box)
             menu.set_autohide(True)

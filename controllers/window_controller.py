@@ -7,7 +7,7 @@ from app_state_manager import AppStateManager
 from controllers.common import get_template_path
 
 from controllers.details_controller import GameDetailsContent, DetailsController
-from controllers.dialogs_controller import GameDialog
+from controllers.game_dialog_controller import GameDialog
 from controllers.runners_manager_controller import RunnersManagerDialog
 from controllers.game_grid_controller import GameGridController
 from controllers.sidebar_controller import SidebarController

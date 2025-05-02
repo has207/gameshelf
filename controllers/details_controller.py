@@ -231,7 +231,7 @@ class GameDetailsContent(Gtk.Box):
         window = self.get_ancestor(GameShelfWindow)
         if window:
             # Create a new game dialog in edit mode
-            from controllers.dialogs_controller import GameDialog
+            from controllers.game_dialog_controller import GameDialog
             dialog = GameDialog(window, self.controller, edit_mode=True)
             dialog.set_transient_for(window)
 
