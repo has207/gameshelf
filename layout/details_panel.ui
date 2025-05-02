@@ -285,6 +285,195 @@
           </object>
         </child>
         
+        <!-- Metadata Section (Combined) -->
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">12</property>
+            <style>
+              <class name="metadata-box"/>
+            </style>
+            
+            <!-- Grid for metadata fields -->
+            <child>
+              <object class="GtkGrid">
+                <property name="row-spacing">8</property>
+                <property name="column-spacing">12</property>
+                
+                <!-- Platforms Row -->
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Platforms:</property>
+                    <property name="xalign">1</property>
+                    <property name="valign">start</property>
+                    <style>
+                      <class name="caption-heading"/>
+                      <class name="dim-label"/>
+                    </style>
+                    <layout>
+                      <property name="column">0</property>
+                      <property name="row">0</property>
+                    </layout>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="platforms_label">
+                    <property name="xalign">0</property>
+                    <property name="wrap">true</property>
+                    <property name="wrap-mode">word-char</property>
+                    <property name="max-width-chars">40</property>
+                    <property name="label">No platforms available</property>
+                    <property name="use-markup">false</property>
+                    <style>
+                      <class name="body"/>
+                    </style>
+                    <layout>
+                      <property name="column">1</property>
+                      <property name="row">0</property>
+                    </layout>
+                  </object>
+                </child>
+                
+                <!-- Genres Row -->
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Genres:</property>
+                    <property name="xalign">1</property>
+                    <property name="valign">start</property>
+                    <style>
+                      <class name="caption-heading"/>
+                      <class name="dim-label"/>
+                    </style>
+                    <layout>
+                      <property name="column">0</property>
+                      <property name="row">1</property>
+                    </layout>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="genres_label">
+                    <property name="xalign">0</property>
+                    <property name="wrap">true</property>
+                    <property name="wrap-mode">word-char</property>
+                    <property name="max-width-chars">40</property>
+                    <property name="label">No genres available</property>
+                    <property name="use-markup">false</property>
+                    <style>
+                      <class name="body"/>
+                    </style>
+                    <layout>
+                      <property name="column">1</property>
+                      <property name="row">1</property>
+                    </layout>
+                  </object>
+                </child>
+                
+                <!-- Features Row -->
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Features:</property>
+                    <property name="xalign">1</property>
+                    <property name="valign">start</property>
+                    <style>
+                      <class name="caption-heading"/>
+                      <class name="dim-label"/>
+                    </style>
+                    <layout>
+                      <property name="column">0</property>
+                      <property name="row">2</property>
+                    </layout>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="features_label">
+                    <property name="xalign">0</property>
+                    <property name="wrap">true</property>
+                    <property name="wrap-mode">word-char</property>
+                    <property name="max-width-chars">40</property>
+                    <property name="label">No features available</property>
+                    <property name="use-markup">false</property>
+                    <style>
+                      <class name="body"/>
+                    </style>
+                    <layout>
+                      <property name="column">1</property>
+                      <property name="row">2</property>
+                    </layout>
+                  </object>
+                </child>
+                
+                <!-- Age Ratings Row -->
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Age Ratings:</property>
+                    <property name="xalign">1</property>
+                    <property name="valign">start</property>
+                    <style>
+                      <class name="caption-heading"/>
+                      <class name="dim-label"/>
+                    </style>
+                    <layout>
+                      <property name="column">0</property>
+                      <property name="row">3</property>
+                    </layout>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="age_ratings_label">
+                    <property name="xalign">0</property>
+                    <property name="wrap">true</property>
+                    <property name="wrap-mode">word-char</property>
+                    <property name="max-width-chars">40</property>
+                    <property name="label">No age ratings available</property>
+                    <property name="use-markup">false</property>
+                    <style>
+                      <class name="body"/>
+                    </style>
+                    <layout>
+                      <property name="column">1</property>
+                      <property name="row">3</property>
+                    </layout>
+                  </object>
+                </child>
+                
+                <!-- Regions Row -->
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Regions:</property>
+                    <property name="xalign">1</property>
+                    <property name="valign">start</property>
+                    <style>
+                      <class name="caption-heading"/>
+                      <class name="dim-label"/>
+                    </style>
+                    <layout>
+                      <property name="column">0</property>
+                      <property name="row">4</property>
+                    </layout>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="regions_label">
+                    <property name="xalign">0</property>
+                    <property name="wrap">true</property>
+                    <property name="wrap-mode">word-char</property>
+                    <property name="max-width-chars">40</property>
+                    <property name="label">No regions available</property>
+                    <property name="use-markup">false</property>
+                    <style>
+                      <class name="body"/>
+                    </style>
+                    <layout>
+                      <property name="column">1</property>
+                      <property name="row">4</property>
+                    </layout>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        
         <!-- Description -->
         <child>
           <object class="GtkBox">

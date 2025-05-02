@@ -87,6 +87,11 @@ class GameDetailsContent(Gtk.Box):
     play_time_label: Gtk.Label = Gtk.Template.Child()
     completion_status_label: Gtk.Label = Gtk.Template.Child()
     description_label: Gtk.Label = Gtk.Template.Child()
+    platforms_label: Gtk.Label = Gtk.Template.Child()
+    genres_label: Gtk.Label = Gtk.Template.Child()
+    features_label: Gtk.Label = Gtk.Template.Child()
+    age_ratings_label: Gtk.Label = Gtk.Template.Child()
+    regions_label: Gtk.Label = Gtk.Template.Child()
 
     def __init__(self):
         super().__init__()
@@ -320,6 +325,46 @@ class GameDetailsContent(Gtk.Box):
                 self.last_played_label.set_text(f"Last Played: {friendly_time}")
             else:
                 self.last_played_label.set_text("Last Played: Never")
+
+            # Set platforms if available
+            if game.platforms and len(game.platforms) > 0:
+                platform_names = [platform.value for platform in game.platforms]
+                platform_text = ", ".join(platform_names)
+                self.platforms_label.set_text(platform_text)
+            else:
+                self.platforms_label.set_text("No platforms available")
+
+            # Set genres if available
+            if game.genres and len(game.genres) > 0:
+                genre_names = [genre.value for genre in game.genres]
+                genre_text = ", ".join(genre_names)
+                self.genres_label.set_text(genre_text)
+            else:
+                self.genres_label.set_text("No genres available")
+
+            # Set features if available
+            if game.features and len(game.features) > 0:
+                feature_names = [feature.value for feature in game.features]
+                feature_text = ", ".join(feature_names)
+                self.features_label.set_text(feature_text)
+            else:
+                self.features_label.set_text("No features available")
+
+            # Set age ratings if available
+            if game.age_ratings and len(game.age_ratings) > 0:
+                rating_names = [rating.value for rating in game.age_ratings]
+                rating_text = ", ".join(rating_names)
+                self.age_ratings_label.set_text(rating_text)
+            else:
+                self.age_ratings_label.set_text("No age ratings available")
+
+            # Set regions if available
+            if game.regions and len(game.regions) > 0:
+                region_names = [region.value for region in game.regions]
+                region_text = ", ".join(region_names)
+                self.regions_label.set_text(region_text)
+            else:
+                self.regions_label.set_text("No regions available")
 
             # Set description if available with markup support
             if game.description:
