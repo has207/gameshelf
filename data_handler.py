@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple, Union
 
 from data import Game, Runner
-from data_mapping import CompletionStatus, InvalidCompletionStatusError
+from data_mapping import CompletionStatus, InvalidCompletionStatusError, Platforms, InvalidPlatformError
 
 import gi
 gi.require_version('GdkPixbuf', '2.0')
@@ -60,13 +60,25 @@ class DataHandler:
                         print(f"Error loading game {game_id} - invalid completion status '{completion_status_str}': {e}")
                         completion_status = CompletionStatus.NOT_PLAYED
 
+                    # Extract platforms list if available
+                    platforms = []
+                    if "platforms" in game_data and isinstance(game_data["platforms"], list):
+                        for platform_str in game_data["platforms"]:
+                            try:
+                                platform = Platforms.from_string(platform_str)
+                                platforms.append(platform)
+                            except InvalidPlatformError:
+                                # Skip invalid platforms
+                                print(f"Warning: Skipping invalid platform '{platform_str}' for game {game_id}")
+
                     game = Game(
                         title=game_data.get("title", "Unknown Game"),
                         runner=game_data.get("runner"),
                         id=game_id,
                         created=game_data.get("created"),
                         hidden=game_data.get("hidden", False),
-                        completion_status=completion_status
+                        completion_status=completion_status,
+                        platforms=platforms
                     )
 
                     # Load play count if exists
@@ -153,6 +165,9 @@ class DataHandler:
             game_data["created"] = game.created
         if game.hidden:
             game_data["hidden"] = game.hidden
+        if game.platforms:
+            # Save platform enum display values
+            game_data["platforms"] = [platform.value for platform in game.platforms]
 
         try:
             game_dir = self._get_game_dir_from_id(game.id)
@@ -557,6 +572,27 @@ class DataHandler:
             return self.save_game(game, True)
         except Exception as e:
             print(f"Error updating completion status for {game.id}: {e}")
+            return False
+
+    def update_platforms(self, game: Game, platforms: List[Platforms]) -> bool:
+        """
+        Update the platforms list for a game and save it to game.yaml.
+
+        Args:
+            game: The game to update the platforms for
+            platforms: The new list of platforms (enum values)
+
+        Returns:
+            True if the platforms were successfully updated, False otherwise
+        """
+        try:
+            # Update the platforms in the game object
+            game.platforms = platforms
+
+            # Save the game to update the yaml file
+            return self.save_game(game, True)
+        except Exception as e:
+            print(f"Error updating platforms for {game.id}: {e}")
             return False
 
     def increment_play_time(self, game: Game, seconds_to_add: int) -> bool:

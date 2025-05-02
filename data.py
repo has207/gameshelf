@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, List
 
-from data_mapping import CompletionStatus
+from data_mapping import CompletionStatus, Platforms
 
 
 @dataclass
@@ -18,7 +18,8 @@ class Runner:
 class Game:
     def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None,
                  created: Optional[float] = None, hidden: bool = False, description: Optional[str] = None,
-                 completion_status: Union[CompletionStatus, str] = CompletionStatus.NOT_PLAYED):
+                 completion_status: Union[CompletionStatus, str] = CompletionStatus.NOT_PLAYED,
+                 platforms: Optional[List[Union[Platforms, str]]] = None):
         self.id = id.lower()
         self.title = title
         self.runner = runner.lower() if runner else ""
@@ -27,16 +28,30 @@ class Game:
         self.play_time = 0  # Total play time in seconds
         self.hidden = hidden  # Whether the game is hidden from the main grid
         self.description = description  # Game description text
+        self.platforms = []  # List of platforms the game is available on
 
         # Handle string or enum for completion_status
         if isinstance(completion_status, str):
             try:
                 self.completion_status = CompletionStatus.from_string(completion_status)
-            except InvalidCompletionStatusError as e:
+            except Exception as e:
                 print(f"Error with game '{title}' - invalid completion status value '{completion_status}': {e}")
                 self.completion_status = CompletionStatus.NOT_PLAYED
         else:
             self.completion_status = completion_status
+
+        # Handle platforms list
+        if platforms:
+            self.platforms = []
+            for platform in platforms:
+                if isinstance(platform, str):
+                    try:
+                        self.platforms.append(Platforms.from_string(platform))
+                    except Exception:
+                        # Skip invalid platform strings
+                        pass
+                elif isinstance(platform, Platforms):
+                    self.platforms.append(platform)
 
     def _get_game_dir_path(self, data_dir: Path) -> Path:
         """

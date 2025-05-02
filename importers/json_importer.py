@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
 from data_handler import DataHandler, Game
-from data_mapping import CompletionStatus, InvalidCompletionStatusError
+from data_mapping import CompletionStatus, InvalidCompletionStatusError, Platforms, InvalidPlatformError
 
 
 class JsonImporter:
@@ -169,6 +169,112 @@ class JsonImporter:
                 # Use mapped enum directly
                 completion_status = completion_status_mapping[guid]
 
+        # Extract platforms if available
+        platforms = []
+        platform_ids = []
+
+        if "PlatformIds" in game_data:
+            # Platform IDs are expected to be a list
+
+            if isinstance(game_data["PlatformIds"], list):
+                # Multiple platforms
+                for platform_id in game_data["PlatformIds"]:
+                    if isinstance(platform_id, dict) and "$guid" in platform_id:
+                        platform_ids.append(platform_id["$guid"])
+            elif isinstance(game_data["PlatformIds"], dict) and "$guid" in game_data["PlatformIds"]:
+                # Single platform
+                platform_ids.append(game_data["PlatformIds"]["$guid"])
+        # Also check PlatformId (singular) for backwards compatibility
+        elif "PlatformId" in game_data:
+            # Platform ID might be a single GUID object or a list of them
+
+            if isinstance(game_data["PlatformId"], list):
+                # Multiple platforms
+                for platform_id in game_data["PlatformId"]:
+                    if isinstance(platform_id, dict) and "$guid" in platform_id:
+                        platform_ids.append(platform_id["$guid"])
+            elif isinstance(game_data["PlatformId"], dict) and "$guid" in game_data["PlatformId"]:
+                # Single platform
+                platform_ids.append(game_data["PlatformId"]["$guid"])
+
+        # Map GUID to platform enum
+        platform_mapping = {
+            "089f77c6-a466-404b-9321-e4e8f7b59117": Platforms.COMMODORE_64,
+            "08e57df9-8a7a-4f74-b02d-2c8c1fc78263": Platforms.NINTENDO_64,
+            "09f9a10d-05bb-4b17-b1e8-b5264680d2b9": Platforms.COMMODORE_AMIGA_CD32,
+            "12981385-5cc0-407c-a798-9ad1fd91e22b": Platforms.PC_DOS,
+            "182098d7-7f3b-40d4-83c8-99c0b47a3e3f": Platforms.NINTENDO_GAMECUBE,
+            "19425498-f998-4682-b3a6-00af0c609688": Platforms.COMMODORE_PET,
+            "19796010-7883-4f0b-928e-5150226fef68": Platforms.NINTENDO_WII,
+            "1e6ab01b-1d24-4ab6-ae10-f8c764527056": Platforms.NEC_TURBOGRAFX_CD,
+            "23237b00-2544-4846-a99d-309af859f2dd": Platforms.NINTENDO_GAMEBOY_COLOR,
+            "245f5070-d298-4bcc-bceb-ac22fd083a23": Platforms.SINCLAIR_ZX81,
+            "290be302-541f-4190-8983-383fb92db5e4": Platforms.NINTENDO_WIIU,
+            "3ca55b8d-cac7-42f4-a373-03afe027b952": Platforms.BANDAI_WONDERSWAN,
+            "408f1bd5-add9-41eb-aa55-ff8ed89bbcb3": Platforms.NINTENDO_SNES,
+            "420813ba-ee50-4fd3-919e-58a38c98cb72": Platforms.SINCLAIR_ZXSPECTRUM,
+            "43411920-27d3-4742-9fd5-867f983a28d9": Platforms.NEC_SUPERGRAFX,
+            "45e7b2c5-03b2-4d91-b0f6-db05cd32a805": Platforms.PC_98,
+            "495bf338-b96e-4f0f-aa84-b289aec86496": Platforms.COMMODORE_AMIGA,
+            "4b21abab-43f7-4ff1-bbe1-9d06b0b67b93": Platforms.COLECO_VISION,
+            "4bffcbc4-ed7a-4e1f-acbf-4147c3768e8a": Platforms.NINTENDO_FAMICOM_DISK,
+            "5ea532af-7bf2-4bc5-8195-590e54fdf7b5": Platforms.NINTENDO_DS,
+            "62c847dc-9de6-40ee-863d-e8d673cf2905": Platforms.XBOX,
+            "64bb761c-3340-4ced-a81f-d7430b1377c5": Platforms.SEGA_MASTERSYSTEM,
+            "6563d5c0-defa-4fca-9b42-cfa95adcf15b": Platforms.SEGA_CD,
+            "67ff2460-e9f3-414f-9f83-48d79e735048": Platforms.SEGA_32X,
+            "683134b4-8f19-43fd-b5f6-77ffc0eda1a1": Platforms.ARCADE,
+            "6b9bd9e1-5aa2-467a-90e8-326dac67103e": Platforms.BANDAI_WONDERSWAN_COLOR,
+            "6e2bfde6-2bbb-41a7-919f-963843105d5c": Platforms.PC_WINDOWS,
+            "72dc193d-6230-4f22-ace7-09d92c0c16c3": Platforms.ATARI_8BIT,
+            "745982fe-0827-45af-ae05-68eb2bfe34d7": Platforms.SNK_NEOGEOPOCKET_COLOR,
+            "75a0b1c8-8252-40cf-9bc4-494049b31c67": Platforms.NINTENDO_GAMEBOY,
+            "770f5470-6d82-4f2f-a3a6-d715d27d0489": Platforms.PLAYSTATION3,
+            "78270ad3-fa5d-4c1c-b23c-e0311afdbe72": Platforms.COMMODORE_PLUS4,
+            "7ac0bc0b-1588-48b6-a2d2-ee6637a584a5": Platforms.ATARI_LYNX,
+            "7eae81f8-d0a7-459f-ae98-16a7a4bdb459": Platforms.APPLE_II,
+            "82ed8314-efbc-47b4-9d53-6451ed781f4f": Platforms.MATTEL_INTELLIVISION,
+            "87d8c0c0-e32c-4c7f-809f-e8dd3b8886f5": Platforms.PLAYSTATION,
+            "9492092b-60d2-49db-9282-f70290aa2061": Platforms.ATARI_5200,
+            "971c9cad-547a-44e8-b603-f4e9933edaa3": Platforms.PC_LINUX,
+            "97e7f5b1-fe82-4a79-b137-269c2e1a1087": Platforms.NINTENDO_NES,
+            "99fa8afe-b9b2-4d6c-a0eb-89b687e22378": Platforms.THREE_DO,
+            "9ef11ad6-9f3e-4dd8-ae45-ef35b4ad17bf": Platforms.NINTENDO_SWITCH,
+            "a1630ad5-7a91-486f-920b-754b10fbe5c6": Platforms.NINTENDO_GAMEBOY_ADVANCE,
+            "a2d52c78-47d2-4fb5-9c0c-ca03f6af4f24": Platforms.ATARI_2600,
+            "a45bcaff-9086-4185-8739-16626fdbf720": Platforms.NINTENDO_3DS,
+            "adb5be6c-e1c6-4d3a-81a7-0d3d390b529f": Platforms.SNK_NEOGEOPOCKET,
+            "ae352334-a117-4e86-ace0-6174c9f6851f": Platforms.PLAYSTATION5,
+            "afa323da-194e-493b-a1b8-337743f7a10c": Platforms.SEGA_DREAMCAST,
+            "b0ef149b-2c92-48ae-906e-82b90072ae63": Platforms.SNK_NEOGEO_CD,
+            "b3c02c07-ef17-4194-8d56-6ea02ec0dc56": Platforms.AMSTRAD_CPC,
+            "b6aaeb5e-7dcb-48f6-b4aa-30a2628d1a3a": Platforms.ATARI_ST,
+            "b758fd35-eee6-4870-a496-82709da47da6": Platforms.WIRELESS,
+            "b999e7a7-312d-480d-aabe-a270a0c3cbf2": Platforms.MACINTOSH,
+            "bbbb8b28-5a56-4a85-af78-e73bd25de106": Platforms.SEGA_GAMEGEAR,
+            "bf9f1fce-5616-4ed3-abcf-549b12e6a053": Platforms.COMMODORE_VIC20,
+            "c20ea643-9845-4cf6-8a96-c5be782f5448": Platforms.VECTREX,
+            "c4c8b90a-5763-402c-a0e7-4f98c99c763f": Platforms.NEC_TURBOGRAFX_16,
+            "c7a23dd5-35e0-454e-84bd-2e9cc8a76abb": Platforms.SEGA_GENESIS,
+            "c8c5c6d5-1c62-42a6-ab68-6e0ebefb9c51": Platforms.ATARI_7800,
+            "cfdc7708-c03a-48f4-b23b-8d6173b25820": Platforms.XBOX360,
+            "d23f2139-92f4-4eaf-aa6a-68516f6d9c80": Platforms.NINTENDO_VIRTUALBOY,
+            "d51b7b82-1619-4a18-a7d8-65acf9e6271c": Platforms.XBOX_ONE,
+            "d55543c0-6e8a-45e3-9f97-fab70c85e9df": Platforms.ATARI_JAGUAR,
+            "df1b9b58-9739-4202-8c10-3e75d6c12c56": Platforms.PLAYSTATION_VITA,
+            "e1c13783-627f-4ec4-b92b-7c2d84f7f43c": Platforms.PLAYSTATION4,
+            "e201d872-a08d-4aac-8963-ef166348e5a1": Platforms.XBOX_SERIES,
+            "e5ce0fed-b4a7-4345-98fa-2ae87c5422f3": Platforms.PSP,
+            "efb0f798-4381-499d-8c5b-9863fcceb816": Platforms.NEC_PCFX,
+            "f18bb20f-2271-4002-a687-4c8a6598eb80": Platforms.PLAYSTATION2,
+            "f8322ae0-69ac-4551-91e8-85f0e8f90c23": Platforms.SEGA_SATURN
+        }
+
+        # Convert GUIDs to platform enum values
+        for guid in platform_ids:
+            if guid in platform_mapping:
+                platforms.append(platform_mapping[guid])
+
         # Create a new game object
         game = Game(
             id="",  # ID will be assigned by data handler
@@ -176,7 +282,8 @@ class JsonImporter:
             hidden=game_data.get("Hidden", False),
             created=created_timestamp,  # Use parsed timestamp for creation date
             description=description,
-            completion_status=completion_status
+            completion_status=completion_status,
+            platforms=platforms
         )
 
         # Process playtime if available
