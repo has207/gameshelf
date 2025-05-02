@@ -78,6 +78,7 @@ class GameDetailsContent(Gtk.Box):
     play_button: Gtk.Button = Gtk.Template.Child()
     edit_button: Gtk.Button = Gtk.Template.Child()
     toggle_hidden_button: Gtk.Button = Gtk.Template.Child()
+    info_button: Gtk.Button = Gtk.Template.Child()
     created_label: Gtk.Label = Gtk.Template.Child()
     modified_label: Gtk.Label = Gtk.Template.Child()
     play_count_label: Gtk.Label = Gtk.Template.Child()
@@ -236,6 +237,26 @@ class GameDetailsContent(Gtk.Box):
             # Set the game to edit
             dialog.set_game(self.game)
             dialog.show()
+
+    @Gtk.Template.Callback()
+    def on_info_button_clicked(self, button):
+        if not self.game or not self.controller:
+            return
+
+        # Get the game directory
+        game_dir = self.game._get_game_dir_path(self.controller.data_handler.data_dir)
+
+        # Open the directory in the default file manager
+        import subprocess
+        try:
+            # Use xdg-open to open the directory in the default file manager
+            subprocess.Popen(['xdg-open', str(game_dir)])
+        except Exception as e:
+            show_error_dialog(
+                self.get_ancestor(Gtk.Window),
+                "Failed to open directory",
+                f"Could not open the game directory: {e}"
+            )
 
     def set_game(self, game: Game):
         self.game = game
