@@ -8,7 +8,14 @@ from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple, Union
 
 from data import Game, Runner
-from data_mapping import CompletionStatus, InvalidCompletionStatusError, Platforms, InvalidPlatformError
+from data_mapping import (
+    CompletionStatus, InvalidCompletionStatusError,
+    Platforms, InvalidPlatformError,
+    AgeRatings, InvalidAgeRatingError,
+    Features, InvalidFeatureError,
+    Genres, InvalidGenreError,
+    Regions, InvalidRegionError
+)
 
 import gi
 gi.require_version('GdkPixbuf', '2.0')
@@ -71,6 +78,50 @@ class DataHandler:
                                 # Skip invalid platforms
                                 print(f"Warning: Skipping invalid platform '{platform_str}' for game {game_id}")
 
+                    # Extract age ratings list if available
+                    age_ratings = []
+                    if "age_ratings" in game_data and isinstance(game_data["age_ratings"], list):
+                        for rating_str in game_data["age_ratings"]:
+                            try:
+                                rating = AgeRatings.from_string(rating_str)
+                                age_ratings.append(rating)
+                            except InvalidAgeRatingError:
+                                # Skip invalid age ratings
+                                print(f"Warning: Skipping invalid age rating '{rating_str}' for game {game_id}")
+
+                    # Extract features list if available
+                    features = []
+                    if "features" in game_data and isinstance(game_data["features"], list):
+                        for feature_str in game_data["features"]:
+                            try:
+                                feature = Features.from_string(feature_str)
+                                features.append(feature)
+                            except InvalidFeatureError:
+                                # Skip invalid features
+                                print(f"Warning: Skipping invalid feature '{feature_str}' for game {game_id}")
+
+                    # Extract genres list if available
+                    genres = []
+                    if "genres" in game_data and isinstance(game_data["genres"], list):
+                        for genre_str in game_data["genres"]:
+                            try:
+                                genre = Genres.from_string(genre_str)
+                                genres.append(genre)
+                            except InvalidGenreError:
+                                # Skip invalid genres
+                                print(f"Warning: Skipping invalid genre '{genre_str}' for game {game_id}")
+
+                    # Extract regions list if available
+                    regions = []
+                    if "regions" in game_data and isinstance(game_data["regions"], list):
+                        for region_str in game_data["regions"]:
+                            try:
+                                region = Regions.from_string(region_str)
+                                regions.append(region)
+                            except InvalidRegionError:
+                                # Skip invalid regions
+                                print(f"Warning: Skipping invalid region '{region_str}' for game {game_id}")
+
                     game = Game(
                         title=game_data.get("title", "Unknown Game"),
                         runner=game_data.get("runner"),
@@ -78,7 +129,11 @@ class DataHandler:
                         created=game_data.get("created"),
                         hidden=game_data.get("hidden", False),
                         completion_status=completion_status,
-                        platforms=platforms
+                        platforms=platforms,
+                        age_ratings=age_ratings,
+                        features=features,
+                        genres=genres,
+                        regions=regions
                     )
 
                     # Load play count if exists
@@ -168,6 +223,22 @@ class DataHandler:
         if game.platforms:
             # Save platform enum display values
             game_data["platforms"] = [platform.value for platform in game.platforms]
+
+        if game.age_ratings:
+            # Save age rating enum display values
+            game_data["age_ratings"] = [rating.value for rating in game.age_ratings]
+
+        if game.features:
+            # Save feature enum display values
+            game_data["features"] = [feature.value for feature in game.features]
+
+        if game.genres:
+            # Save genre enum display values
+            game_data["genres"] = [genre.value for genre in game.genres]
+
+        if game.regions:
+            # Save region enum display values
+            game_data["regions"] = [region.value for region in game.regions]
 
         try:
             game_dir = self._get_game_dir_from_id(game.id)
@@ -593,6 +664,90 @@ class DataHandler:
             return self.save_game(game, True)
         except Exception as e:
             print(f"Error updating platforms for {game.id}: {e}")
+            return False
+
+    def update_age_ratings(self, game: Game, age_ratings: List[AgeRatings]) -> bool:
+        """
+        Update the age ratings list for a game and save it to game.yaml.
+
+        Args:
+            game: The game to update the age ratings for
+            age_ratings: The new list of age ratings (enum values)
+
+        Returns:
+            True if the age ratings were successfully updated, False otherwise
+        """
+        try:
+            # Update the age ratings in the game object
+            game.age_ratings = age_ratings
+
+            # Save the game to update the yaml file
+            return self.save_game(game, True)
+        except Exception as e:
+            print(f"Error updating age ratings for {game.id}: {e}")
+            return False
+
+    def update_features(self, game: Game, features: List[Features]) -> bool:
+        """
+        Update the features list for a game and save it to game.yaml.
+
+        Args:
+            game: The game to update the features for
+            features: The new list of features (enum values)
+
+        Returns:
+            True if the features were successfully updated, False otherwise
+        """
+        try:
+            # Update the features in the game object
+            game.features = features
+
+            # Save the game to update the yaml file
+            return self.save_game(game, True)
+        except Exception as e:
+            print(f"Error updating features for {game.id}: {e}")
+            return False
+
+    def update_genres(self, game: Game, genres: List[Genres]) -> bool:
+        """
+        Update the genres list for a game and save it to game.yaml.
+
+        Args:
+            game: The game to update the genres for
+            genres: The new list of genres (enum values)
+
+        Returns:
+            True if the genres were successfully updated, False otherwise
+        """
+        try:
+            # Update the genres in the game object
+            game.genres = genres
+
+            # Save the game to update the yaml file
+            return self.save_game(game, True)
+        except Exception as e:
+            print(f"Error updating genres for {game.id}: {e}")
+            return False
+
+    def update_regions(self, game: Game, regions: List[Regions]) -> bool:
+        """
+        Update the regions list for a game and save it to game.yaml.
+
+        Args:
+            game: The game to update the regions for
+            regions: The new list of regions (enum values)
+
+        Returns:
+            True if the regions were successfully updated, False otherwise
+        """
+        try:
+            # Update the regions in the game object
+            game.regions = regions
+
+            # Save the game to update the yaml file
+            return self.save_game(game, True)
+        except Exception as e:
+            print(f"Error updating regions for {game.id}: {e}")
             return False
 
     def increment_play_time(self, game: Game, seconds_to_add: int) -> bool:

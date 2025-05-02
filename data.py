@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Union, List
 
-from data_mapping import CompletionStatus, Platforms
+from data_mapping import CompletionStatus, Platforms, AgeRatings, Features, Genres, Regions
 
 
 @dataclass
@@ -19,7 +19,11 @@ class Game:
     def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None,
                  created: Optional[float] = None, hidden: bool = False, description: Optional[str] = None,
                  completion_status: Union[CompletionStatus, str] = CompletionStatus.NOT_PLAYED,
-                 platforms: Optional[List[Union[Platforms, str]]] = None):
+                 platforms: Optional[List[Union[Platforms, str]]] = None,
+                 age_ratings: Optional[List[Union[AgeRatings, str]]] = None,
+                 features: Optional[List[Union[Features, str]]] = None,
+                 genres: Optional[List[Union[Genres, str]]] = None,
+                 regions: Optional[List[Union[Regions, str]]] = None):
         self.id = id.lower()
         self.title = title
         self.runner = runner.lower() if runner else ""
@@ -29,6 +33,10 @@ class Game:
         self.hidden = hidden  # Whether the game is hidden from the main grid
         self.description = description  # Game description text
         self.platforms = []  # List of platforms the game is available on
+        self.age_ratings = []  # List of age ratings for the game
+        self.features = []  # List of features for the game
+        self.genres = []  # List of genres for the game
+        self.regions = []  # List of regions for the game
 
         # Handle string or enum for completion_status
         if isinstance(completion_status, str):
@@ -52,6 +60,58 @@ class Game:
                         pass
                 elif isinstance(platform, Platforms):
                     self.platforms.append(platform)
+
+        # Handle age_ratings list
+        if age_ratings:
+            self.age_ratings = []
+            for rating in age_ratings:
+                if isinstance(rating, str):
+                    try:
+                        self.age_ratings.append(AgeRatings.from_string(rating))
+                    except Exception:
+                        # Skip invalid age rating strings
+                        pass
+                elif isinstance(rating, AgeRatings):
+                    self.age_ratings.append(rating)
+
+        # Handle features list
+        if features:
+            self.features = []
+            for feature in features:
+                if isinstance(feature, str):
+                    try:
+                        self.features.append(Features.from_string(feature))
+                    except Exception:
+                        # Skip invalid feature strings
+                        pass
+                elif isinstance(feature, Features):
+                    self.features.append(feature)
+
+        # Handle genres list
+        if genres:
+            self.genres = []
+            for genre in genres:
+                if isinstance(genre, str):
+                    try:
+                        self.genres.append(Genres.from_string(genre))
+                    except Exception:
+                        # Skip invalid genre strings
+                        pass
+                elif isinstance(genre, Genres):
+                    self.genres.append(genre)
+
+        # Handle regions list
+        if regions:
+            self.regions = []
+            for region in regions:
+                if isinstance(region, str):
+                    try:
+                        self.regions.append(Regions.from_string(region))
+                    except Exception:
+                        # Skip invalid region strings
+                        pass
+                elif isinstance(region, Regions):
+                    self.regions.append(region)
 
     def _get_game_dir_path(self, data_dir: Path) -> Path:
         """
