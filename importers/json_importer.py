@@ -25,6 +25,12 @@ class JsonImporter:
     - CoverImage: relative path to cover image
     - Playtime: dict containing playtime info
     - RecentActivity: dict containing last played info
+    - CompletionStatus: string value matching CompletionStatus enum values (e.g. "Playing", "Completed")
+    - Platform: list of platform strings matching Platform enum values
+    - AgeRating: list of age rating strings matching AgeRatings enum values
+    - Feature: list of feature strings matching Features enum values
+    - Genre: list of genre strings matching Genres enum values
+    - Region: list of region strings matching Regions enum values
     """
 
     def __init__(self, data_handler: DataHandler):
@@ -154,27 +160,19 @@ class JsonImporter:
 
         # Extract completion status if available
         completion_status = CompletionStatus.NOT_PLAYED  # Default
-        if "CompletionStatus" in game_data and isinstance(game_data["CompletionStatus"], dict):
-            # Map GUID to completion status enum
-            completion_status_mapping = {
-                "03113e48-ab80-4860-ad60-515092cb1d71": CompletionStatus.PLAYING,
-                "24e0d267-000d-41fb-96a7-5993c714b989": CompletionStatus.ON_HOLD,
-                "261c9bdf-a355-474b-8a3a-7f20e060d2b6": CompletionStatus.BEATEN,
-                "37db65b9-4727-4e5d-b6c6-88ec8a03f3ac": CompletionStatus.COMPLETED,
-                "53df16bc-2c3a-4b3b-9362-d26cf10ccdea": CompletionStatus.NOT_PLAYED,
-                "ad05e067-fc33-48d4-b299-7470312ac711": CompletionStatus.PLAYED,
-                "b0a131bb-df0d-4c7e-9e59-09eafef5e460": CompletionStatus.ABANDONED,
-                "ba3d457a-f685-414d-90e0-07bdac9daf54": CompletionStatus.PLAN_TO_PLAY
-            }
-
-            # Check for GUID in ID field
-            guid = None
-            if "$guid" in game_data["CompletionStatusId"]:
-                guid = game_data["CompletionStatusId"]["$guid"]
-
-            if guid and guid in completion_status_mapping:
-                # Use mapped enum directly
-                completion_status = completion_status_mapping[guid]
+        if "CompletionStatus" in game_data:
+            if isinstance(game_data["CompletionStatus"], str):
+                # Direct string value
+                try:
+                    completion_status = CompletionStatus.from_string(game_data["CompletionStatus"])
+                except InvalidCompletionStatusError:
+                    print(f"Warning: Invalid completion status '{game_data['CompletionStatus']}' for game '{title}', using default")
+            elif isinstance(game_data["CompletionStatus"], dict) and "Value" in game_data["CompletionStatus"]:
+                # Dictionary with "Value" key containing the string
+                try:
+                    completion_status = CompletionStatus.from_string(game_data["CompletionStatus"]["Value"])
+                except InvalidCompletionStatusError:
+                    print(f"Warning: Invalid completion status '{game_data['CompletionStatus']['Value']}' for game '{title}', using default")
 
         # Extract platforms using string values directly from the Platform field
         platforms = []

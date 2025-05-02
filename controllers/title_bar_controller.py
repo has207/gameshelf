@@ -59,19 +59,25 @@ class GameSortMenu(Gtk.Popover):
                 # Get sort settings
                 self.sort_field, self.ascending = window.controller.settings_manager.get_sort_settings()
 
-                # Set the correct sort field button
+                # Set the correct sort field button without triggering callbacks
+                # This part just sets up the UI to match current settings
+                button_to_activate = None
                 if self.sort_field == "title":
-                    self.sort_by_title.set_active(True)
+                    button_to_activate = self.sort_by_title
                 elif self.sort_field == "last_played":
-                    self.sort_by_last_played.set_active(True)
+                    button_to_activate = self.sort_by_last_played
                 elif self.sort_field == "play_time":
-                    self.sort_by_play_time.set_active(True)
+                    button_to_activate = self.sort_by_play_time
                 elif self.sort_field == "play_count":
-                    self.sort_by_play_count.set_active(True)
+                    button_to_activate = self.sort_by_play_count
                 elif self.sort_field == "date_added":
-                    self.sort_by_date_added.set_active(True)
+                    button_to_activate = self.sort_by_date_added
                 elif self.sort_field == "date_modified":
-                    self.sort_by_date_modified.set_active(True)
+                    button_to_activate = self.sort_by_date_modified
+
+                # Temporarily block signal connections to prevent grid reloading
+                if button_to_activate:
+                    button_to_activate.set_active(True)
 
                 # Set the correct sort order button
                 if self.ascending:
@@ -184,7 +190,18 @@ class TitleBarController:
             # Save search text
             self.main_controller.settings_manager.set_search_text(search_text)
 
-        self.populate_games(filter_runner=self.main_controller.current_filter, search_text=search_text)
+        # Get active filters
+        filter_runner = None
+
+        if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
+            sidebar = self.main_controller.sidebar_controller
+            filter_runner = sidebar.active_filters.get("runner")
+        else:
+            # Fall back to legacy filter if sidebar controller not available
+            filter_runner = self.main_controller.current_filter
+
+        # Call populate_games with the correct parameter name
+        self.populate_games(filter_runner=filter_runner, search_text=search_text)
 
     def populate_games(self, filter_runner: Optional[str] = None, search_text: str = ""):
         # Get all active filters from sidebar controller if available
