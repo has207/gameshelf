@@ -7,7 +7,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk, GObject, GLib
 from data_handler import DataHandler, Game, Runner
-from data_mapping import CompletionStatus
+from data_mapping import CompletionStatus, Platforms, AgeRatings, Features, Genres, Regions
 from controllers.common import get_template_path
 from controllers.filter_controller import (
     FilterCategoryRow, FilterValueRow,
@@ -271,6 +271,11 @@ class SidebarController:
             self.main_controller.game_grid_controller.populate_games(
                 filter_runner=None,
                 filter_completion_status=None,
+                filter_platforms=None,
+                filter_genres=None,
+                filter_age_ratings=None,
+                filter_features=None,
+                filter_regions=None,
                 search_text=""
             )
 
@@ -297,6 +302,51 @@ class SidebarController:
             expanded=expanded_categories.get("completion_status", True)
         )
         self.filter_categories["completion_status"] = status_category
+
+        # Platform category
+        platform_category = CategoryItem(
+            name="Platforms",
+            icon_name="computer-symbolic",
+            category_id="platforms",
+            expanded=expanded_categories.get("platforms", False)
+        )
+        self.filter_categories["platforms"] = platform_category
+
+        # Genre category
+        genre_category = CategoryItem(
+            name="Genres",
+            icon_name="view-grid-symbolic",
+            category_id="genres",
+            expanded=expanded_categories.get("genres", False)
+        )
+        self.filter_categories["genres"] = genre_category
+
+        # Age Rating category
+        age_rating_category = CategoryItem(
+            name="Age Ratings",
+            icon_name="security-high-symbolic",
+            category_id="age_ratings",
+            expanded=expanded_categories.get("age_ratings", False)
+        )
+        self.filter_categories["age_ratings"] = age_rating_category
+
+        # Feature category
+        feature_category = CategoryItem(
+            name="Features",
+            icon_name="preferences-system-symbolic",
+            category_id="features",
+            expanded=expanded_categories.get("features", False)
+        )
+        self.filter_categories["features"] = feature_category
+
+        # Region category
+        region_category = CategoryItem(
+            name="Regions",
+            icon_name="globe-symbolic",
+            category_id="regions",
+            expanded=expanded_categories.get("regions", False)
+        )
+        self.filter_categories["regions"] = region_category
 
         # Create UI for categories
         for category_id, category_item in self.filter_categories.items():
@@ -365,6 +415,21 @@ class SidebarController:
 
         # Update completion status filter
         self._refresh_completion_status_filters(games)
+
+        # Update platform filter
+        self._refresh_platforms_filters(games)
+
+        # Update genre filter
+        self._refresh_genres_filters(games)
+
+        # Update age rating filter
+        self._refresh_age_ratings_filters(games)
+
+        # Update feature filter
+        self._refresh_features_filters(games)
+
+        # Update region filter
+        self._refresh_regions_filters(games)
 
         # After creating filter rows, restore selections from active_filters
         self._restore_filter_selections()
@@ -606,6 +671,11 @@ class SidebarController:
         # Apply filters to the grid
         runner_filters = self.active_filters.get("runner", set())
         completion_status_filters = self.active_filters.get("completion_status", set())
+        platform_filters = self.active_filters.get("platforms", set())
+        genre_filters = self.active_filters.get("genres", set())
+        age_rating_filters = self.active_filters.get("age_ratings", set())
+        feature_filters = self.active_filters.get("features", set())
+        region_filters = self.active_filters.get("regions", set())
 
         # Get current search text if any
         search_text = ""
@@ -615,10 +685,17 @@ class SidebarController:
 
         # Update grid with selected filters and preserve search text
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
-            print(f"Filtering by: runners={runner_filters}, completion_statuses={completion_status_filters}, search={search_text}")
+            print(f"Filtering by: runners={runner_filters}, completion_statuses={completion_status_filters}, "
+                  f"platforms={platform_filters}, genres={genre_filters}, age_ratings={age_rating_filters}, "
+                  f"features={feature_filters}, regions={region_filters}, search={search_text}")
             self.main_controller.game_grid_controller.populate_games(
                 filter_runners=runner_filters,
                 filter_completion_statuses=completion_status_filters,
+                filter_platforms=platform_filters,
+                filter_genres=genre_filters,
+                filter_age_ratings=age_rating_filters,
+                filter_features=feature_filters,
+                filter_regions=region_filters,
                 search_text=search_text
             )
 
@@ -680,6 +757,321 @@ class SidebarController:
                 return child
             child = child.get_next_sibling()
         return None
+
+    def _refresh_platforms_filters(self, games: List[Game]):
+        """Refresh the platforms filter category with current data"""
+        platform_category = self.filter_categories.get("platforms")
+        if not platform_category:
+            return
+
+        # Find the category row in the sidebar
+        category_row = self._find_category_row("platforms")
+        if not category_row:
+            print("Platforms category row not found")
+            return
+
+        # Clear existing value rows
+        category_row.clear_values()
+
+        # Count games by platform
+        platform_counts = {}
+        for game in games:
+            for platform in game.platforms:
+                platform_key = platform.name
+                platform_counts[platform_key] = platform_counts.get(platform_key, 0) + 1
+
+        # Add rows for each platform that has games
+        for platform in Platforms:
+            platform_key = platform.name
+            platform_count = platform_counts.get(platform_key, 0)
+
+            # Check if this platform is currently selected
+            is_selected = (
+                "platforms" in self.active_filters and
+                platform_key in self.active_filters.get("platforms", set())
+            )
+
+            # Skip platforms with no games unless they're already selected
+            if platform_count == 0 and not is_selected:
+                continue
+
+            platform_item = ValueItem(
+                name=platform.value,
+                icon_name="computer-symbolic",
+                count=platform_count,
+                value_id=platform_key,
+                parent_category="platforms"
+            )
+
+            platform_row = FilterValueRow(platform_item)
+            platform_row.value_id = platform_key
+            platform_row.parent_category_id = "platforms"
+
+            # Add left-click handler
+            left_click = Gtk.GestureClick.new()
+            left_click.set_button(1)  # Left button
+            left_click.connect("released", self._on_filter_value_clicked, platform_row, False)
+            platform_row.add_controller(left_click)
+
+            # Add right-click handler for multi-select
+            right_click = Gtk.GestureClick.new()
+            right_click.set_button(3)  # Right button
+            right_click.connect("released", self._on_filter_value_clicked, platform_row, True)
+            platform_row.add_controller(right_click)
+
+            category_row.add_value_row(platform_row)
+
+    def _refresh_genres_filters(self, games: List[Game]):
+        """Refresh the genres filter category with current data"""
+        genre_category = self.filter_categories.get("genres")
+        if not genre_category:
+            return
+
+        # Find the category row in the sidebar
+        category_row = self._find_category_row("genres")
+        if not category_row:
+            print("Genres category row not found")
+            return
+
+        # Clear existing value rows
+        category_row.clear_values()
+
+        # Count games by genre
+        genre_counts = {}
+        for game in games:
+            for genre in game.genres:
+                genre_key = genre.name
+                genre_counts[genre_key] = genre_counts.get(genre_key, 0) + 1
+
+        # Add rows for each genre that has games
+        for genre in Genres:
+            genre_key = genre.name
+            genre_count = genre_counts.get(genre_key, 0)
+
+            # Check if this genre is currently selected
+            is_selected = (
+                "genres" in self.active_filters and
+                genre_key in self.active_filters.get("genres", set())
+            )
+
+            # Skip genres with no games unless they're already selected
+            if genre_count == 0 and not is_selected:
+                continue
+
+            genre_item = ValueItem(
+                name=genre.value,
+                icon_name="view-grid-symbolic",
+                count=genre_count,
+                value_id=genre_key,
+                parent_category="genres"
+            )
+
+            genre_row = FilterValueRow(genre_item)
+            genre_row.value_id = genre_key
+            genre_row.parent_category_id = "genres"
+
+            # Add left-click handler
+            left_click = Gtk.GestureClick.new()
+            left_click.set_button(1)  # Left button
+            left_click.connect("released", self._on_filter_value_clicked, genre_row, False)
+            genre_row.add_controller(left_click)
+
+            # Add right-click handler for multi-select
+            right_click = Gtk.GestureClick.new()
+            right_click.set_button(3)  # Right button
+            right_click.connect("released", self._on_filter_value_clicked, genre_row, True)
+            genre_row.add_controller(right_click)
+
+            category_row.add_value_row(genre_row)
+
+    def _refresh_age_ratings_filters(self, games: List[Game]):
+        """Refresh the age ratings filter category with current data"""
+        age_rating_category = self.filter_categories.get("age_ratings")
+        if not age_rating_category:
+            return
+
+        # Find the category row in the sidebar
+        category_row = self._find_category_row("age_ratings")
+        if not category_row:
+            print("Age ratings category row not found")
+            return
+
+        # Clear existing value rows
+        category_row.clear_values()
+
+        # Count games by age rating
+        age_rating_counts = {}
+        for game in games:
+            for rating in game.age_ratings:
+                rating_key = rating.name
+                age_rating_counts[rating_key] = age_rating_counts.get(rating_key, 0) + 1
+
+        # Add rows for each age rating that has games
+        for rating in AgeRatings:
+            rating_key = rating.name
+            rating_count = age_rating_counts.get(rating_key, 0)
+
+            # Check if this rating is currently selected
+            is_selected = (
+                "age_ratings" in self.active_filters and
+                rating_key in self.active_filters.get("age_ratings", set())
+            )
+
+            # Skip ratings with no games unless they're already selected
+            if rating_count == 0 and not is_selected:
+                continue
+
+            rating_item = ValueItem(
+                name=rating.value,
+                icon_name="security-high-symbolic",
+                count=rating_count,
+                value_id=rating_key,
+                parent_category="age_ratings"
+            )
+
+            rating_row = FilterValueRow(rating_item)
+            rating_row.value_id = rating_key
+            rating_row.parent_category_id = "age_ratings"
+
+            # Add left-click handler
+            left_click = Gtk.GestureClick.new()
+            left_click.set_button(1)  # Left button
+            left_click.connect("released", self._on_filter_value_clicked, rating_row, False)
+            rating_row.add_controller(left_click)
+
+            # Add right-click handler for multi-select
+            right_click = Gtk.GestureClick.new()
+            right_click.set_button(3)  # Right button
+            right_click.connect("released", self._on_filter_value_clicked, rating_row, True)
+            rating_row.add_controller(right_click)
+
+            category_row.add_value_row(rating_row)
+
+    def _refresh_features_filters(self, games: List[Game]):
+        """Refresh the features filter category with current data"""
+        feature_category = self.filter_categories.get("features")
+        if not feature_category:
+            return
+
+        # Find the category row in the sidebar
+        category_row = self._find_category_row("features")
+        if not category_row:
+            print("Features category row not found")
+            return
+
+        # Clear existing value rows
+        category_row.clear_values()
+
+        # Count games by feature
+        feature_counts = {}
+        for game in games:
+            for feature in game.features:
+                feature_key = feature.name
+                feature_counts[feature_key] = feature_counts.get(feature_key, 0) + 1
+
+        # Add rows for each feature that has games
+        for feature in Features:
+            feature_key = feature.name
+            feature_count = feature_counts.get(feature_key, 0)
+
+            # Check if this feature is currently selected
+            is_selected = (
+                "features" in self.active_filters and
+                feature_key in self.active_filters.get("features", set())
+            )
+
+            # Skip features with no games unless they're already selected
+            if feature_count == 0 and not is_selected:
+                continue
+
+            feature_item = ValueItem(
+                name=feature.value,
+                icon_name="preferences-system-symbolic",
+                count=feature_count,
+                value_id=feature_key,
+                parent_category="features"
+            )
+
+            feature_row = FilterValueRow(feature_item)
+            feature_row.value_id = feature_key
+            feature_row.parent_category_id = "features"
+
+            # Add left-click handler
+            left_click = Gtk.GestureClick.new()
+            left_click.set_button(1)  # Left button
+            left_click.connect("released", self._on_filter_value_clicked, feature_row, False)
+            feature_row.add_controller(left_click)
+
+            # Add right-click handler for multi-select
+            right_click = Gtk.GestureClick.new()
+            right_click.set_button(3)  # Right button
+            right_click.connect("released", self._on_filter_value_clicked, feature_row, True)
+            feature_row.add_controller(right_click)
+
+            category_row.add_value_row(feature_row)
+
+    def _refresh_regions_filters(self, games: List[Game]):
+        """Refresh the regions filter category with current data"""
+        region_category = self.filter_categories.get("regions")
+        if not region_category:
+            return
+
+        # Find the category row in the sidebar
+        category_row = self._find_category_row("regions")
+        if not category_row:
+            print("Regions category row not found")
+            return
+
+        # Clear existing value rows
+        category_row.clear_values()
+
+        # Count games by region
+        region_counts = {}
+        for game in games:
+            for region in game.regions:
+                region_key = region.name
+                region_counts[region_key] = region_counts.get(region_key, 0) + 1
+
+        # Add rows for each region that has games
+        for region in Regions:
+            region_key = region.name
+            region_count = region_counts.get(region_key, 0)
+
+            # Check if this region is currently selected
+            is_selected = (
+                "regions" in self.active_filters and
+                region_key in self.active_filters.get("regions", set())
+            )
+
+            # Skip regions with no games unless they're already selected
+            if region_count == 0 and not is_selected:
+                continue
+
+            region_item = ValueItem(
+                name=region.value,
+                icon_name="globe-symbolic",
+                count=region_count,
+                value_id=region_key,
+                parent_category="regions"
+            )
+
+            region_row = FilterValueRow(region_item)
+            region_row.value_id = region_key
+            region_row.parent_category_id = "regions"
+
+            # Add left-click handler
+            left_click = Gtk.GestureClick.new()
+            left_click.set_button(1)  # Left button
+            left_click.connect("released", self._on_filter_value_clicked, region_row, False)
+            region_row.add_controller(left_click)
+
+            # Add right-click handler for multi-select
+            right_click = Gtk.GestureClick.new()
+            right_click.set_button(3)  # Right button
+            right_click.connect("released", self._on_filter_value_clicked, region_row, True)
+            region_row.add_controller(right_click)
+
+            category_row.add_value_row(region_row)
 
     def refresh_sidebar_runners(self):
         """Refresh runner filters with current data"""

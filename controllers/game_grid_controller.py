@@ -540,6 +540,11 @@ class GameGridController:
                     filter_completion_status: Optional[str] = None,
                     filter_runners: Optional[Set[str]] = None,
                     filter_completion_statuses: Optional[Set[str]] = None,
+                    filter_platforms: Optional[Set[str]] = None,
+                    filter_genres: Optional[Set[str]] = None,
+                    filter_age_ratings: Optional[Set[str]] = None,
+                    filter_features: Optional[Set[str]] = None,
+                    filter_regions: Optional[Set[str]] = None,
                     search_text: str = ""):
         """
         Populate the games grid with filtered games
@@ -549,6 +554,11 @@ class GameGridController:
             filter_completion_status: (Legacy) Completion status enum name to filter by, or None for no filter
             filter_runners: Set of runner IDs to filter by (OR within this category), or None for no filter
             filter_completion_statuses: Set of completion status enum names to filter by (OR within this category), or None for no filter
+            filter_platforms: Set of platform enum names to filter by, or None for no filter
+            filter_genres: Set of genre enum names to filter by, or None for no filter
+            filter_age_ratings: Set of age rating enum names to filter by, or None for no filter
+            filter_features: Set of feature enum names to filter by, or None for no filter
+            filter_regions: Set of region enum names to filter by, or None for no filter
             search_text: Text to search in game titles
         """
         # For backward compatibility, store single runner filter in main controller
@@ -588,6 +598,31 @@ class GameGridController:
         if filter_completion_statuses:
             games = [g for g in games if g.completion_status.name in filter_completion_statuses]
             print(f"After completion status filters ({len(filter_completion_statuses)} selected): {len(games)} games")
+
+        # Apply platform filters (OR within category, AND across categories)
+        if filter_platforms:
+            games = [g for g in games if g.platforms and any(platform.name in filter_platforms for platform in g.platforms)]
+            print(f"After platform filters ({len(filter_platforms)} selected): {len(games)} games")
+
+        # Apply genre filters (OR within category, AND across categories)
+        if filter_genres:
+            games = [g for g in games if g.genres and any(genre.name in filter_genres for genre in g.genres)]
+            print(f"After genre filters ({len(filter_genres)} selected): {len(games)} games")
+
+        # Apply age rating filters (OR within category, AND across categories)
+        if filter_age_ratings:
+            games = [g for g in games if g.age_ratings and any(rating.name in filter_age_ratings for rating in g.age_ratings)]
+            print(f"After age rating filters ({len(filter_age_ratings)} selected): {len(games)} games")
+
+        # Apply feature filters (OR within category, AND across categories)
+        if filter_features:
+            games = [g for g in games if g.features and any(feature.name in filter_features for feature in g.features)]
+            print(f"After feature filters ({len(filter_features)} selected): {len(games)} games")
+
+        # Apply region filters (OR within category, AND across categories)
+        if filter_regions:
+            games = [g for g in games if g.regions and any(region.name in filter_regions for region in g.regions)]
+            print(f"After region filters ({len(filter_regions)} selected): {len(games)} games")
 
         # Apply search filter if search text is provided
         if search_text:
