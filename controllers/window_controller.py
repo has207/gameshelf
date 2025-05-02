@@ -97,20 +97,38 @@ class GameShelfController:
             # Get active filters from sidebar controller if available
             filter_runners = None
             filter_completion_statuses = None
+            filter_platforms = None
+            filter_genres = None
+            filter_age_ratings = None
+            filter_features = None
+            filter_regions = None
 
             if self.sidebar_controller:
-                filter_runners = self.sidebar_controller.active_filters.get("runner", set())
-                filter_completion_statuses = self.sidebar_controller.active_filters.get("completion_status", set())
+                sidebar = self.sidebar_controller
+                filter_runners = sidebar.active_filters.get("runner", set())
+                filter_completion_statuses = sidebar.active_filters.get("completion_status", set())
+                filter_platforms = sidebar.active_filters.get("platforms", set())
+                filter_genres = sidebar.active_filters.get("genres", set())
+                filter_age_ratings = sidebar.active_filters.get("age_ratings", set())
+                filter_features = sidebar.active_filters.get("features", set())
+                filter_regions = sidebar.active_filters.get("regions", set())
             else:
                 # Fall back to legacy filter if sidebar controller not available
                 if self.current_filter is not None:
                     filter_runners = {self.current_filter}
 
             if hasattr(self, 'game_grid_controller') and self.game_grid_controller:
-                print(f"Populating games with filters: runners={filter_runners}, completion_statuses={filter_completion_statuses}")
+                print(f"Populating games with filters: runners={filter_runners}, completion_statuses={filter_completion_statuses}, "
+                      f"platforms={filter_platforms}, genres={filter_genres}, age_ratings={filter_age_ratings}, "
+                      f"features={filter_features}, regions={filter_regions}, search={search_text}")
                 self.game_grid_controller.populate_games(
                     filter_runners=filter_runners,
                     filter_completion_statuses=filter_completion_statuses,
+                    filter_platforms=filter_platforms,
+                    filter_genres=filter_genres,
+                    filter_age_ratings=filter_age_ratings,
+                    filter_features=filter_features,
+                    filter_regions=filter_regions,
                     search_text=search_text
                 )
 
@@ -163,14 +181,30 @@ class GameShelfController:
             # Get active filters from sidebar controller if available
             filter_runners = None
             filter_completion_statuses = None
+            filter_platforms = None
+            filter_genres = None
+            filter_age_ratings = None
+            filter_features = None
+            filter_regions = None
 
             if hasattr(self, 'sidebar_controller') and self.sidebar_controller:
-                filter_runners = self.sidebar_controller.active_filters.get("runner", set())
-                filter_completion_statuses = self.sidebar_controller.active_filters.get("completion_status", set())
+                sidebar = self.sidebar_controller
+                filter_runners = sidebar.active_filters.get("runner", set())
+                filter_completion_statuses = sidebar.active_filters.get("completion_status", set())
+                filter_platforms = sidebar.active_filters.get("platforms", set())
+                filter_genres = sidebar.active_filters.get("genres", set())
+                filter_age_ratings = sidebar.active_filters.get("age_ratings", set())
+                filter_features = sidebar.active_filters.get("features", set())
+                filter_regions = sidebar.active_filters.get("regions", set())
 
             self.game_grid_controller.populate_games(
                 filter_runners=filter_runners,
                 filter_completion_statuses=filter_completion_statuses,
+                filter_platforms=filter_platforms,
+                filter_genres=filter_genres,
+                filter_age_ratings=filter_age_ratings,
+                filter_features=filter_features,
+                filter_regions=filter_regions,
                 search_text=search_text
             )
 
