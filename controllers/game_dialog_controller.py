@@ -1,11 +1,16 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Type, Set
 
 from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk, GLib
 
 from data import Game, Runner
-from data_mapping import CompletionStatus
+from data_mapping import (
+    CompletionStatus,
+    Platforms, AgeRatings, Features, Genres, Regions,
+    InvalidPlatformError, InvalidAgeRatingError, InvalidFeatureError, InvalidGenreError, InvalidRegionError
+)
 from controllers.common import get_template_path, show_image_chooser_dialog
 from controllers.metadata_search_dialog_controller import MetadataSearchDialog
+from controllers.metadata_selection_dialog import MetadataSelectionDialog
 
 
 @Gtk.Template(filename=get_template_path("game_dialog.ui"))
@@ -33,6 +38,14 @@ class GameDialog(Adw.Window):
     remove_button: Gtk.Button = Gtk.Template.Child()
     download_metadata_button: Gtk.Button = Gtk.Template.Child()
 
+    # Metadata UI elements
+    metadata_group: Adw.PreferencesGroup = Gtk.Template.Child()
+    platforms_summary_label: Gtk.Label = Gtk.Template.Child()
+    genres_summary_label: Gtk.Label = Gtk.Template.Child()
+    features_summary_label: Gtk.Label = Gtk.Template.Child()
+    age_ratings_summary_label: Gtk.Label = Gtk.Template.Child()
+    regions_summary_label: Gtk.Label = Gtk.Template.Child()
+
     def __init__(self, parent_window, controller=None, edit_mode=False):
         super().__init__()
         self.parent_window = parent_window
@@ -46,6 +59,13 @@ class GameDialog(Adw.Window):
         self.selected_completion_status = "Not Played"
         self.game = None
         self.metadata_description = None
+
+        # Initialize metadata lists
+        self.selected_platforms = []
+        self.selected_genres = []
+        self.selected_features = []
+        self.selected_age_ratings = []
+        self.selected_regions = []
 
         # Adjust dialog height based on parent window height
         parent_height = parent_window.get_height()
@@ -64,6 +84,7 @@ class GameDialog(Adw.Window):
             self.clear_image_container.set_visible(True)
             self.select_image_button.set_label("Change Image")
             self.play_stats_group.set_visible(True)
+            self.metadata_group.set_visible(True)
             self.remove_game_container.set_visible(True)
         else:
             self.dialog_title.set_title("Add New Game")
@@ -71,6 +92,7 @@ class GameDialog(Adw.Window):
             self.clear_image_container.set_visible(False)
             self.select_image_button.set_label("Select Image")
             self.play_stats_group.set_visible(False)
+            self.metadata_group.set_visible(False)
             self.remove_game_container.set_visible(False)
 
         # Ensure action button updates when entry changes
@@ -112,6 +134,16 @@ class GameDialog(Adw.Window):
                 self.completion_status_dropdown.set_selected(i)
                 self.selected_completion_status = status
                 break
+
+        # Load metadata values if available
+        self.selected_platforms = game.platforms.copy() if game.platforms else []
+        self.selected_genres = game.genres.copy() if game.genres else []
+        self.selected_features = game.features.copy() if game.features else []
+        self.selected_age_ratings = game.age_ratings.copy() if game.age_ratings else []
+        self.selected_regions = game.regions.copy() if game.regions else []
+
+        # Update metadata summary labels
+        self._update_metadata_summary_labels()
 
         # Populate runners dropdown
         self.populate_runners(self.controller.get_runners())
@@ -325,6 +357,32 @@ class GameDialog(Adw.Window):
             if current_status != game_status:
                 has_changes = True
 
+            # Check metadata changes
+            # For platforms
+            game_platforms = self.game.platforms or []
+            if set(self.selected_platforms) != set(game_platforms):
+                has_changes = True
+
+            # For genres
+            game_genres = self.game.genres or []
+            if set(self.selected_genres) != set(game_genres):
+                has_changes = True
+
+            # For features
+            game_features = self.game.features or []
+            if set(self.selected_features) != set(game_features):
+                has_changes = True
+
+            # For age ratings
+            game_age_ratings = self.game.age_ratings or []
+            if set(self.selected_age_ratings) != set(game_age_ratings):
+                has_changes = True
+
+            # For regions
+            game_regions = self.game.regions or []
+            if set(self.selected_regions) != set(game_regions):
+                has_changes = True
+
             # Check image change
             if self.selected_image_path is not None:  # Only if image was explicitly changed
                 has_changes = True
@@ -370,6 +428,43 @@ class GameDialog(Adw.Window):
                 self.metadata_description
             )
 
+        # Save metadata fields if any were selected (for new games)
+        if success:
+            # For platforms
+            if self.selected_platforms:
+                self.controller.data_handler.update_platforms(
+                    game,
+                    self.selected_platforms
+                )
+
+            # For genres
+            if self.selected_genres:
+                self.controller.data_handler.update_genres(
+                    game,
+                    self.selected_genres
+                )
+
+            # For features
+            if self.selected_features:
+                self.controller.data_handler.update_features(
+                    game,
+                    self.selected_features
+                )
+
+            # For age ratings
+            if self.selected_age_ratings:
+                self.controller.data_handler.update_age_ratings(
+                    game,
+                    self.selected_age_ratings
+                )
+
+            # For regions
+            if self.selected_regions:
+                self.controller.data_handler.update_regions(
+                    game,
+                    self.selected_regions
+                )
+
         if success:
             # Reset form fields
             self.title_entry.set_text("")
@@ -378,6 +473,14 @@ class GameDialog(Adw.Window):
             self.selected_image_path = None
             self.metadata_description = None
             self.image_preview.set_paintable(None)
+
+            # Reset metadata fields
+            self.selected_platforms = []
+            self.selected_genres = []
+            self.selected_features = []
+            self.selected_age_ratings = []
+            self.selected_regions = []
+            self._update_metadata_summary_labels()
 
             # Close the dialog first
             self.close()
@@ -444,6 +547,48 @@ class GameDialog(Adw.Window):
                 self.selected_completion_status
             )
 
+        # Update metadata fields if they've changed
+
+        # For platforms
+        game_platforms = self.game.platforms or []
+        if set(self.selected_platforms) != set(game_platforms):
+            self.controller.data_handler.update_platforms(
+                self.game,
+                self.selected_platforms
+            )
+
+        # For genres
+        game_genres = self.game.genres or []
+        if set(self.selected_genres) != set(game_genres):
+            self.controller.data_handler.update_genres(
+                self.game,
+                self.selected_genres
+            )
+
+        # For features
+        game_features = self.game.features or []
+        if set(self.selected_features) != set(game_features):
+            self.controller.data_handler.update_features(
+                self.game,
+                self.selected_features
+            )
+
+        # For age ratings
+        game_age_ratings = self.game.age_ratings or []
+        if set(self.selected_age_ratings) != set(game_age_ratings):
+            self.controller.data_handler.update_age_ratings(
+                self.game,
+                self.selected_age_ratings
+            )
+
+        # For regions
+        game_regions = self.game.regions or []
+        if set(self.selected_regions) != set(game_regions):
+            self.controller.data_handler.update_regions(
+                self.game,
+                self.selected_regions
+            )
+
         # Update description if we have one from metadata
         if self.metadata_description:
             self.controller.data_handler.update_game_description(
@@ -467,6 +612,143 @@ class GameDialog(Adw.Window):
 
             # Schedule sidebar refresh after dialog closes (async)
             GLib.timeout_add(50, lambda: self.controller.reload_data(refresh_sidebar=True) or False)
+
+    @Gtk.Template.Callback()
+    def on_select_platforms_clicked(self, row):
+        """Handler for platforms selection"""
+        dialog = MetadataSelectionDialog(
+            self,
+            "Select Platforms",
+            Platforms,
+            self.selected_platforms
+        )
+        dialog.connect("metadata-selected", self._on_platforms_selected)
+        dialog.present()
+
+    def _on_platforms_selected(self, dialog, platforms):
+        """Handle platforms selection results"""
+        self.selected_platforms = platforms
+        self._update_metadata_summary_labels()
+        self.validate_form()
+
+    @Gtk.Template.Callback()
+    def on_select_genres_clicked(self, row):
+        """Handler for genres selection"""
+        dialog = MetadataSelectionDialog(
+            self,
+            "Select Genres",
+            Genres,
+            self.selected_genres
+        )
+        dialog.connect("metadata-selected", self._on_genres_selected)
+        dialog.present()
+
+    def _on_genres_selected(self, dialog, genres):
+        """Handle genres selection results"""
+        self.selected_genres = genres
+        self._update_metadata_summary_labels()
+        self.validate_form()
+
+    @Gtk.Template.Callback()
+    def on_select_features_clicked(self, row):
+        """Handler for features selection"""
+        dialog = MetadataSelectionDialog(
+            self,
+            "Select Features",
+            Features,
+            self.selected_features
+        )
+        dialog.connect("metadata-selected", self._on_features_selected)
+        dialog.present()
+
+    def _on_features_selected(self, dialog, features):
+        """Handle features selection results"""
+        self.selected_features = features
+        self._update_metadata_summary_labels()
+        self.validate_form()
+
+    @Gtk.Template.Callback()
+    def on_select_age_ratings_clicked(self, row):
+        """Handler for age ratings selection"""
+        dialog = MetadataSelectionDialog(
+            self,
+            "Select Age Ratings",
+            AgeRatings,
+            self.selected_age_ratings
+        )
+        dialog.connect("metadata-selected", self._on_age_ratings_selected)
+        dialog.present()
+
+    def _on_age_ratings_selected(self, dialog, age_ratings):
+        """Handle age ratings selection results"""
+        self.selected_age_ratings = age_ratings
+        self._update_metadata_summary_labels()
+        self.validate_form()
+
+    @Gtk.Template.Callback()
+    def on_select_regions_clicked(self, row):
+        """Handler for regions selection"""
+        dialog = MetadataSelectionDialog(
+            self,
+            "Select Regions",
+            Regions,
+            self.selected_regions
+        )
+        dialog.connect("metadata-selected", self._on_regions_selected)
+        dialog.present()
+
+    def _on_regions_selected(self, dialog, regions):
+        """Handle regions selection results"""
+        self.selected_regions = regions
+        self._update_metadata_summary_labels()
+        self.validate_form()
+
+    def _update_metadata_summary_labels(self):
+        """Update the summary labels for all metadata fields"""
+        # Update platforms label
+        if self.selected_platforms:
+            platforms_text = ", ".join([p.value for p in self.selected_platforms])
+            if len(platforms_text) > 30:
+                platforms_text = f"{len(self.selected_platforms)} selected"
+            self.platforms_summary_label.set_text(platforms_text)
+        else:
+            self.platforms_summary_label.set_text("None selected")
+
+        # Update genres label
+        if self.selected_genres:
+            genres_text = ", ".join([g.value for g in self.selected_genres])
+            if len(genres_text) > 30:
+                genres_text = f"{len(self.selected_genres)} selected"
+            self.genres_summary_label.set_text(genres_text)
+        else:
+            self.genres_summary_label.set_text("None selected")
+
+        # Update features label
+        if self.selected_features:
+            features_text = ", ".join([f.value for f in self.selected_features])
+            if len(features_text) > 30:
+                features_text = f"{len(self.selected_features)} selected"
+            self.features_summary_label.set_text(features_text)
+        else:
+            self.features_summary_label.set_text("None selected")
+
+        # Update age ratings label
+        if self.selected_age_ratings:
+            ratings_text = ", ".join([r.value for r in self.selected_age_ratings])
+            if len(ratings_text) > 30:
+                ratings_text = f"{len(self.selected_age_ratings)} selected"
+            self.age_ratings_summary_label.set_text(ratings_text)
+        else:
+            self.age_ratings_summary_label.set_text("None selected")
+
+        # Update regions label
+        if self.selected_regions:
+            regions_text = ", ".join([r.value for r in self.selected_regions])
+            if len(regions_text) > 30:
+                regions_text = f"{len(self.selected_regions)} selected"
+            self.regions_summary_label.set_text(regions_text)
+        else:
+            self.regions_summary_label.set_text("None selected")
 
     @Gtk.Template.Callback()
     def on_download_metadata_clicked(self, button):

@@ -125,6 +125,135 @@
                   </object>
                 </child>
                 
+                <!-- Metadata Fields Section (only visible in edit mode) -->
+                <child>
+                  <object class="AdwPreferencesGroup" id="metadata_group">
+                    <property name="title">Game Metadata</property>
+                    <property name="visible">false</property>
+                    
+                    <!-- Platforms Selection -->
+                    <child>
+                      <object class="AdwActionRow">
+                        <property name="title">Platforms</property>
+                        <property name="subtitle">Select the platforms this game is available on</property>
+                        <property name="activatable">true</property>
+                        <signal name="activated" handler="on_select_platforms_clicked"/>
+                        <child>
+                          <object class="GtkLabel" id="platforms_summary_label">
+                            <property name="label">None selected</property>
+                            <property name="xalign">1</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkImage">
+                            <property name="icon-name">go-next-symbolic</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    
+                    <!-- Genres Selection -->
+                    <child>
+                      <object class="AdwActionRow">
+                        <property name="title">Genres</property>
+                        <property name="subtitle">Select the genres that apply to this game</property>
+                        <property name="activatable">true</property>
+                        <signal name="activated" handler="on_select_genres_clicked"/>
+                        <child>
+                          <object class="GtkLabel" id="genres_summary_label">
+                            <property name="label">None selected</property>
+                            <property name="xalign">1</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkImage">
+                            <property name="icon-name">go-next-symbolic</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    
+                    <!-- Features Selection -->
+                    <child>
+                      <object class="AdwActionRow">
+                        <property name="title">Features</property>
+                        <property name="subtitle">Select the features that apply to this game</property>
+                        <property name="activatable">true</property>
+                        <signal name="activated" handler="on_select_features_clicked"/>
+                        <child>
+                          <object class="GtkLabel" id="features_summary_label">
+                            <property name="label">None selected</property>
+                            <property name="xalign">1</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkImage">
+                            <property name="icon-name">go-next-symbolic</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    
+                    <!-- Age Ratings Selection -->
+                    <child>
+                      <object class="AdwActionRow">
+                        <property name="title">Age Ratings</property>
+                        <property name="subtitle">Select the age ratings for this game</property>
+                        <property name="activatable">true</property>
+                        <signal name="activated" handler="on_select_age_ratings_clicked"/>
+                        <child>
+                          <object class="GtkLabel" id="age_ratings_summary_label">
+                            <property name="label">None selected</property>
+                            <property name="xalign">1</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkImage">
+                            <property name="icon-name">go-next-symbolic</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    
+                    <!-- Regions Selection -->
+                    <child>
+                      <object class="AdwActionRow">
+                        <property name="title">Regions</property>
+                        <property name="subtitle">Select the regions this game is available in</property>
+                        <property name="activatable">true</property>
+                        <signal name="activated" handler="on_select_regions_clicked"/>
+                        <child>
+                          <object class="GtkLabel" id="regions_summary_label">
+                            <property name="label">None selected</property>
+                            <property name="xalign">1</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkImage">
+                            <property name="icon-name">go-next-symbolic</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    
+                  </object>
+                </child>
+                
                 <!-- Game Image Section -->
                 <child>
                   <object class="AdwPreferencesGroup">
