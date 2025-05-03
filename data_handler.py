@@ -30,7 +30,6 @@ class DataHandler:
 
         # Get the project root directory for finding media directory
         self.project_root = Path(__file__).parent
-        self.media_dir = self.project_root / "media" / "images"
 
         # Runner icon mapping
         self.runner_icon_map = {
@@ -44,7 +43,6 @@ class DataHandler:
         # Ensure directories exist
         self.games_dir.mkdir(parents=True, exist_ok=True)
         self.runners_dir.mkdir(parents=True, exist_ok=True)
-        self.media_dir.mkdir(parents=True, exist_ok=True)
 
     def load_games(self) -> List[Game]:
         games = []
