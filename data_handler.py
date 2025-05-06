@@ -7,7 +7,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple, Union
 
-from data import Game, Runner
+from data import Game, Runner, Source, SourceType
 from data_mapping import (
     CompletionStatus, InvalidCompletionStatusError,
     Platforms, InvalidPlatformError,
@@ -27,6 +27,7 @@ class DataHandler:
         self.data_dir = Path(data_dir)
         self.games_dir = self.data_dir / "games"
         self.runners_dir = self.data_dir / "runners"
+        self.sources_dir = self.data_dir / "sources"
 
         # Get the project root directory for finding media directory
         self.project_root = Path(__file__).parent
@@ -43,6 +44,7 @@ class DataHandler:
         # Ensure directories exist
         self.games_dir.mkdir(parents=True, exist_ok=True)
         self.runners_dir.mkdir(parents=True, exist_ok=True)
+        self.sources_dir.mkdir(parents=True, exist_ok=True)
 
     def load_games(self) -> List[Game]:
         games = []
@@ -131,7 +133,8 @@ class DataHandler:
                         age_ratings=age_ratings,
                         features=features,
                         genres=genres,
-                        regions=regions
+                        regions=regions,
+                        source=game_data.get("source")
                     )
 
                     # Load play count if exists
@@ -237,6 +240,10 @@ class DataHandler:
         if game.regions:
             # Save region enum display values
             game_data["regions"] = [region.value for region in game.regions]
+
+        # Save source if present
+        if game.source:
+            game_data["source"] = game.source
 
         try:
             game_dir = self._get_game_dir_from_id(game.id)
@@ -899,3 +906,4 @@ class DataHandler:
         except Exception as e:
             print(f"Error removing runner {runner.id}: {e}")
             return False
+

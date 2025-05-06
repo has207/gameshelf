@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <template class="SourceItem" parent="GtkBox">
+    <property name="orientation">horizontal</property>
+    <property name="spacing">12</property>
+    <property name="margin-start">6</property>
+    <property name="margin-end">6</property>
+    <property name="margin-top">6</property>
+    <property name="margin-bottom">6</property>
+    
+    <child>
+      <object class="GtkImage" id="source_icon">
+        <property name="icon-name">folder-symbolic</property>
+        <property name="icon-size">large</property>
+      </object>
+    </child>
+    
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">4</property>
+        <property name="hexpand">True</property>
+        
+        <child>
+          <object class="GtkLabel" id="name_label">
+            <property name="label">Source Name</property>
+            <property name="xalign">0</property>
+            <property name="ellipsize">end</property>
+            <style>
+              <class name="title-4"/>
+            </style>
+          </object>
+        </child>
+        
+        <child>
+          <object class="GtkLabel" id="path_label">
+            <property name="label">/path/to/source</property>
+            <property name="xalign">0</property>
+            <property name="ellipsize">middle</property>
+            <style>
+              <class name="caption"/>
+            </style>
+          </object>
+        </child>
+      </object>
+    </child>
+    
+    <child>
+      <object class="GtkSwitch" id="active_switch">
+        <property name="active">True</property>
+        <property name="valign">center</property>
+        <property name="halign">end</property>
+        <property name="tooltip-text">Enable/disable source</property>
+      </object>
+    </child>
+    
+    <child>
+      <object class="GtkButton" id="edit_button">
+        <property name="icon-name">document-edit-symbolic</property>
+        <property name="valign">center</property>
+        <property name="tooltip-text">Edit source</property>
+      </object>
+    </child>
+    
+    <child>
+      <object class="GtkButton" id="delete_button">
+        <property name="icon-name">user-trash-symbolic</property>
+        <property name="valign">center</property>
+        <property name="tooltip-text">Delete source</property>
+        <style>
+          <class name="destructive-action"/>
+        </style>
+      </object>
+    </child>
+  </template>
+</interface>

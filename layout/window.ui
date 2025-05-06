@@ -36,6 +36,13 @@
                 <signal name="clicked" handler="on_import_games_clicked"/>
               </object>
             </child>
+            <child type="start">
+              <object class="GtkButton" id="manage_sources_button">
+                <property name="icon-name">folder-symbolic</property>
+                <property name="tooltip-text">Manage Sources</property>
+                <signal name="clicked" handler="on_manage_sources_clicked"/>
+              </object>
+            </child>
             
             <property name="title-widget">
               <object class="GtkBox">

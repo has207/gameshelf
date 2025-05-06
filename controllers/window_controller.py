@@ -360,6 +360,78 @@ class GameShelfWindow(Adw.ApplicationWindow):
         dialog.show()
 
     @Gtk.Template.Callback()
+    def on_manage_sources_clicked(self, button):
+        # Open the source manager dialog
+        from controllers.source_manager_controller import SourceManager
+        from source_handler import SourceHandler
+
+        # Create a source handler
+        source_handler = SourceHandler(self.controller.data_handler)
+
+        # Create a new dialog window for the source manager
+        dialog = Gtk.Dialog(
+            title="Manage Sources",
+            transient_for=self,
+            modal=True,
+            use_header_bar=True
+        )
+
+        # Set dialog properties
+        dialog.set_default_size(600, 400)
+
+        # Create and add the source manager to the dialog
+        source_manager = SourceManager(source_handler)
+        dialog.get_content_area().append(source_manager)
+
+        # Connect signals
+        source_manager.connect("closed", lambda sm: dialog.close())
+        source_manager.connect("games-added", self._on_games_added_from_source)
+
+        dialog.show()
+
+    def _on_games_added_from_source(self, source_manager, count):
+        """Handle games being added from a source scan"""
+        if count > 0:
+            # Reload data after games are added
+            self.controller.reload_data(refresh_sidebar=True)
+
+            # Show a notification
+            self._show_notification(f"Added {count} games from source")
+
+    def _show_notification(self, message):
+        """Show a toast notification or just print if toast overlay not available"""
+        try:
+            # Create a toast with the message
+            toast = Adw.Toast.new(message)
+            toast.set_timeout(3)  # 3 seconds
+
+            # Try to add the toast to a toast overlay
+            added = False
+
+            # Get the content and check for a toast overlay
+            content = self.get_content()
+            if content is not None:
+                # Check if the content itself is a toast overlay
+                if isinstance(content, Adw.ToastOverlay):
+                    content.add_toast(toast)
+                    added = True
+                # Otherwise try to find one in the children
+                elif hasattr(content, "get_first_child") and content.get_first_child() is not None:
+                    for child in content.get_first_child().observe_children():
+                        if isinstance(child, Adw.ToastOverlay):
+                            child.add_toast(toast)
+                            added = True
+                            break
+
+            if not added:
+                # If we couldn't add the toast, print the message
+                print(f"Notification: {message}")
+        except Exception as e:
+            # If anything goes wrong, fall back to printing
+            print(f"Notification: {message}")
+            print(f"Error showing toast: {e}")
+
+    @Gtk.Template.Callback()
     def on_search_changed(self, search_entry):
         """Handle search entry text changes"""
         if self.controller.title_bar_controller:

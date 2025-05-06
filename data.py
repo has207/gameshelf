@@ -1,8 +1,42 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Dict, Any
+from enum import Enum, auto
 
 from data_mapping import CompletionStatus, Platforms, AgeRatings, Features, Genres, Regions
+
+
+class SourceType(Enum):
+    """Types of game sources that can be scanned"""
+    DIRECTORY = auto()  # Generic directory of files
+
+    @classmethod
+    def from_string(cls, value: str) -> 'SourceType':
+        """Convert a string to a SourceType enum value"""
+        value_upper = value.upper()
+        if hasattr(cls, value_upper):
+            return getattr(cls, value_upper)
+        raise ValueError(f"Invalid source type: {value}")
+
+    def __str__(self) -> str:
+        return self.name.lower()
+
+
+@dataclass
+class Source:
+    def __init__(self, id: str, name: str, path: str, source_type: SourceType = SourceType.DIRECTORY,
+                 active: bool = True, file_extensions: Optional[List[str]] = None, config: Optional[Dict[str, Any]] = None):
+        self.id = id.lower()
+        self.name = name
+        self.path = path
+        self.source_type = source_type
+        self.active = active
+        self.file_extensions = file_extensions or []
+        self.config = config or {}
+
+    def get_source_path(self, data_dir: Path) -> Path:
+        """Get the path to the source's configuration file"""
+        return data_dir / "sources" / f"{self.id}.yaml"
 
 
 @dataclass
@@ -23,7 +57,8 @@ class Game:
                  age_ratings: Optional[List[Union[AgeRatings, str]]] = None,
                  features: Optional[List[Union[Features, str]]] = None,
                  genres: Optional[List[Union[Genres, str]]] = None,
-                 regions: Optional[List[Union[Regions, str]]] = None):
+                 regions: Optional[List[Union[Regions, str]]] = None,
+                 source: Optional[str] = None):
         self.id = id.lower()
         self.title = title
         self.runner = runner.lower() if runner else ""
@@ -37,6 +72,7 @@ class Game:
         self.features = []  # List of features for the game
         self.genres = []  # List of genres for the game
         self.regions = []  # List of regions for the game
+        self.source = source  # Source ID where this game was imported from
 
         # Handle string or enum for completion_status
         if isinstance(completion_status, str):

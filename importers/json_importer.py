@@ -229,6 +229,11 @@ class JsonImporter:
                     # Skip invalid regions
                     print(f"Warning: Skipping invalid region '{region_str}' for game '{title}'")
 
+        # Extract source if available
+        source = None
+        if "Source" in game_data and game_data["Source"]:
+            source = game_data["Source"]
+
         # Create a new game object
         game = Game(
             id="",  # ID will be assigned by data handler
@@ -241,7 +246,8 @@ class JsonImporter:
             age_ratings=age_ratings,
             features=features,
             genres=genres,
-            regions=regions
+            regions=regions,
+            source=source
         )
 
         # Process playtime if available
