@@ -35,9 +35,14 @@ class GameSortMenu(Gtk.Popover):
     @Gtk.Template.Callback()
     def on_sort_order_toggled(self, button):
         """Called when sort order buttons are toggled"""
-        if button == self.sort_ascending_button and button.get_active():
+        # Only react when a button is toggled ON, not when it's toggled OFF
+        if not button.get_active():
+            return
+
+        # Set the new sort order
+        if button == self.sort_ascending_button:
             self.ascending = True
-        elif button == self.sort_descending_button and button.get_active():
+        elif button == self.sort_descending_button:
             self.ascending = False
 
         # Update sort
@@ -177,67 +182,26 @@ class TitleBarController:
             sort_field: Field to sort by (title, last_played, etc.)
             ascending: True for ascending order, False for descending
         """
-        self.main_controller.sort_field = sort_field
-        self.main_controller.sort_ascending = ascending
+        # Only update and refresh if the sort parameters actually changed
+        if sort_field != self.main_controller.sort_field or ascending != self.main_controller.sort_ascending:
+            self.main_controller.sort_field = sort_field
+            self.main_controller.sort_ascending = ascending
 
-        # Save sort settings to persist across sessions
-        self.main_controller.settings_manager.set_sort_settings(sort_field, ascending)
+            # Save sort settings to persist across sessions
+            self.main_controller.settings_manager.set_sort_settings(sort_field, ascending)
 
-        # Reload games with current filters and new sort
-        search_text = ""
-        if self.search_entry:
-            search_text = self.search_entry.get_text().strip().lower()
-            # Save search text
-            self.main_controller.settings_manager.set_search_text(search_text)
+            # Get current search text
+            search_text = ""
+            if self.search_entry:
+                search_text = self.search_entry.get_text().strip().lower()
 
-        # Get active filters
-        filter_runner = None
+            # Get all current filter settings directly from sidebar
+            if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
+                self.main_controller.game_grid_controller.populate_games(search_text=search_text)
+        # If sort parameters didn't change, do nothing to avoid unnecessary reloading
 
-        if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
-            sidebar = self.main_controller.sidebar_controller
-            filter_runner = sidebar.active_filters.get("runner")
-        else:
-            # Fall back to legacy filter if sidebar controller not available
-            filter_runner = self.main_controller.current_filter
-
-        # Call populate_games with the correct parameter name
-        self.populate_games(filter_runner=filter_runner, search_text=search_text)
-
-    def populate_games(self, filter_runner: Optional[str] = None, search_text: str = ""):
-        # Get all active filters from sidebar controller if available
-        filter_runners = None
-        filter_completion_statuses = None
-        filter_platforms = None
-        filter_genres = None
-        filter_age_ratings = None
-        filter_features = None
-        filter_regions = None
-
-        if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
-            sidebar = self.main_controller.sidebar_controller
-            filter_runners = sidebar.active_filters.get("runner")
-            filter_completion_statuses = sidebar.active_filters.get("completion_status")
-            filter_platforms = sidebar.active_filters.get("platforms")
-            filter_genres = sidebar.active_filters.get("genres")
-            filter_age_ratings = sidebar.active_filters.get("age_ratings")
-            filter_features = sidebar.active_filters.get("features")
-            filter_regions = sidebar.active_filters.get("regions")
-        else:
-            # Fall back to legacy filter if sidebar controller not available
-            filter_runners = filter_runner
-
-        # Delegate to the grid controller to actually populate games
-        if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
-            self.main_controller.game_grid_controller.populate_games(
-                filter_runners=filter_runners,
-                filter_completion_statuses=filter_completion_statuses,
-                filter_platforms=filter_platforms,
-                filter_genres=filter_genres,
-                filter_age_ratings=filter_age_ratings,
-                filter_features=filter_features,
-                filter_regions=filter_regions,
-                search_text=search_text
-            )
+    # The populate_games method has been removed as it was redundant and unnecessary.
+    # The game_grid_controller.populate_games method should be used directly instead.
 
     def on_visibility_toggle_clicked(self, button):
         """Handle visibility toggle button click"""
