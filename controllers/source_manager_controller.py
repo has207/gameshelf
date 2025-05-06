@@ -3,7 +3,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Gio, GObject
 
-from data import Source
+from data import Source, SourceType
 from source_handler import SourceHandler
 from controllers.source_item_controller import SourceItem
 from controllers.source_dialog_controller import SourceDialog
@@ -46,13 +46,25 @@ class SourceManager(Gtk.Box):
 
     def load_sources(self):
         """Load sources from the source handler and populate the list view"""
+        print("DEBUG: load_sources called")
+
         # Clear the list store
         self.list_store.remove_all()
+        print("DEBUG: list store cleared")
 
         # Add sources to the list store
         sources = self.source_handler.load_sources()
+        print(f"DEBUG: Loaded {len(sources)} sources from disk")
+
         for source in sources:
+            print(f"DEBUG: Adding source to list: {source.name} (ID: {source.id})")
             self.list_store.append(SourceListModel(source))
+
+        print(f"DEBUG: List store now has {self.list_store.get_n_items()} items")
+
+        # Refresh the UI
+        self.source_list_view.queue_draw()
+        print("DEBUG: Queued source list view for redraw")
 
     @Gtk.Template.Callback()
     def setup_source_item(self, factory, list_item):
@@ -94,26 +106,72 @@ class SourceManager(Gtk.Box):
         dialog.show()
 
     def _on_delete_source(self, source_item, source):
-        """Show a confirmation dialog to delete a source"""
-        dialog = Gtk.MessageDialog(
+        """Show a confirmation dialog before deleting a source"""
+        # Create a simple dialog for deletion confirmation
+        dialog = Gtk.Dialog(
+            title="Confirm Deletion",
             transient_for=self.get_root(),
-            modal=True,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text=f"Delete source '{source.name}'?"
+            modal=True
         )
-        dialog.format_secondary_text("This will not delete any games in your library but will remove the source configuration.")
 
-        dialog.connect("response", self._on_delete_response, source)
-        dialog.show()
+        # Add Cancel and Delete buttons
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        delete_button = dialog.add_button("Delete", Gtk.ResponseType.YES)
+        delete_button.add_css_class("destructive-action")
 
-    def _on_delete_response(self, dialog, response, source):
-        """Handle the response from the delete confirmation dialog"""
-        if response == Gtk.ResponseType.YES:
-            if self.source_handler.remove_source(source):
-                self.load_sources()  # Reload the list
+        # Set up the content area
+        content_area = dialog.get_content_area()
+        content_area.set_spacing(10)
+        content_area.set_margin_start(20)
+        content_area.set_margin_end(20)
+        content_area.set_margin_top(20)
+        content_area.set_margin_bottom(20)
 
-        dialog.destroy()
+        # Create the confirmation message layout
+        message_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+
+        # Add warning icon
+        icon = Gtk.Image.new_from_icon_name("dialog-warning")
+        icon.set_pixel_size(32)
+        message_box.append(icon)
+
+        # Add text container
+        text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+
+        # Primary text
+        title_label = Gtk.Label()
+        title_label.set_markup(f"<b>Delete source '{source.name}'?</b>")
+        title_label.set_halign(Gtk.Align.START)
+        title_label.set_wrap(True)
+        text_box.append(title_label)
+
+        # Secondary text
+        desc_label = Gtk.Label(label="This will remove the source configuration.\nGames imported from this source will remain in your library.")
+        desc_label.set_halign(Gtk.Align.START)
+        desc_label.set_wrap(True)
+        text_box.append(desc_label)
+
+        message_box.append(text_box)
+        content_area.append(message_box)
+
+        # Connect response handler
+        def on_response(dialog, response):
+            if response == Gtk.ResponseType.YES:
+                # Delete the source
+                result = self.source_handler.remove_source(source)
+
+                # Reload the sources list if successful
+                if result:
+                    self.load_sources()
+
+            # Always close the dialog
+            dialog.destroy()
+
+        # Connect the response signal
+        dialog.connect("response", on_response)
+
+        # Show the dialog
+        dialog.present()
 
     def _on_source_saved(self, dialog, source):
         """Handle a source being saved in the dialog"""
@@ -139,12 +197,114 @@ class SourceManager(Gtk.Box):
 
     def _scan_source_with_progress(self, source):
         """Scan a source with a progress dialog"""
-        # Create progress dialog
+        # Use a specialized approach for Xbox sources
+        if source.source_type == SourceType.XBOX:
+            # For Xbox sources, we'll use a simpler non-modal dialog with a close button
+            dialog = Gtk.Dialog(
+                title=f"Xbox Library Sync: {source.name}",
+                transient_for=self.get_root(),
+                modal=False
+            )
+
+            # Add a close button
+            dialog.add_button("Close", Gtk.ResponseType.CLOSE)
+
+            # Add content
+            content_area = dialog.get_content_area()
+            content_area.set_spacing(12)
+            content_area.set_margin_start(12)
+            content_area.set_margin_end(12)
+            content_area.set_margin_top(12)
+            content_area.set_margin_bottom(12)
+
+            # Add explanatory label
+            label = Gtk.Label()
+            label.set_markup(f"<b>Syncing games from Xbox Library</b>")
+            label.set_margin_bottom(10)
+            content_area.append(label)
+
+            status_label = Gtk.Label(label="Connecting to Xbox API...")
+            status_label.set_wrap(True)
+            status_label.set_width_chars(40)
+            status_label.set_justify(Gtk.Justification.LEFT)
+            status_label.set_halign(Gtk.Align.START)
+            content_area.append(status_label)
+
+            # Activity indicator
+            spinner = Gtk.Spinner()
+            spinner.set_size_request(32, 32)
+            spinner.start()
+            content_area.append(spinner)
+
+            # Connect close response
+            dialog.connect("response", lambda d, r: d.destroy())
+
+            # Show the dialog
+            dialog.set_default_size(400, -1)
+            dialog.present()
+
+            # Define a simplified progress callback for Xbox
+            def xbox_progress_callback(current, total, item_name):
+                # Use GLib.idle_add to ensure UI updates happen in the main thread
+                def update_ui():
+                    if item_name:
+                        status_label.set_text(item_name)
+
+                    # If we're done, update the status and stop the spinner
+                    if current >= total and total > 0:
+                        spinner.stop()
+                        status_label.set_text(f"Sync complete: Added {current} games")
+                        GObject.timeout_add(3000, lambda: dialog.close() or False)
+                    return False  # Don't repeat
+
+                GObject.idle_add(update_ui)
+                return True
+
+            # Start the scan in a separate thread
+            import threading
+
+            def run_scan():
+                added, errors = self.source_handler.sync_xbox_source(source, xbox_progress_callback)
+
+                # Update UI on completion if needed
+                def on_complete():
+                    # Stop the spinner
+                    spinner.stop()
+
+                    # Update status
+                    if added > 0:
+                        status_label.set_text(f"Sync complete: Added {added} games")
+                    else:
+                        status_label.set_text(f"Sync complete: No new games added")
+
+                    # Handle errors if any
+                    if errors:
+                        # Show errors after a delay so user can see completion message
+                        GObject.timeout_add(2000, lambda: self._show_scan_errors(errors) or False)
+
+                    # Tell the app we added games
+                    self.emit("games-added", added)
+
+                    # Close the dialog after a delay
+                    GObject.timeout_add(3000, lambda: dialog.close() or False)
+
+                    return False
+
+                # Schedule UI update on the main thread
+                GObject.idle_add(on_complete)
+
+            # Start scan thread
+            scan_thread = threading.Thread(target=run_scan)
+            scan_thread.daemon = True
+            scan_thread.start()
+
+            return
+
+        # For other source types, use the regular progress dialog
         dialog = Gtk.Dialog(
             title=f"Scanning {source.name}",
             transient_for=self.get_root(),
-            modal=True,
-            use_header_bar=True
+            modal=True
         )
 
         # Add content
@@ -166,7 +326,8 @@ class SourceManager(Gtk.Box):
         status_label = Gtk.Label(label="")
         content_area.append(status_label)
 
-        dialog.show()
+        # Show dialog
+        dialog.present()
 
         # Function to update progress
         def update_progress(current, total, item_name):
@@ -188,9 +349,6 @@ class SourceManager(Gtk.Box):
 
             return True
 
-        # Create a source for progress updates
-        self.cancel_scan = False
-
         # Use GLib.timeout_add for scanning in smaller chunks
         def start_scan():
             # Start the scan process
@@ -202,7 +360,11 @@ class SourceManager(Gtk.Box):
 
     def _do_scan(self, source, progress_callback):
         """Perform the actual scan"""
-        # Scan the source
+        # Skip Xbox sources as they're handled specially in _scan_source_with_progress
+        if source.source_type == SourceType.XBOX:
+            return False
+
+        # Scan the source (non-Xbox sources)
         added, errors = self.source_handler.scan_source(source, progress_callback)
 
         if errors:
@@ -216,13 +378,29 @@ class SourceManager(Gtk.Box):
 
     def _show_scan_errors(self, errors):
         """Show errors from scanning in a dialog"""
-        dialog = Gtk.MessageDialog(
+        # Create a custom dialog to avoid issues with MessageDialog
+        dialog = Gtk.Dialog(
+            title=f"Completed with {len(errors)} errors",
             transient_for=self.get_root(),
-            modal=True,
-            message_type=Gtk.MessageType.WARNING,
-            buttons=Gtk.ButtonsType.OK,
-            text=f"Completed with {len(errors)} errors"
+            modal=True
         )
+
+        # Add OK button manually
+        dialog.add_button("OK", Gtk.ResponseType.OK)
+
+        # Create content area
+        content_area = dialog.get_content_area()
+        content_area.set_spacing(10)
+        content_area.set_margin_start(20)
+        content_area.set_margin_end(20)
+        content_area.set_margin_top(20)
+        content_area.set_margin_bottom(20)
+
+        # Add a label for the title
+        title_label = Gtk.Label()
+        title_label.set_markup(f"<b>Completed with {len(errors)} errors</b>")
+        title_label.set_halign(Gtk.Align.START)
+        content_area.append(title_label)
 
         # Add a scrolled window for the errors
         scrolled = Gtk.ScrolledWindow()
@@ -240,24 +418,59 @@ class SourceManager(Gtk.Box):
         text_buffer.set_text(error_text)
 
         scrolled.set_child(text_view)
+        content_area.append(scrolled)
 
-        # Add the scrolled window to the dialog
-        message_area = dialog.get_message_area()
-        message_area.append(scrolled)
+        # Connect response to close the dialog
+        dialog.connect("response", lambda d, r: d.destroy())
 
-        dialog.show()
+        # Show the dialog
+        dialog.set_default_size(400, 300)
+        dialog.present()
 
     def _show_error(self, message):
         """Show an error dialog"""
-        dialog = Gtk.MessageDialog(
+        # Create a custom dialog instead of MessageDialog
+        dialog = Gtk.Dialog(
+            title="Error",
             transient_for=self.get_root(),
-            modal=True,
-            message_type=Gtk.MessageType.ERROR,
-            buttons=Gtk.ButtonsType.OK,
-            text=message
+            modal=True
         )
+
+        # Add OK button
+        dialog.add_button("OK", Gtk.ResponseType.OK)
+
+        # Create content area
+        content_area = dialog.get_content_area()
+        content_area.set_spacing(10)
+        content_area.set_margin_start(20)
+        content_area.set_margin_end(20)
+        content_area.set_margin_top(20)
+        content_area.set_margin_bottom(20)
+
+        # Create a box with icon and message
+        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+
+        # Add error icon
+        icon = Gtk.Image.new_from_icon_name("dialog-error")
+        icon.set_pixel_size(32)
+        hbox.append(icon)
+
+        # Add message
+        msg_label = Gtk.Label(label=message)
+        msg_label.set_wrap(True)
+        msg_label.set_halign(Gtk.Align.START)
+        msg_label.set_valign(Gtk.Align.CENTER)
+        msg_label.set_hexpand(True)
+        hbox.append(msg_label)
+
+        content_area.append(hbox)
+
+        # Connect response to close dialog
         dialog.connect("response", lambda d, r: d.destroy())
-        dialog.show()
+
+        # Show dialog
+        dialog.set_default_size(300, -1)
+        dialog.present()
 
     # Define custom signals
     __gsignals__ = {

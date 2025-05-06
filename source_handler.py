@@ -1,11 +1,15 @@
 import os
 import yaml
+import json
 import time
+import stat
+import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
 from data import Source, SourceType, Game
 from data_handler import DataHandler
+from sources.xbox_client import XboxLibrary
 
 
 class SourceHandler:
@@ -108,11 +112,19 @@ class SourceHandler:
         Returns:
             True if successful, False otherwise
         """
+        print(f"DEBUG: remove_source called for source: {source.id} ({source.name})")
+
         source_file = self.sources_dir / f"{source.id}.yaml"
+        print(f"DEBUG: source file path: {source_file}")
+        print(f"DEBUG: source file exists: {source_file.exists()}")
+        print(f"DEBUG: sources dir exists: {self.sources_dir.exists()}")
+        print(f"DEBUG: sources dir contents: {list(self.sources_dir.glob('*'))}")
 
         try:
             if source_file.exists():
+                print(f"DEBUG: Attempting to remove file {source_file}")
                 source_file.unlink()
+                print(f"DEBUG: File successfully removed")
                 return True
             else:
                 print(f"Source file {source_file} not found")
@@ -132,6 +144,12 @@ class SourceHandler:
         Returns:
             Tuple of (number of games added/updated, list of error messages)
         """
+        # Special handling for different source types
+        if source.source_type == SourceType.XBOX:
+            # For Xbox sources, we use sync_xbox_source instead
+            return self.sync_xbox_source(source, progress_callback)
+
+        # For directory type sources, validate the path
         if not source.path or not Path(source.path).exists():
             return 0, [f"Source path does not exist: {source.path}"]
 
@@ -227,6 +245,373 @@ class SourceHandler:
         Returns:
             Tuple of (number of games added/updated, list of error messages)
         """
-        # This is a more advanced version of scan_source that also handles updating and removing
-        # For now, we'll just call scan_source which only adds new games
-        return self.scan_source(source, progress_callback)
+        # Handle different source types
+        if source.source_type == SourceType.XBOX:
+            return self.sync_xbox_source(source, progress_callback)
+        else:
+            # Default to standard scan for directory sources
+            return self.scan_source(source, progress_callback)
+
+    def ensure_secure_token_storage(self, source_id: str) -> Path:
+        """
+        Ensure token storage directory exists with proper permissions (0600).
+
+        Args:
+            source_id: The source ID to create storage for
+
+        Returns:
+            Path to the secure token storage directory
+        """
+        # Create a tokens directory within the source's data directory
+        tokens_dir = self.data_handler.data_dir / "sources" / f"{source_id}_tokens"
+        tokens_dir.mkdir(parents=True, exist_ok=True)
+
+        # Set secure permissions (0700 for directory)
+        os.chmod(tokens_dir, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+
+        return tokens_dir
+
+    def sync_xbox_source(self, source: Source, progress_callback: Optional[callable] = None) -> Tuple[int, List[str]]:
+        """
+        Sync Xbox games with the library.
+
+        Args:
+            source: The Xbox source to sync
+            progress_callback: Optional callback function for progress updates
+
+        Returns:
+            Tuple of (number of games added/updated, list of error messages)
+        """
+        added_count = 0
+        errors = []
+
+        # Initial progress update
+        if progress_callback:
+            try:
+                progress_callback(0, 100, "Initializing Xbox client...")
+            except Exception as e:
+                print(f"Error with progress callback: {e}")
+
+        try:
+            # Create secure token storage
+            tokens_dir = self.ensure_secure_token_storage(source.id)
+
+            # Create Xbox Library instance with our token directory
+            xbox = XboxLibrary(token_dir=tokens_dir)
+
+            # Check if we need to authenticate
+            if not xbox.is_authenticated():
+                if progress_callback:
+                    try:
+                        progress_callback(10, 100, "Need to authenticate, launching login flow...")
+                    except Exception as e:
+                        print(f"Error with progress callback: {e}")
+
+                # We should never get here if the source was properly created
+                # through the UI, as it requires authentication before saving
+                # But just in case, we'll handle it gracefully
+                from threading import Thread
+                from gi.repository import GLib
+
+                # Create an authentication thread with cleaner synchronization
+                import threading
+                auth_event = threading.Event()
+                auth_result = [False]  # Use a list to store result from the thread
+
+                # Function to run authentication in a thread
+                def run_auth():
+                    try:
+                        auth_result[0] = xbox.authenticate()
+                    except Exception as e:
+                        print(f"Authentication thread error: {e}")
+                        auth_result[0] = False
+                    finally:
+                        auth_event.set()  # Signal that auth is complete
+
+                # Start auth thread
+                auth_thread = threading.Thread(target=run_auth)
+                auth_thread.daemon = True
+                auth_thread.start()
+
+                # Wait for authentication with periodic progress updates
+                start_time = time.time()
+                while not auth_event.is_set() and time.time() - start_time < 300:  # 5 min timeout
+                    # Update progress and message periodically
+                    if progress_callback:
+                        try:
+                            elapsed = time.time() - start_time
+                            progress_callback(10, 100, f"Authentication in progress ({int(elapsed)}s)...")
+                        except Exception as e:
+                            print(f"Error with progress callback: {e}")
+                    # Use shorter sleep to be more responsive
+                    time.sleep(0.2)  # Sleep briefly to not hammer the CPU
+
+                # Check authentication result
+                if not auth_result[0]:
+                    return 0, ["Authentication failed. Please try again."]
+
+            # Update progress
+            if progress_callback:
+                try:
+                    progress_callback(30, 100, "Fetching Xbox library...")
+                except Exception as e:
+                    print(f"Error with progress callback: {e}")
+
+            # Get Xbox library
+            xbox_games = xbox.get_game_library()
+
+            # Get existing games from this source
+            existing_games_by_title = {}
+            for game in self.data_handler.load_games():
+                if game.source == source.id:
+                    existing_games_by_title[game.title.lower()] = game
+
+            # Update progress
+            total_games = len(xbox_games)
+            if progress_callback:
+                try:
+                    progress_callback(40, 100, f"Processing {total_games} games...")
+                except Exception as e:
+                    print(f"Error with progress callback: {e}")
+
+            # Process each game
+            for index, game_data in enumerate(xbox_games):
+                try:
+                    # Report progress
+                    if progress_callback and index % 10 == 0:
+                        try:
+                            percentage = 40 + int((index / total_games) * 60)
+                            progress_callback(percentage, 100, f"Processing game {index+1}/{total_games}")
+                        except Exception as e:
+                            print(f"Error with progress callback: {e}")
+
+                    # Check if this is a game (not an app)
+                    if game_data.get('type') != 'Game':
+                        continue
+
+                    # Get game details
+                    title = game_data.get('name', 'Unknown Game')
+                    title_id = game_data.get('titleId', '')
+
+                    # Add debug logging
+                    print(f"Processing Xbox game: {title} (ID: {title_id})")
+
+                    # Generate unique ID for the game based on Xbox title ID
+                    game_key = f"xbox_{title_id}"
+
+                    # Check if game already exists
+                    if title.lower() in existing_games_by_title:
+                        # Game exists, update metadata if needed
+                        # For now, we'll skip updates
+                        continue
+
+                    # Create a new game
+                    game = Game(
+                        id="",  # ID will be assigned by data handler
+                        title=title,
+                        source=source.id
+                    )
+
+                    # Extract platform info
+                    platforms = []
+                    devices = game_data.get('devices', [])
+
+                    print(f"  - Devices: {devices}")
+
+                    # Map Xbox platforms to our platform enum using correct values from Platforms enum
+                    from data_mapping import Platforms
+
+                    platform_enums = []
+
+                    try:
+                        if 'XboxOne' in devices:
+                            platform_enums.append(Platforms.XBOX_ONE)
+                        if 'XboxSeries' in devices:
+                            platform_enums.append(Platforms.XBOX_SERIES)
+                        if 'PC' in devices:
+                            platform_enums.append(Platforms.PC_WINDOWS)
+                        if 'Xbox360' in devices:
+                            platform_enums.append(Platforms.XBOX360)
+                        if 'Xbox' in devices:  # Original Xbox
+                            platform_enums.append(Platforms.XBOX)
+
+                        print(f"  - Mapped platforms: {[p.value for p in platform_enums]}")
+
+                        game.platforms = platform_enums
+                        print(f"  - Platforms set successfully")
+                    except Exception as e:
+                        print(f"  - ERROR setting platforms: {e}. For devices: {devices}")
+                        # Debug information to help diagnose platform mapping issues
+                        print(f"  - Platform enum values: {[p.name for p in Platforms]}")
+
+                    # Add genres if available
+                    detail = game_data.get('detail', {})
+                    if detail:
+                        # Add description
+                        game.description = detail.get('description', '')
+
+                        # Add genres
+                        from data_mapping import Genres
+
+                        genres = detail.get('genres', [])
+                        print(f"  - Original genres: {genres}")
+
+                        genre_enums = []
+                        for genre in genres:
+                            # Map Xbox genres to our genre enum using correct values from Genres enum
+                            try:
+                                if "Action" in genre:
+                                    genre_enums.append(Genres.ACTION)
+                                elif "Adventure" in genre:
+                                    genre_enums.append(Genres.ADVENTURE)
+                                elif "Puzzle" in genre:
+                                    genre_enums.append(Genres.PUZZLE)
+                                elif "RPG" in genre or "Role" in genre:
+                                    genre_enums.append(Genres.ROLE_PLAYING_RPG)
+                                elif "Strategy" in genre:
+                                    genre_enums.append(Genres.STRATEGY)
+                                elif "Sports" in genre:
+                                    genre_enums.append(Genres.SPORTS)
+                                elif "Racing" in genre:
+                                    genre_enums.append(Genres.RACING)
+                                elif "Simulation" in genre:
+                                    genre_enums.append(Genres.SIMULATOR)
+                                elif "Fighting" in genre:
+                                    genre_enums.append(Genres.FIGHTING)
+                                elif "Platform" in genre:
+                                    genre_enums.append(Genres.PLATFORMER)
+                                elif "Shooter" in genre:
+                                    genre_enums.append(Genres.SHOOTER)
+                            except (AttributeError, ValueError) as e:
+                                print(f"  - WARNING: Could not map genre '{genre}': {e}")
+
+                        print(f"  - Mapped genres: {[g.value for g in genre_enums]}")
+
+                        # Use try-except to catch any errors when setting genres
+                        try:
+                            game.genres = genre_enums
+                            print(f"  - Genres set successfully")
+                        except Exception as e:
+                            print(f"  - ERROR setting genres: {e}")
+                            # Debug information to help diagnose genre mapping issues
+                            print(f"  - Genre enum values: {[g.name for g in Genres]}")
+
+                    # Add playtime if available
+                    if 'minutesPlayed' in game_data and game_data['minutesPlayed'] is not None:
+                        try:
+                            minutes_played = game_data['minutesPlayed']
+                            seconds_played = int(minutes_played) * 60  # Convert minutes to seconds
+                            game.play_time = seconds_played
+                            print(f"  - Set play time: {game.play_time} seconds (from {minutes_played} minutes)")
+                        except (ValueError, TypeError) as e:
+                            print(f"  - WARNING: Could not convert minutes played to integer: {e}. Value was: {game_data['minutesPlayed']}")
+                            # Default to 0 seconds
+                            game.play_time = 0
+
+                    # Check if game has been played
+                    if game.play_time > 0:
+                        game.play_count = 1
+                        # Use the enum value directly instead of a string
+                        from data_mapping import CompletionStatus
+                        game.completion_status = CompletionStatus.PLAYED
+
+                    # Get title history data (for last played date)
+                    title_history = game_data.get('titleHistory', {})
+                    if title_history and 'lastTimePlayed' in title_history:
+                        # We'll handle last played time via the YAML file's modification time
+                        # This is handled when we save the game
+                        pass
+
+                    # Get cover image URL if available
+                    display_image = game_data.get('displayImage')
+                    if display_image:
+                        # Store the URL in config for reference
+                        if 'game_covers' not in source.config:
+                            source.config['game_covers'] = {}
+
+                        source.config['game_covers'][title] = display_image
+                        self.save_source(source)
+
+                        # Download and save the cover image immediately
+                        try:
+                            print(f"  - Downloading cover image from URL: {display_image}")
+                            import requests
+                            import tempfile
+
+                            # Download the image to a temporary file
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                                response = requests.get(display_image, stream=True, timeout=10)
+                                response.raise_for_status()  # Raise error for bad status codes
+
+                                # Write the image data to the temporary file
+                                for chunk in response.iter_content(chunk_size=8192):
+                                    temp_file.write(chunk)
+
+                                temp_path = temp_file.name
+
+                            # Use the temporary file for the game image
+                            game.image = temp_path
+                            print(f"  - Image downloaded to temporary file: {temp_path}")
+                        except Exception as img_err:
+                            print(f"  - ERROR downloading cover image: {img_err}")
+
+                    # Save the game
+                    if self.data_handler.save_game(game):
+                        # After the game is saved with an ID, save the playtime separately
+                        if game.play_time > 0:
+                            # Use the data_handler method to save play time
+                            if not self.data_handler.update_play_time(game, game.play_time):
+                                print(f"  - WARNING: Failed to save play time for {game.title}")
+
+                        # Save play count if set
+                        if game.play_count > 0:
+                            if not self.data_handler.update_play_count(game, game.play_count):
+                                print(f"  - WARNING: Failed to save play count for {game.title}")
+
+                        # Save the cover image if it was downloaded to a temporary file
+                        if hasattr(game, 'image') and game.image:
+                            try:
+                                # Use data_handler to save the cover image
+                                if self.data_handler.save_game_image(game.image, game.id):
+                                    print(f"  - Cover image saved successfully for {game.title}")
+                                else:
+                                    print(f"  - WARNING: Failed to save cover image for {game.title}")
+
+                                # Clean up the temporary file
+                                import os
+                                try:
+                                    os.unlink(game.image)
+                                    print(f"  - Temporary image file deleted: {game.image}")
+                                except Exception as del_err:
+                                    print(f"  - WARNING: Failed to delete temporary image file: {del_err}")
+                            except Exception as img_save_err:
+                                print(f"  - ERROR saving cover image: {img_save_err}")
+
+                        added_count += 1
+                    else:
+                        errors.append(f"Failed to save game '{title}'")
+
+                except Exception as e:
+                    game_name = game_data.get('name', 'Unknown')
+                    print(f"ERROR processing game {game_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    errors.append(f"Error processing game {game_name}: {e}")
+
+            # Final progress update
+            if progress_callback:
+                try:
+                    progress_callback(100, 100, "Complete")
+                except Exception as e:
+                    print(f"Error with final progress callback: {e}")
+
+            return added_count, errors
+
+        except Exception as e:
+            if progress_callback:
+                try:
+                    progress_callback(100, 100, f"Error: {e}")
+                except Exception as callback_error:
+                    print(f"Error with error progress callback: {callback_error}")
+
+            return 0, [f"Error syncing Xbox source: {e}"]

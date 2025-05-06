@@ -9,6 +9,7 @@ from data_mapping import CompletionStatus, Platforms, AgeRatings, Features, Genr
 class SourceType(Enum):
     """Types of game sources that can be scanned"""
     DIRECTORY = auto()  # Generic directory of files
+    XBOX = auto()       # Xbox game library via API
 
     @classmethod
     def from_string(cls, value: str) -> 'SourceType':
@@ -91,11 +92,17 @@ class Game:
                 if isinstance(platform, str):
                     try:
                         self.platforms.append(Platforms.from_string(platform))
-                    except Exception:
+                    except Exception as e:
+                        # Improved error reporting for debugging
+                        print(f"Error with game '{title}' - invalid platform '{platform}': {e}")
                         # Skip invalid platform strings
                         pass
                 elif isinstance(platform, Platforms):
                     self.platforms.append(platform)
+                else:
+                    # Handle unexpected types with clear error message
+                    print(f"Error with game '{title}' - platform type '{type(platform).__name__}' is not supported. Expected string or Platforms enum.")
+                    # Skip invalid platform types
 
         # Handle age_ratings list
         if age_ratings:
@@ -104,11 +111,17 @@ class Game:
                 if isinstance(rating, str):
                     try:
                         self.age_ratings.append(AgeRatings.from_string(rating))
-                    except Exception:
+                    except Exception as e:
+                        # Improved error reporting for debugging
+                        print(f"Error with game '{title}' - invalid age rating '{rating}': {e}")
                         # Skip invalid age rating strings
                         pass
                 elif isinstance(rating, AgeRatings):
                     self.age_ratings.append(rating)
+                else:
+                    # Handle unexpected types with clear error message
+                    print(f"Error with game '{title}' - age rating type '{type(rating).__name__}' is not supported. Expected string or AgeRatings enum.")
+                    # Skip invalid age rating types
 
         # Handle features list
         if features:
@@ -117,11 +130,17 @@ class Game:
                 if isinstance(feature, str):
                     try:
                         self.features.append(Features.from_string(feature))
-                    except Exception:
+                    except Exception as e:
+                        # Improved error reporting for debugging
+                        print(f"Error with game '{title}' - invalid feature '{feature}': {e}")
                         # Skip invalid feature strings
                         pass
                 elif isinstance(feature, Features):
                     self.features.append(feature)
+                else:
+                    # Handle unexpected types with clear error message
+                    print(f"Error with game '{title}' - feature type '{type(feature).__name__}' is not supported. Expected string or Features enum.")
+                    # Skip invalid feature types
 
         # Handle genres list
         if genres:
@@ -130,11 +149,17 @@ class Game:
                 if isinstance(genre, str):
                     try:
                         self.genres.append(Genres.from_string(genre))
-                    except Exception:
+                    except Exception as e:
+                        # Improved error reporting for debugging
+                        print(f"Error with game '{title}' - invalid genre '{genre}': {e}")
                         # Skip invalid genre strings
                         pass
                 elif isinstance(genre, Genres):
                     self.genres.append(genre)
+                else:
+                    # Handle unexpected types with clear error message
+                    print(f"Error with game '{title}' - genre type '{type(genre).__name__}' is not supported. Expected string or Genres enum.")
+                    # Skip invalid genre types
 
         # Handle regions list
         if regions:
@@ -143,11 +168,17 @@ class Game:
                 if isinstance(region, str):
                     try:
                         self.regions.append(Regions.from_string(region))
-                    except Exception:
+                    except Exception as e:
+                        # Improved error reporting for debugging
+                        print(f"Error with game '{title}' - invalid region '{region}': {e}")
                         # Skip invalid region strings
                         pass
                 elif isinstance(region, Regions):
                     self.regions.append(region)
+                else:
+                    # Handle unexpected types with clear error message
+                    print(f"Error with game '{title}' - region type '{type(region).__name__}' is not supported. Expected string or Regions enum.")
+                    # Skip invalid region types
 
     def _get_game_dir_path(self, data_dir: Path) -> Path:
         """
