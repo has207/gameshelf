@@ -19,6 +19,7 @@ class ImportDialog(Gtk.Dialog):
 
         self.controller = controller
         self.data_handler = controller.data_handler
+        self.settings_manager = controller.settings_manager
         self.json_path = None
         self.cover_dir = None
 
@@ -142,6 +143,16 @@ class ImportDialog(Gtk.Dialog):
         self.json_entry.connect("changed", self.validate_inputs)
         self.cover_entry.connect("changed", self.validate_inputs)
 
+        # Initialize with saved paths
+        saved_json_path = self.settings_manager.get_import_json_path()
+        saved_cover_dir = self.settings_manager.get_import_cover_dir()
+
+        if saved_json_path:
+            self.json_entry.set_text(saved_json_path)
+
+        if saved_cover_dir:
+            self.cover_entry.set_text(saved_cover_dir)
+
     def validate_inputs(self, widget=None):
         """Validate form inputs and enable/disable the import button"""
         json_path = self.json_entry.get_text()
@@ -149,6 +160,15 @@ class ImportDialog(Gtk.Dialog):
 
         self.json_path = json_path if os.path.isfile(json_path) else None
         self.cover_dir = cover_dir if os.path.isdir(cover_dir) else None
+
+        # Save valid paths to app state
+        if self.json_path:
+            self.settings_manager.set_import_json_path(self.json_path)
+            self.settings_manager.save_settings()
+
+        if self.cover_dir:
+            self.settings_manager.set_import_cover_dir(self.cover_dir)
+            self.settings_manager.save_settings()
 
         # Enable import button only if both paths are valid
         self.import_button.set_sensitive(self.json_path is not None and self.cover_dir is not None)
@@ -166,6 +186,13 @@ class ImportDialog(Gtk.Dialog):
         filters = Gio.ListStore.new(Gtk.FileFilter)
         filters.append(json_filter)
         file_dialog.set_filters(filters)
+
+        # Set initial folder if we have a saved path
+        saved_json_path = self.settings_manager.get_import_json_path()
+        if saved_json_path:
+            initial_folder = os.path.dirname(saved_json_path)
+            if os.path.isdir(initial_folder):
+                file_dialog.set_initial_folder(Gio.File.new_for_path(initial_folder))
 
         # Open the dialog
         file_dialog.open(self, None, self._on_json_file_selected)
@@ -188,6 +215,11 @@ class ImportDialog(Gtk.Dialog):
         """Handle cover directory browse button click"""
         file_dialog = Gtk.FileDialog.new()
         file_dialog.set_title("Select Cover Images Directory")
+
+        # Set initial folder if we have a saved path
+        saved_cover_dir = self.settings_manager.get_import_cover_dir()
+        if saved_cover_dir and os.path.isdir(saved_cover_dir):
+            file_dialog.set_initial_folder(Gio.File.new_for_path(saved_cover_dir))
 
         # Open the dialog for folder selection
         file_dialog.select_folder(self, None, self._on_cover_dir_selected)

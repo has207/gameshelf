@@ -23,16 +23,51 @@ class AppStateManager:
         Returns:
             Dictionary containing settings
         """
+        default_settings = self._get_default_settings()
+
         if not self.settings_file.exists():
-            return self._get_default_settings()
+            return default_settings
 
         try:
             with open(self.settings_file, "r") as f:
-                settings = yaml.safe_load(f)
-                return settings if settings else self._get_default_settings()
+                loaded_settings = yaml.safe_load(f)
+                if not loaded_settings:
+                    return default_settings
+
+                # Deep merge loaded settings with default settings
+                # This ensures all default sections and values exist
+                merged_settings = self._deep_merge_settings(default_settings, loaded_settings)
+
+                return merged_settings
         except Exception as e:
             print(f"Error loading settings: {e}")
-            return self._get_default_settings()
+            return default_settings
+
+    def _deep_merge_settings(self, defaults: Dict[str, Any], loaded: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Recursively merge loaded settings with default settings
+
+        This ensures that all keys from defaults exist in the result,
+        while preserving existing values from loaded.
+
+        Args:
+            defaults: Default settings dictionary
+            loaded: Loaded settings from file
+
+        Returns:
+            Merged settings dictionary
+        """
+        result = defaults.copy()
+
+        for key, loaded_value in loaded.items():
+            # If the key exists in defaults and both are dictionaries, merge them
+            if key in defaults and isinstance(defaults[key], dict) and isinstance(loaded_value, dict):
+                result[key] = self._deep_merge_settings(defaults[key], loaded_value)
+            else:
+                # Otherwise use the loaded value
+                result[key] = loaded_value
+
+        return result
 
     def _get_default_settings(self) -> Dict[str, Any]:
         """
@@ -67,6 +102,10 @@ class AppStateManager:
             "details": {
                 "visible": False,
                 "current_game_id": None
+            },
+            "import_paths": {
+                "json_file": "",
+                "cover_dir": ""
             }
         }
 
@@ -299,3 +338,39 @@ class AppStateManager:
             expanded_categories: Dictionary mapping category IDs to expanded state
         """
         self.settings["sidebar"]["expanded_categories"] = expanded_categories
+
+    def get_import_json_path(self) -> str:
+        """
+        Get the last used JSON import file path
+
+        Returns:
+            Path to the last used JSON file
+        """
+        return self.settings["import_paths"].get("json_file", "")
+
+    def set_import_json_path(self, path: str) -> None:
+        """
+        Set the last used JSON import file path
+
+        Args:
+            path: Path to the JSON file
+        """
+        self.settings["import_paths"]["json_file"] = path
+
+    def get_import_cover_dir(self) -> str:
+        """
+        Get the last used cover images directory path
+
+        Returns:
+            Path to the last used cover images directory
+        """
+        return self.settings["import_paths"].get("cover_dir", "")
+
+    def set_import_cover_dir(self, path: str) -> None:
+        """
+        Set the last used cover images directory path
+
+        Args:
+            path: Path to the cover images directory
+        """
+        self.settings["import_paths"]["cover_dir"] = path

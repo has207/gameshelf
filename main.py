@@ -49,7 +49,7 @@ class GameShelfApp(Adw.Application):
     def _show_splash_screen(self):
         """Show splash screen and start loading the main app in the background"""
         # Path to splash screen image
-        splash_image_path = os.path.join(os.path.dirname(__file__), "gameshelf.png")
+        splash_image_path = os.path.join(os.path.dirname(__file__), "gameshelf-transparent.png")
 
         # Create and show splash screen
         self.splash = SplashScreen(
