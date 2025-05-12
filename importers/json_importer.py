@@ -33,9 +33,20 @@ class JsonImporter:
     - Region: list of region strings matching Regions enum values
     """
 
-    def __init__(self, data_handler: DataHandler):
-        """Initialize the importer with a data handler"""
+    def __init__(self, data_handler: DataHandler, existing_games: Optional[List[Game]] = None):
+        """
+        Initialize the importer with a data handler and optional list of existing games
+
+        Args:
+            data_handler: DataHandler instance for saving games
+            existing_games: Optional list of existing games for duplicate checking
+        """
         self.data_handler = data_handler
+        # Create a dictionary of existing games by title for faster lookup
+        self.existing_games_by_title = {}
+        if existing_games:
+            for game in existing_games:
+                self.existing_games_by_title[game.title.lower()] = game
 
     def get_game_count(self, json_path: str) -> int:
         """
@@ -61,7 +72,7 @@ class JsonImporter:
             return 0
 
     def import_from_file(self, json_path: str, cover_base_dir: str, limit: Optional[int] = None,
-                         progress_callback: Optional[callable] = None) -> Tuple[int, List[str]]:
+                         progress_callback: Optional[callable] = None) -> Tuple[int, int, List[str]]:
         """
         Import games from a JSON file
 
@@ -73,13 +84,13 @@ class JsonImporter:
                              Takes (current_index, total_count, game_title) as arguments
 
         Returns:
-            Tuple of (number of games imported, list of error messages)
+            Tuple of (number of games imported, number of games skipped, list of error messages)
         """
         if not os.path.exists(json_path):
-            return 0, [f"JSON file not found: {json_path}"]
+            return 0, 0, [f"JSON file not found: {json_path}"]
 
         if not os.path.exists(cover_base_dir):
-            return 0, [f"Cover image base directory not found: {cover_base_dir}"]
+            return 0, 0, [f"Cover image base directory not found: {cover_base_dir}"]
 
         # Load the JSON data
         try:
@@ -87,13 +98,14 @@ class JsonImporter:
                 games_data = json.load(f)
 
             if not isinstance(games_data, list):
-                return 0, ["JSON data is not a list of games"]
+                return 0, 0, ["JSON data is not a list of games"]
 
         except Exception as e:
-            return 0, [f"Error loading JSON file: {str(e)}"]
+            return 0, 0, [f"Error loading JSON file: {str(e)}"]
 
         # Process each game
         imported_count = 0
+        skipped_count = 0
         errors = []
 
         # Apply limit if specified
@@ -105,18 +117,31 @@ class JsonImporter:
 
         for index, game_data in enumerate(games_data):
             try:
-                # Get game title for progress reporting
+                # Get game title for progress reporting and tracking
                 game_title = game_data.get("Name", f"Game {index}")
 
                 # Report progress if callback provided
                 if progress_callback:
                     progress_callback(index, total_games, game_title)
 
-                result = self._import_game(game_data, cover_base_dir)
-                if result:
-                    imported_count += 1
+                # Check if the game exists before trying to import it
+                if game_title and game_title.lower() in self.existing_games_by_title:
+                    print(f"Skipping existing game: {game_title}")
+                    skipped_count += 1
+                    # Still report progress
+                    if progress_callback:
+                        progress_callback(index, total_games, f"{game_title} (skipped)")
                 else:
-                    errors.append(f"Failed to import game at index {index}")
+                    # Try to import the game
+                    result = self._import_game(game_data, cover_base_dir)
+                    if result:
+                        imported_count += 1
+                    else:
+                        # Check if it was an existing game that we skipped
+                        if game_title and game_title.lower() in self.existing_games_by_title:
+                            skipped_count += 1
+                        else:
+                            errors.append(f"Failed to import game at index {index}")
             except Exception as e:
                 errors.append(f"Error importing game at index {index}: {str(e)}")
 
@@ -124,7 +149,7 @@ class JsonImporter:
         if progress_callback:
             progress_callback(total_games, total_games, "Complete")
 
-        return imported_count, errors
+        return imported_count, skipped_count, errors
 
     def _import_game(self, game_data: Dict[str, Any], cover_base_dir: str) -> bool:
         """
@@ -142,6 +167,8 @@ class JsonImporter:
         if not title:
             print("Skipping game with no title")
             return False
+
+        # We already checked for duplicates before calling this method, so no need to check again
 
         # Parse creation timestamp (Added field)
         created_timestamp = None

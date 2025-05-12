@@ -253,8 +253,9 @@ class ImportDialog(Gtk.Dialog):
         self.progress_area.set_visible(True)
         self.progress_bar.set_fraction(0.0)
 
-        # Create the importer
-        importer = JsonImporter(self.data_handler)
+        # Create the importer with the existing games from the controller
+        existing_games = self.controller.get_games()
+        importer = JsonImporter(self.data_handler, existing_games)
 
         # Start a thread to do the import
         thread = threading.Thread(
@@ -275,14 +276,14 @@ class ImportDialog(Gtk.Dialog):
                 GLib.idle_add(self._update_progress_label, f"Preparing to import {total_count} games...")
 
             # Do the import with progress reporting
-            imported_count, errors = importer.import_from_file(
+            imported_count, skipped_count, errors = importer.import_from_file(
                 json_path,
                 cover_dir,
                 progress_callback=self._update_progress
             )
 
             # Update UI from main thread
-            GLib.idle_add(self._import_complete, imported_count, errors)
+            GLib.idle_add(self._import_complete, imported_count, skipped_count, errors)
         except Exception as e:
             GLib.idle_add(self._import_failed, str(e))
 
@@ -304,14 +305,17 @@ class ImportDialog(Gtk.Dialog):
         self.progress_label.set_text(text)
         return False  # Remove from idle
 
-    def _import_complete(self, imported_count, errors):
+    def _import_complete(self, imported_count, skipped_count, errors):
         """Handle import completion"""
         # Hide progress, show results
         self.progress_area.set_visible(False)
         self.results_area.set_visible(True)
 
-        # Update results
-        self.results_label.set_text(f"Import complete: {imported_count} games imported.")
+        # Update results with import and skipped counts
+        if skipped_count > 0:
+            self.results_label.set_text(f"Import complete: {imported_count} games imported, {skipped_count} games skipped.")
+        else:
+            self.results_label.set_text(f"Import complete: {imported_count} games imported.")
 
         if errors:
             # Show errors in text view
