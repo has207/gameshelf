@@ -33,39 +33,67 @@ class SourceHandler:
             List of Source objects
         """
         sources = []
-        for source_file in self.sources_dir.glob("*.yaml"):
-            try:
-                with open(source_file, "r") as f:
-                    source_data = yaml.safe_load(f)
 
-                    # Handle source type conversion
-                    if "type" in source_data:
-                        try:
-                            source_type = SourceType.from_string(source_data["type"])
-                        except ValueError:
-                            print(f"Invalid source type in {source_file}, defaulting to DIRECTORY")
-                            source_type = SourceType.DIRECTORY
-                    else:
-                        source_type = SourceType.DIRECTORY
+        # Look for source directories (numeric IDs)
+        for source_dir in self.sources_dir.glob("*"):
+            if source_dir.is_dir():
+                source_file = source_dir / "source.yaml"
+                if source_file.exists():
+                    try:
+                        with open(source_file, "r") as f:
+                            source_data = yaml.safe_load(f)
 
-                    # Process file extensions
-                    file_extensions = source_data.get("file_extensions", [])
-                    if isinstance(file_extensions, str):
-                        file_extensions = [ext.strip() for ext in file_extensions.split(",") if ext.strip()]
+                            # Handle source type conversion
+                            if "type" in source_data:
+                                try:
+                                    source_type = SourceType.from_string(source_data["type"])
+                                except ValueError:
+                                    print(f"Invalid source type in {source_file}, defaulting to DIRECTORY")
+                                    source_type = SourceType.DIRECTORY
+                            else:
+                                source_type = SourceType.DIRECTORY
 
-                    source = Source(
-                        id=source_file.stem,
-                        name=source_data.get("name", source_file.stem),
-                        path=source_data.get("path", ""),
-                        source_type=source_type,
-                        active=source_data.get("active", True),
-                        file_extensions=file_extensions,
-                        config=source_data.get("config", {})
-                    )
-                    sources.append(source)
-            except Exception as e:
-                print(f"Error loading source {source_file}: {e}")
+                            # Process file extensions
+                            file_extensions = source_data.get("file_extensions", [])
+                            if isinstance(file_extensions, str):
+                                file_extensions = [ext.strip() for ext in file_extensions.split(",") if ext.strip()]
+
+                            source = Source(
+                                id=source_dir.name,  # Use directory name as the ID
+                                name=source_data.get("name", source_dir.name),
+                                path=source_data.get("path", ""),
+                                source_type=source_type,
+                                active=source_data.get("active", True),
+                                file_extensions=file_extensions,
+                                config=source_data.get("config", {})
+                            )
+                            sources.append(source)
+                    except Exception as e:
+                        print(f"Error loading source {source_file}: {e}")
+
+        # No need to handle legacy format sources anymore since you mentioned you'll recreate them
+
         return sources
+
+    def _get_next_source_id(self) -> int:
+        """
+        Get the next available numeric ID for a source.
+
+        Returns:
+            The next available numeric ID
+        """
+        # Check existing source directories
+        existing_ids = []
+        for source_dir in self.sources_dir.glob("*"):
+            if source_dir.is_dir() and source_dir.name.isdigit():
+                existing_ids.append(int(source_dir.name))
+
+        # If no IDs exist, start with 1
+        if not existing_ids:
+            return 1
+
+        # Otherwise, return the next available ID
+        return max(existing_ids) + 1
 
     def save_source(self, source: Source) -> bool:
         """
@@ -77,8 +105,16 @@ class SourceHandler:
         Returns:
             True if successful, False otherwise
         """
+        # Assign a numeric ID if this is a new source
         if not source.id:
-            source.id = source.name.lower().replace(" ", "_")
+            next_id = self._get_next_source_id()
+            source.id = str(next_id)
+
+        # Check if the ID is numeric (new format) or string-based (old format)
+        source_dir = self.sources_dir / source.id
+
+        # Create source directory if it doesn't exist
+        source_dir.mkdir(parents=True, exist_ok=True)
 
         source_data = {
             "name": source.name,
@@ -94,7 +130,7 @@ class SourceHandler:
             source_data["config"] = source.config
 
         try:
-            source_file = self.sources_dir / f"{source.id}.yaml"
+            source_file = source_dir / "source.yaml"
             with open(source_file, "w") as f:
                 yaml.dump(source_data, f)
             return True
@@ -104,7 +140,7 @@ class SourceHandler:
 
     def remove_source(self, source: Source) -> bool:
         """
-        Remove a source from the sources directory.
+        Remove a source and its directory from the sources directory.
 
         Args:
             source: The source to remove
@@ -114,20 +150,24 @@ class SourceHandler:
         """
         print(f"DEBUG: remove_source called for source: {source.id} ({source.name})")
 
-        source_file = self.sources_dir / f"{source.id}.yaml"
-        print(f"DEBUG: source file path: {source_file}")
-        print(f"DEBUG: source file exists: {source_file.exists()}")
+        source_dir = self.sources_dir / source.id
+        print(f"DEBUG: source directory path: {source_dir}")
+        print(f"DEBUG: source directory exists: {source_dir.exists()}")
         print(f"DEBUG: sources dir exists: {self.sources_dir.exists()}")
         print(f"DEBUG: sources dir contents: {list(self.sources_dir.glob('*'))}")
 
         try:
-            if source_file.exists():
-                print(f"DEBUG: Attempting to remove file {source_file}")
-                source_file.unlink()
-                print(f"DEBUG: File successfully removed")
+            if source_dir.exists():
+                print(f"DEBUG: Attempting to remove directory {source_dir}")
+                # Remove all files in the directory
+                for file in source_dir.glob("*"):
+                    file.unlink()
+                # Remove the directory
+                source_dir.rmdir()
+                print(f"DEBUG: Directory successfully removed")
                 return True
             else:
-                print(f"Source file {source_file} not found")
+                print(f"Source directory {source_dir} not found")
                 return False
         except Exception as e:
             print(f"Error removing source {source.id}: {e}")
@@ -254,7 +294,7 @@ class SourceHandler:
 
     def ensure_secure_token_storage(self, source_id: str) -> Path:
         """
-        Ensure token storage directory exists with proper permissions (0600).
+        Ensure token storage directory exists with proper permissions (0700).
 
         Args:
             source_id: The source ID to create storage for
@@ -262,8 +302,10 @@ class SourceHandler:
         Returns:
             Path to the secure token storage directory
         """
-        # Create a tokens directory within the source's data directory
-        tokens_dir = self.data_handler.data_dir / "sources" / f"{source_id}_tokens"
+        # Create a tokens directory within the source's directory
+        # This keeps all source data together and makes the tokens stable with source renaming
+        source_dir = self.sources_dir / source_id
+        tokens_dir = source_dir / "tokens"
         tokens_dir.mkdir(parents=True, exist_ok=True)
 
         # Set secure permissions (0700 for directory)

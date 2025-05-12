@@ -138,9 +138,14 @@ class SourceDialog(Gtk.Dialog):
 
     def _update_auth_button_state(self):
         """Update the authentication button state and label based on auth status"""
-        # Create a source ID from the current name for checking auth
-        name = self.name_entry.get_text().strip()
-        source_id = name.lower().replace(" ", "_")
+        # Use existing source ID if editing, otherwise we can't check auth until source is created
+        source_id = self.source.id if self.editing else None
+
+        if not source_id:
+            # If not editing, we'll need to create the source first before authenticating
+            self.auth_button.set_label("Authenticate with Xbox")
+            self.auth_button.set_tooltip_text("Save the source first, then authenticate")
+            return
 
         # Create XboxLibrary instance with token dir from source handler
         try:
@@ -167,13 +172,42 @@ class SourceDialog(Gtk.Dialog):
 
     def _on_auth_clicked(self, button):
         """Handle Xbox authentication button click"""
-        # Get the source ID from the name
-        name = self.name_entry.get_text().strip()
-        if not name:
-            self._show_error("Please enter a name before authenticating")
-            return
+        # For authentication, we need a valid source ID
 
-        source_id = name.lower().replace(" ", "_")
+        if not self.editing:
+            # If creating a new source, we need to save it first to get an ID
+            name = self.name_entry.get_text().strip()
+            if not name:
+                self._show_error("Please enter a name before authenticating")
+                return
+
+            # Create and save a temporary source to get an ID
+            selected_type_index = self.type_dropdown.get_selected()
+            source_type = list(SourceType)[selected_type_index]
+
+            # Create a temporary source
+            temp_source = Source(
+                id="",  # Will be assigned by source handler
+                name=name,
+                path="xbox://",  # Placeholder
+                source_type=source_type
+            )
+
+            # Save the source to get an ID
+            if not self.source_handler.save_source(temp_source):
+                self._show_error("Failed to create temporary source")
+                return
+
+            # Use the new ID
+            self.source = temp_source
+            source_id = temp_source.id
+            self.editing = True  # Now we're editing the new source
+
+            # Update dialog title to reflect we're now editing
+            self.set_title("Edit Source")
+        else:
+            # We already have a source ID
+            source_id = self.source.id
 
         # Initialize Xbox client with token directory
         if self.source_handler:
@@ -265,16 +299,34 @@ class SourceDialog(Gtk.Dialog):
                 # Auto-generate a name if not provided
                 name = "Xbox Game Library"
 
-            # Get source ID from name
-            source_id = name.lower().replace(" ", "_")
+            # For Xbox source, we need an ID to access token storage
+            # This ID is assigned when source is first saved, or existing if editing
+            source_id = self.source.id if self.editing else None
 
-            # Check if authenticated
-            if self.source_handler:
-                tokens_dir = self.source_handler.ensure_secure_token_storage(source_id)
-                xbox = XboxLibrary(token_dir=tokens_dir)
+            # Check if authentication is needed
+            # Only require authentication if:
+            # 1. This is a new source (not editing), or
+            # 2. We're changing a different source type to Xbox
+            auth_needed = False
 
-                if not xbox.is_authenticated():
-                    self._show_error("Please authenticate with Xbox before saving")
+            if not self.editing:
+                # New source needs authentication
+                auth_needed = True
+            elif self.source.source_type != SourceType.XBOX:
+                # Changed source type to Xbox
+                auth_needed = True
+
+            if auth_needed and self.source_handler:
+                if source_id:  # We already have a source ID
+                    tokens_dir = self.source_handler.ensure_secure_token_storage(source_id)
+                    xbox = XboxLibrary(token_dir=tokens_dir)
+
+                    if not xbox.is_authenticated():
+                        self._show_error("Please authenticate with Xbox before saving")
+                        return
+                else:
+                    # Cannot authenticate without a source ID
+                    self._show_error("Please create and authenticate the source first")
                     return
 
             # Set a placeholder path for Xbox sources (not actually used)

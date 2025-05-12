@@ -12,7 +12,7 @@ class XboxLibrary:
     """Class to handle Xbox authentication and library management"""
 
     # Xbox API constants
-    CLIENT_ID = "38cd2fa8-66fd-4760-afb2-405eb65d5b0c"
+    CLIENT_ID = "85736097-7c70-4eba-ae9a-0cf0de4391e1"
     REDIRECT_URI = "https://login.live.com/oauth20_desktop.srf"
     SCOPE = "Xboxlive.signin Xboxlive.offline_access"
 
