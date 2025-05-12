@@ -907,3 +907,51 @@ class DataHandler:
             print(f"Error removing runner {runner.id}: {e}")
             return False
 
+    def get_source_by_id(self, source_id: str) -> Optional[Source]:
+        """
+        Get a source by its ID.
+
+        Args:
+            source_id: The ID of the source to retrieve
+
+        Returns:
+            The Source object if found, None otherwise
+        """
+        # Look for source in the sources directory
+        source_dir = self.sources_dir / source_id
+        if source_dir.exists():
+            source_file = source_dir / "source.yaml"
+            if source_file.exists():
+                try:
+                    with open(source_file, "r") as f:
+                        source_data = yaml.safe_load(f)
+
+                        # Handle source type conversion
+                        if "type" in source_data:
+                            try:
+                                source_type = SourceType.from_string(source_data["type"])
+                            except ValueError:
+                                print(f"Invalid source type in {source_file}, defaulting to DIRECTORY")
+                                source_type = SourceType.DIRECTORY
+                        else:
+                            source_type = SourceType.DIRECTORY
+
+                        # Process file extensions
+                        file_extensions = source_data.get("file_extensions", [])
+                        if isinstance(file_extensions, str):
+                            file_extensions = [ext.strip() for ext in file_extensions.split(",") if ext.strip()]
+
+                        return Source(
+                            id=source_id,
+                            name=source_data.get("name", source_id),
+                            path=source_data.get("path", ""),
+                            source_type=source_type,
+                            active=source_data.get("active", True),
+                            file_extensions=file_extensions,
+                            config=source_data.get("config", {})
+                        )
+                except Exception as e:
+                    print(f"Error loading source {source_file}: {e}")
+
+        return None
+

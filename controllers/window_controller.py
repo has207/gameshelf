@@ -176,6 +176,10 @@ class GameShelfController:
             # Save search text
             self.settings_manager.set_search_text(search_text)
 
+        # Refresh the sidebar to update filter counts
+        if hasattr(self, 'sidebar_controller') and self.sidebar_controller:
+            self.sidebar_controller.refresh_filters()
+
         # Only refresh the grid, sidebar doesn't need to change when toggling visibility
         if hasattr(self, 'game_grid_controller') and self.game_grid_controller:
             # Get active filters from sidebar controller if available
@@ -196,6 +200,7 @@ class GameShelfController:
                 filter_age_ratings = sidebar.active_filters.get("age_ratings", set())
                 filter_features = sidebar.active_filters.get("features", set())
                 filter_regions = sidebar.active_filters.get("regions", set())
+                filter_sources = sidebar.active_filters.get("sources", set())
 
             self.game_grid_controller.populate_games(
                 filter_runners=filter_runners,
@@ -205,6 +210,7 @@ class GameShelfController:
                 filter_age_ratings=filter_age_ratings,
                 filter_features=filter_features,
                 filter_regions=filter_regions,
+                filter_sources=filter_sources,
                 search_text=search_text
             )
 

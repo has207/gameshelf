@@ -545,6 +545,7 @@ class GameGridController:
                     filter_age_ratings: Optional[Set[str]] = None,
                     filter_features: Optional[Set[str]] = None,
                     filter_regions: Optional[Set[str]] = None,
+                    filter_sources: Optional[Set[str]] = None,
                     search_text: str = ""):
         """
         Populate the games grid with filtered games
@@ -559,6 +560,7 @@ class GameGridController:
             filter_age_ratings: Set of age rating enum names to filter by, or None for no filter
             filter_features: Set of feature enum names to filter by, or None for no filter
             filter_regions: Set of region enum names to filter by, or None for no filter
+            filter_sources: Set of source IDs to filter by, or None for no filter
             search_text: Text to search in game titles
         """
         # For backward compatibility, store single runner filter in main controller
@@ -624,6 +626,21 @@ class GameGridController:
             games = [g for g in games if g.regions and any(region.name in filter_regions for region in g.regions)]
             print(f"After region filters ({len(filter_regions)} selected): {len(games)} games")
 
+        # Apply source filters (OR within category)
+        if filter_sources:
+            # Special case for empty source filter (matches games with no source)
+            if "" in filter_sources:
+                if len(filter_sources) == 1:
+                    # Only filtering for "No Source" - get all games with no source or empty source
+                    games = [g for g in games if g.source is None or g.source == ""]
+                else:
+                    # Mixed filter including "No Source" and other sources
+                    games = [g for g in games if g.source is None or g.source == "" or g.source in filter_sources]
+            else:
+                # Normal source filtering
+                games = [g for g in games if g.source in filter_sources]
+            print(f"After source filters ({len(filter_sources)} selected): {len(games)} games")
+
         # Apply search filter if search text is provided
         if search_text:
             games = [g for g in games if search_text.lower() in g.title.lower()]
@@ -634,10 +651,11 @@ class GameGridController:
             if self.main_controller.show_hidden:
                 # When show_hidden is True, only show hidden games
                 games = [g for g in games if g.hidden]
+                print(f"After hidden filter (showing only hidden games): {len(games)} games")
             else:
                 # When show_hidden is False, only show non-hidden games
                 games = [g for g in games if not g.hidden]
-            print(f"After hidden filter: {len(games)} games")
+                print(f"After hidden filter (showing only non-hidden games): {len(games)} games")
 
         # Sort the games if sort parameters are set
         if hasattr(self.main_controller, 'sort_field') and hasattr(self.main_controller, 'sort_ascending'):

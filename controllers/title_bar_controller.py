@@ -147,6 +147,7 @@ class TitleBarController:
         filter_age_ratings = None
         filter_features = None
         filter_regions = None
+        filter_sources = None
 
         if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
             sidebar = self.main_controller.sidebar_controller
@@ -157,6 +158,7 @@ class TitleBarController:
             filter_age_ratings = sidebar.active_filters.get("age_ratings")
             filter_features = sidebar.active_filters.get("features")
             filter_regions = sidebar.active_filters.get("regions")
+            filter_sources = sidebar.active_filters.get("sources")
         else:
             # Fall back to legacy filter if sidebar controller not available
             filter_runners = self.main_controller.current_filter
@@ -171,6 +173,7 @@ class TitleBarController:
                 filter_age_ratings=filter_age_ratings,
                 filter_features=filter_features,
                 filter_regions=filter_regions,
+                filter_sources=filter_sources,
                 search_text=search_text
             )
 

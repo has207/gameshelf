@@ -276,6 +276,7 @@ class SidebarController:
                 filter_age_ratings=None,
                 filter_features=None,
                 filter_regions=None,
+                filter_sources=None,
                 search_text=""
             )
 
@@ -347,6 +348,15 @@ class SidebarController:
             expanded=expanded_categories.get("regions", False)
         )
         self.filter_categories["regions"] = region_category
+
+        # Source category
+        source_category = CategoryItem(
+            name="Sources",
+            icon_name="drive-harddisk-symbolic",
+            category_id="sources",
+            expanded=expanded_categories.get("sources", False)
+        )
+        self.filter_categories["sources"] = source_category
 
         # Create UI for categories
         for category_id, category_item in self.filter_categories.items():
@@ -430,6 +440,9 @@ class SidebarController:
 
         # Update region filter
         self._refresh_regions_filters(games)
+
+        # Update source filter
+        self._refresh_sources_filters(games)
 
         # After creating filter rows, restore selections from active_filters
         self._restore_filter_selections()
@@ -676,6 +689,7 @@ class SidebarController:
         age_rating_filters = self.active_filters.get("age_ratings", set())
         feature_filters = self.active_filters.get("features", set())
         region_filters = self.active_filters.get("regions", set())
+        source_filters = self.active_filters.get("sources", set())
 
         # Get current search text if any
         search_text = ""
@@ -687,7 +701,7 @@ class SidebarController:
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
             print(f"Filtering by: runners={runner_filters}, completion_statuses={completion_status_filters}, "
                   f"platforms={platform_filters}, genres={genre_filters}, age_ratings={age_rating_filters}, "
-                  f"features={feature_filters}, regions={region_filters}, search={search_text}")
+                  f"features={feature_filters}, regions={region_filters}, sources={source_filters}, search={search_text}")
             self.main_controller.game_grid_controller.populate_games(
                 filter_runners=runner_filters,
                 filter_completion_statuses=completion_status_filters,
@@ -696,6 +710,7 @@ class SidebarController:
                 filter_age_ratings=age_rating_filters,
                 filter_features=feature_filters,
                 filter_regions=region_filters,
+                filter_sources=source_filters,
                 search_text=search_text
             )
 
@@ -1072,6 +1087,209 @@ class SidebarController:
             region_row.add_controller(right_click)
 
             category_row.add_value_row(region_row)
+
+    def _refresh_sources_filters(self, games: List[Game]):
+        """Refresh the sources filter category with current data"""
+        source_category = self.filter_categories.get("sources")
+        if not source_category:
+            return
+
+        # Find the category row in the sidebar
+        category_row = self._find_category_row("sources")
+        if not category_row:
+            print("Sources category row not found")
+            return
+
+        # Clear existing value rows
+        category_row.clear_values()
+
+        # Create a list to hold all rows so we can sort them before adding
+        all_source_rows = []
+
+        # Get the current show_hidden setting
+        show_hidden = hasattr(self.main_controller, 'show_hidden') and self.main_controller.show_hidden
+
+        # Simple count by source (will only include sources with matching games)
+        source_counts = {}
+
+        # Count games by source, respecting the hidden/visible setting
+        for game in games:
+            # Skip games that don't match the hidden filter
+            if show_hidden and not game.hidden:
+                continue
+            if not show_hidden and game.hidden:
+                continue
+
+            source = game.source or ""
+            source_counts[source] = source_counts.get(source, 0) + 1
+
+        # Debug output
+        print(f"Source counts (show_hidden={show_hidden}): {source_counts}")
+
+        # Add "No Source" option if there are games with no source or if it's already selected
+        no_source_count = source_counts.get("", 0)
+        is_selected = (
+            "sources" in self.active_filters and
+            "" in self.active_filters.get("sources", set())
+        )
+
+        # The counts are now pre-filtered based on the hidden/visible setting
+        print(f"No Source count: {no_source_count}")
+
+        if no_source_count > 0 or is_selected:
+            no_source_item = ValueItem(
+                name="No Source",
+                icon_name="dialog-question-symbolic",
+                count=no_source_count,
+                value_id="",
+                parent_category="sources"
+            )
+            no_source_row = FilterValueRow(no_source_item)
+            no_source_row.value_id = ""
+            no_source_row.parent_category_id = "sources"
+
+            # Add left-click handler
+            left_click = Gtk.GestureClick.new()
+            left_click.set_button(1)  # Left button
+            left_click.connect("released", self._on_filter_value_clicked, no_source_row, False)
+            no_source_row.add_controller(left_click)
+
+            # Add right-click handler for multi-select
+            right_click = Gtk.GestureClick.new()
+            right_click.set_button(3)  # Right button
+            right_click.connect("released", self._on_filter_value_clicked, no_source_row, True)
+            no_source_row.add_controller(right_click)
+
+            # Add to our list of rows - "No Source" gets a special sort key to always be first
+            no_source_row.sort_key = "0"  # This will sort before any alphabetical key
+            all_source_rows.append(no_source_row)
+
+        # Get all sources
+        sources = self.main_controller.get_sources() if hasattr(self.main_controller, 'get_sources') else []
+
+        # If we don't have a get_sources method, extract unique sources from games
+        if not sources:
+            # Get source IDs directly from games
+            source_ids = set(game.source for game in games if game.source)
+
+            # Sort the source IDs alphabetically
+            sorted_source_ids = sorted(source_ids)
+
+            # Create simple Source-like objects
+            for source_id in sorted_source_ids:
+                # Add rows for each source that has games
+                # Check if this source is currently selected
+                is_selected = (
+                    "sources" in self.active_filters and
+                    source_id in self.active_filters.get("sources", set())
+                )
+
+                # Debug output
+                print(f"Processing source ID: '{source_id}', count: {source_counts.get(source_id, 0)}, selected: {is_selected}")
+
+                # Get actual game count considering hidden games
+                source_count = source_counts.get(source_id, 0)
+
+                # The counts are already filtered by the hidden/visible setting
+                print(f"Source '{source_id}' count: {source_count}")
+
+                # Skip sources with no games unless they're already selected
+                if source_count == 0 and not is_selected:
+                    print(f"Skipping source ID '{source_id}' with no games and not selected")
+                    continue
+
+                # Get a more friendly name for the source if it's a numeric ID
+                source_name = source_id
+                if source_id.isdigit():
+                    # Try to get source name from the main controller's data handler
+                    if hasattr(self.main_controller, 'data_handler'):
+                        source_obj = self.main_controller.data_handler.get_source_by_id(source_id)
+                        if source_obj and hasattr(source_obj, 'name'):
+                            source_name = source_obj.name
+                        else:
+                            # Use a default if we couldn't find the name
+                            source_name = f"Source {source_id}"
+                else:
+                    # Just capitalize the source ID if it's not numeric
+                    source_name = source_id.capitalize()
+
+                # Use the count that already respects the hidden/visible mode
+                source_item = ValueItem(
+                    name=source_name,
+                    icon_name="drive-harddisk-symbolic",
+                    count=source_count,
+                    value_id=source_id,
+                    parent_category="sources"
+                )
+
+                source_row = FilterValueRow(source_item)
+                source_row.value_id = source_id
+                source_row.parent_category_id = "sources"
+
+                # Add left-click handler
+                left_click = Gtk.GestureClick.new()
+                left_click.set_button(1)  # Left button
+                left_click.connect("released", self._on_filter_value_clicked, source_row, False)
+                source_row.add_controller(left_click)
+
+                # Add right-click handler for multi-select
+                right_click = Gtk.GestureClick.new()
+                right_click.set_button(3)  # Right button
+                right_click.connect("released", self._on_filter_value_clicked, source_row, True)
+                source_row.add_controller(right_click)
+
+                # Set a sort key based on the source name (for text-based sources)
+                source_row.sort_key = source_name.lower()  # Use lowercase for case-insensitive sorting
+                all_source_rows.append(source_row)
+        else:
+            # Sort sources by name
+            sorted_sources = sorted(sources, key=lambda src: src.name)
+
+            # Add rows for each source
+            for source in sorted_sources:
+                # Check if this source is currently selected
+                is_selected = (
+                    "sources" in self.active_filters and
+                    source.id in self.active_filters.get("sources", set())
+                )
+
+                # Skip sources with no games unless they're already selected
+                source_count = source_counts.get(source.id, 0)
+                if source_count == 0 and not is_selected:
+                    continue
+
+                source_item = ValueItem(
+                    name=source.name,
+                    icon_name="drive-harddisk-symbolic",
+                    count=source_count,
+                    value_id=source.id,
+                    parent_category="sources"
+                )
+
+                source_row = FilterValueRow(source_item)
+                source_row.value_id = source.id
+                source_row.parent_category_id = "sources"
+
+                # Add left-click handler
+                left_click = Gtk.GestureClick.new()
+                left_click.set_button(1)  # Left button
+                left_click.connect("released", self._on_filter_value_clicked, source_row, False)
+                source_row.add_controller(left_click)
+
+                # Add right-click handler for multi-select
+                right_click = Gtk.GestureClick.new()
+                right_click.set_button(3)  # Right button
+                right_click.connect("released", self._on_filter_value_clicked, source_row, True)
+                source_row.add_controller(right_click)
+
+                # Set a sort key based on the source name (for text-based sources)
+                source_row.sort_key = source_name.lower()  # Use lowercase for case-insensitive sorting
+                all_source_rows.append(source_row)
+
+        # Sort all source rows by their sort_key and add them to the UI
+        sorted_source_rows = sorted(all_source_rows, key=lambda row: row.sort_key)
+        for row in sorted_source_rows:
+            category_row.add_value_row(row)
 
     def refresh_sidebar_runners(self):
         """Refresh runner filters with current data"""
