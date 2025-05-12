@@ -42,11 +42,15 @@ class JsonImporter:
             existing_games: Optional list of existing games for duplicate checking
         """
         self.data_handler = data_handler
+        # Store existing games for duplicate checking
+        self.existing_games = existing_games or []
         # Create a dictionary of existing games by title for faster lookup
         self.existing_games_by_title = {}
         if existing_games:
             for game in existing_games:
-                self.existing_games_by_title[game.title.lower()] = game
+                if game.title.lower() not in self.existing_games_by_title:
+                    self.existing_games_by_title[game.title.lower()] = []
+                self.existing_games_by_title[game.title.lower()].append(game)
 
     def get_game_count(self, json_path: str) -> int:
         """
@@ -124,9 +128,9 @@ class JsonImporter:
                 if progress_callback:
                     progress_callback(index, total_games, game_title)
 
-                # Check if the game exists before trying to import it
-                if game_title and game_title.lower() in self.existing_games_by_title:
-                    print(f"Skipping existing game: {game_title}")
+                # Check if the game is a duplicate based on multiple attributes
+                if self._is_duplicate_game(game_data):
+                    print(f"Skipping duplicate game: {game_title}")
                     skipped_count += 1
                     # Still report progress
                     if progress_callback:
@@ -137,11 +141,7 @@ class JsonImporter:
                     if result:
                         imported_count += 1
                     else:
-                        # Check if it was an existing game that we skipped
-                        if game_title and game_title.lower() in self.existing_games_by_title:
-                            skipped_count += 1
-                        else:
-                            errors.append(f"Failed to import game at index {index}")
+                        errors.append(f"Failed to import game at index {index}")
             except Exception as e:
                 errors.append(f"Error importing game at index {index}: {str(e)}")
 
@@ -435,6 +435,71 @@ class JsonImporter:
                 # Regular date without time
                 dt = datetime.fromisoformat(date_str)
                 return dt.timestamp()
+
+    def _is_duplicate_game(self, game_data: Dict[str, Any]) -> bool:
+        """
+        Check if a game is a duplicate based on title, source, platforms, and regions
+
+        Args:
+            game_data: Dictionary containing game data from the JSON file
+
+        Returns:
+            True if the game is a duplicate, False otherwise
+        """
+        title = game_data.get("Name")
+        if not title or title.lower() not in self.existing_games_by_title:
+            return False
+
+        # Get source if available
+        source = game_data.get("Source", "")
+
+        # Extract platforms from game data
+        platforms = []
+        if "Platform" in game_data and isinstance(game_data["Platform"], list):
+            for platform_str in game_data["Platform"]:
+                try:
+                    platform = Platforms.from_string(platform_str)
+                    platforms.append(platform.value)
+                except InvalidPlatformError:
+                    pass
+
+        # Sort platforms to ensure consistent comparison
+        platforms.sort()
+
+        # Extract regions from game data
+        regions = []
+        if "Region" in game_data and isinstance(game_data["Region"], list):
+            for region_str in game_data["Region"]:
+                try:
+                    region = Regions.from_string(region_str)
+                    regions.append(region.value)
+                except InvalidRegionError:
+                    pass
+
+        # Sort regions to ensure consistent comparison
+        regions.sort()
+
+        # Check against all existing games with the same title
+        potential_matches = self.existing_games_by_title.get(title.lower(), [])
+        for existing_game in potential_matches:
+            # Check if source matches (if both have a source)
+            if source and existing_game.source and source != existing_game.source:
+                continue
+
+            # Compare platforms
+            existing_platforms = sorted([p.value for p in existing_game.platforms])
+            if platforms and existing_platforms and platforms != existing_platforms:
+                continue
+
+            # Compare regions
+            existing_regions = sorted([r.value for r in existing_game.regions])
+            if regions and existing_regions and regions != existing_regions:
+                continue
+
+            # If we got here, the game is a duplicate (title matches and other attributes don't conflict)
+            return True
+
+        return False
 
     def _get_game_yaml_path(self, game: Game) -> str:
         """
