@@ -431,3 +431,30 @@ searchentry:focus {
   background-color: alpha(@card_bg_color, 0.5);
   border-radius: 8px;
 }
+
+/* Splash screen styling */
+.splash-screen {
+  background-color: transparent;  /* Let the image define the background */
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+
+.splash-screen picture {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.splash-screen label {
+  color: @accent_color;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.title-4 {
+  font-size: 18px;
+  font-weight: bold;
+  color: @accent_color;
+}
