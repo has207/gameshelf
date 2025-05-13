@@ -4,6 +4,7 @@ import json
 import time
 import stat
 import shutil
+import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -11,6 +12,9 @@ from data import Source, SourceType, Game
 from data_handler import DataHandler
 from sources.xbox_client import XboxLibrary
 from sources.psn_client import PSNClient
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class SourceHandler:
@@ -49,7 +53,7 @@ class SourceHandler:
                                 try:
                                     source_type = SourceType.from_string(source_data["type"])
                                 except ValueError:
-                                    print(f"Invalid source type in {source_file}, defaulting to DIRECTORY")
+                                    logger.warning(f"Invalid source type in {source_file}, defaulting to DIRECTORY")
                                     source_type = SourceType.DIRECTORY
                             else:
                                 source_type = SourceType.DIRECTORY
@@ -70,7 +74,7 @@ class SourceHandler:
                             )
                             sources.append(source)
                     except Exception as e:
-                        print(f"Error loading source {source_file}: {e}")
+                        logger.error(f"Error loading source {source_file}: {e}")
 
         # No need to handle legacy format sources anymore since you mentioned you'll recreate them
 
@@ -136,7 +140,7 @@ class SourceHandler:
                 yaml.dump(source_data, f)
             return True
         except Exception as e:
-            print(f"Error saving source {source.id}: {e}")
+            logger.error(f"Error saving source {source.id}: {e}")
             return False
 
     def remove_source(self, source: Source) -> bool:
@@ -149,29 +153,29 @@ class SourceHandler:
         Returns:
             True if successful, False otherwise
         """
-        print(f"DEBUG: remove_source called for source: {source.id} ({source.name})")
+        logger.debug(f"remove_source called for source: {source.id} ({source.name})")
 
         source_dir = self.sources_dir / source.id
-        print(f"DEBUG: source directory path: {source_dir}")
-        print(f"DEBUG: source directory exists: {source_dir.exists()}")
-        print(f"DEBUG: sources dir exists: {self.sources_dir.exists()}")
-        print(f"DEBUG: sources dir contents: {list(self.sources_dir.glob('*'))}")
+        logger.debug(f"source directory path: {source_dir}")
+        logger.debug(f"source directory exists: {source_dir.exists()}")
+        logger.debug(f"sources dir exists: {self.sources_dir.exists()}")
+        logger.debug(f"sources dir contents: {list(self.sources_dir.glob('*'))}")
 
         try:
             if source_dir.exists():
-                print(f"DEBUG: Attempting to remove directory {source_dir}")
+                logger.debug(f"Attempting to remove directory {source_dir}")
                 # Remove all files in the directory
                 for file in source_dir.glob("*"):
                     file.unlink()
                 # Remove the directory
                 source_dir.rmdir()
-                print(f"DEBUG: Directory successfully removed")
+                logger.debug(f"Directory successfully removed")
                 return True
             else:
-                print(f"Source directory {source_dir} not found")
+                logger.warning(f"Source directory {source_dir} not found")
                 return False
         except Exception as e:
-            print(f"Error removing source {source.id}: {e}")
+            logger.error(f"Error removing source {source.id}: {e}")
             return False
 
     def scan_source(self, source: Source, progress_callback: Optional[callable] = None) -> Tuple[int, List[str]]:
@@ -224,7 +228,7 @@ class SourceHandler:
             try:
                 progress_callback(0, total_files, "Starting scan...")
             except Exception as e:
-                print(f"Error with progress callback: {e}")
+                logger.error(f"Error with progress callback: {e}")
 
         # Get list of existing games from this source
         existing_games_by_path = {}
@@ -243,7 +247,7 @@ class SourceHandler:
                     try:
                         progress_callback(index, total_files, str(file_path))
                     except Exception as e:
-                        print(f"Error with progress callback: {e}")
+                        logger.error(f"Error with progress callback: {e}")
 
                 # Generate a title from the filename
                 title = file_path.stem
@@ -274,7 +278,7 @@ class SourceHandler:
             try:
                 progress_callback(total_files, total_files, "Complete")
             except Exception as e:
-                print(f"Error with final progress callback: {e}")
+                logger.error(f"Error with final progress callback: {e}")
 
         return added_count, errors
 
@@ -338,7 +342,7 @@ class SourceHandler:
             try:
                 progress_callback(0, 100, "Initializing Xbox client...")
             except Exception as e:
-                print(f"Error with progress callback: {e}")
+                logger.error(f"Error with progress callback: {e}")
 
         try:
             # Create secure token storage
@@ -353,7 +357,7 @@ class SourceHandler:
                     try:
                         progress_callback(10, 100, "Need to authenticate, launching login flow...")
                     except Exception as e:
-                        print(f"Error with progress callback: {e}")
+                        logger.error(f"Error with progress callback: {e}")
 
                 # We should never get here if the source was properly created
                 # through the UI, as it requires authentication before saving
@@ -371,7 +375,7 @@ class SourceHandler:
                     try:
                         auth_result[0] = xbox.authenticate()
                     except Exception as e:
-                        print(f"Authentication thread error: {e}")
+                        logger.error(f"Authentication thread error: {e}")
                         auth_result[0] = False
                     finally:
                         auth_event.set()  # Signal that auth is complete
@@ -390,7 +394,7 @@ class SourceHandler:
                             elapsed = time.time() - start_time
                             progress_callback(10, 100, f"Authentication in progress ({int(elapsed)}s)...")
                         except Exception as e:
-                            print(f"Error with progress callback: {e}")
+                            logger.error(f"Error with progress callback: {e}")
                     # Use shorter sleep to be more responsive
                     time.sleep(0.2)  # Sleep briefly to not hammer the CPU
 
@@ -403,7 +407,7 @@ class SourceHandler:
                 try:
                     progress_callback(30, 100, "Fetching Xbox library...")
                 except Exception as e:
-                    print(f"Error with progress callback: {e}")
+                    logger.error(f"Error with progress callback: {e}")
 
             # Get Xbox library
             xbox_games = xbox.get_game_library()
@@ -420,7 +424,7 @@ class SourceHandler:
                 try:
                     progress_callback(40, 100, f"Processing {total_games} games...")
                 except Exception as e:
-                    print(f"Error with progress callback: {e}")
+                    logger.error(f"Error with progress callback: {e}")
 
             # Process each game
             for index, game_data in enumerate(xbox_games):
@@ -431,7 +435,7 @@ class SourceHandler:
                             percentage = 40 + int((index / total_games) * 60)
                             progress_callback(percentage, 100, f"Processing game {index+1}/{total_games}")
                         except Exception as e:
-                            print(f"Error with progress callback: {e}")
+                            logger.error(f"Error with progress callback: {e}")
 
                     # Check if this is a game (not an app)
                     if game_data.get('type') != 'Game':
@@ -442,7 +446,7 @@ class SourceHandler:
                     title_id = game_data.get('titleId', '')
 
                     # Add debug logging
-                    print(f"Processing Xbox game: {title} (ID: {title_id})")
+                    logger.info(f"Processing Xbox game: {title} (ID: {title_id})")
 
                     # Generate unique ID for the game based on Xbox title ID
                     game_key = f"xbox_{title_id}"
@@ -609,7 +613,7 @@ class SourceHandler:
                         if game.play_time > 0:
                             # Use the data_handler method to save play time
                             if not self.data_handler.update_play_time(game, game.play_time):
-                                print(f"  - WARNING: Failed to save play time for {game.title}")
+                                logger.warning(f"Failed to save play time for {game.title}")
 
                         # Save play count if set
                         if game.play_count > 0:
@@ -621,19 +625,19 @@ class SourceHandler:
                             try:
                                 # Use data_handler to save the cover image
                                 if self.data_handler.save_game_image(game.image, game.id):
-                                    print(f"  - Cover image saved successfully for {game.title}")
+                                    logger.debug(f"Cover image saved successfully for {game.title}")
                                 else:
-                                    print(f"  - WARNING: Failed to save cover image for {game.title}")
+                                    logger.warning(f"Failed to save cover image for {game.title}")
 
                                 # Clean up the temporary file
                                 import os
                                 try:
                                     os.unlink(game.image)
-                                    print(f"  - Temporary image file deleted: {game.image}")
+                                    logger.debug(f"Temporary image file deleted: {game.image}")
                                 except Exception as del_err:
-                                    print(f"  - WARNING: Failed to delete temporary image file: {del_err}")
+                                    logger.warning(f"Failed to delete temporary image file: {del_err}")
                             except Exception as img_save_err:
-                                print(f"  - ERROR saving cover image: {img_save_err}")
+                                logger.error(f"Error saving cover image for {game.title}: {img_save_err}")
 
                         added_count += 1
                     else:
@@ -641,9 +645,9 @@ class SourceHandler:
 
                 except Exception as e:
                     game_name = game_data.get('name', 'Unknown')
-                    print(f"ERROR processing game {game_name}: {e}")
+                    logger.error(f"Error processing game {game_name}: {e}")
                     import traceback
-                    traceback.print_exc()
+                    logger.error(traceback.format_exc())
                     errors.append(f"Error processing game {game_name}: {e}")
 
             # Final progress update
@@ -651,7 +655,7 @@ class SourceHandler:
                 try:
                     progress_callback(100, 100, "Complete")
                 except Exception as e:
-                    print(f"Error with final progress callback: {e}")
+                    logger.error(f"Error with final progress callback: {e}")
 
             return added_count, errors
 
@@ -660,7 +664,7 @@ class SourceHandler:
                 try:
                     progress_callback(100, 100, f"Error: {e}")
                 except Exception as callback_error:
-                    print(f"Error with error progress callback: {callback_error}")
+                    logger.error(f"Error with error progress callback: {callback_error}")
 
             return 0, [f"Error syncing Xbox source: {e}"]
 
@@ -683,38 +687,65 @@ class SourceHandler:
             try:
                 progress_callback(0, 100, "Initializing PlayStation Network client...")
             except Exception as e:
-                print(f"Error with progress callback: {e}")
+                logger.error(f"Error with progress callback: {e}")
 
         try:
             # Create secure token storage
             tokens_dir = self.ensure_secure_token_storage(source.id)
 
             # Create PSN client with our token directory
-            psn = PSNClient(token_dir=str(tokens_dir), debug=True)
+            psn = PSNClient(token_dir=str(tokens_dir))
+
+            # If we have a token in the source config, try authenticating with it
+            if source.config and "npsso_token" in source.config:
+                logger.debug("Found npsso_token in source config, attempting to authenticate")
+                psn.authenticate(source.config["npsso_token"])
 
             # Check if we need to authenticate
             if not psn.is_authenticated():
+                # Get detailed auth status to provide better error messages
+                auth_status = psn.check_authentication()
+                logger.debug(f"PSN authentication status: {auth_status}")
+
+                error_message = "PlayStation Network authentication required."
+
+                if "npsso_token" in source.config:
+                    error_message = "PlayStation Network token is invalid or expired."
+                    logger.warning(f"PSN token for {source.name} is invalid or expired. Auth status: {auth_status}")
+
                 if progress_callback:
                     try:
-                        progress_callback(10, 100, "PlayStation Network token missing or invalid. Authentication required.")
+                        progress_callback(10, 100, error_message)
                     except Exception as e:
-                        print(f"Error with progress callback: {e}")
+                        logger.error(f"Error with progress callback: {e}")
 
-                # Return error if not authenticated - requires manual token entry
-                # We don't include the full instructions here as they're shown in the authentication dialog
-                return 0, ["PlayStation Network authentication required. Please click the 'Authenticate with PlayStation' button in the source settings."]
+                # Return error message with instructions
+                return 0, [f"{error_message} Please click the 'Authenticate with PlayStation' button in the source settings."]
 
             # Update progress
             if progress_callback:
                 try:
                     progress_callback(30, 100, "Fetching PlayStation Network library...")
                 except Exception as e:
-                    print(f"Error with progress callback: {e}")
+                    logger.error(f"Error with progress callback: {e}")
 
             # Get PSN library data
             psn_data = psn.fetch_all_data()
             psn_games = psn_data.get('games', [])
             psn_trophies = psn_data.get('trophies', [])
+
+            # Store raw JSON data in the source directory
+            source_dir = self.sources_dir / source.id
+            json_path = source_dir / "psn_data.json"
+
+            try:
+                # Save the raw JSON data
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(psn_data, f, indent=2)
+                logger.info(f"Saved raw PSN data to {json_path}")
+            except Exception as e:
+                errors.append(f"Error saving PSN data: {e}")
+                logger.error(f"Error saving PSN data to {json_path}: {e}")
 
             # Get existing games from this source
             existing_games_by_title = {}
@@ -728,7 +759,7 @@ class SourceHandler:
                 try:
                     progress_callback(40, 100, f"Processing {total_games} games...")
                 except Exception as e:
-                    print(f"Error with progress callback: {e}")
+                    logger.error(f"Error with progress callback: {e}")
 
             # Process each game
             for index, game_data in enumerate(psn_games):
@@ -739,14 +770,14 @@ class SourceHandler:
                             percentage = 40 + int((index / total_games) * 60)
                             progress_callback(percentage, 100, f"Processing game {index+1}/{total_games}")
                         except Exception as e:
-                            print(f"Error with progress callback: {e}")
+                            logger.error(f"Error with progress callback: {e}")
 
                     # Get game details
                     title = game_data.get('name', 'Unknown Game')
                     game_id = game_data.get('titleId', '')
 
                     # Add debug logging
-                    print(f"Processing PSN game: {title} (ID: {game_id})")
+                    logger.info(f"Processing PSN game: {title} (ID: {game_id})")
 
                     # Check if game already exists
                     if title.lower() in existing_games_by_title:
@@ -780,44 +811,36 @@ class SourceHandler:
                         elif platform_str == "PSP":
                             platform_enums.append(Platforms.PSP)
 
-                        print(f"  - Mapped platforms: {[p.value for p in platform_enums]}")
+                        logger.debug(f"Mapped platforms for {title}: {[p.value for p in platform_enums]}")
 
                         if platform_enums:
                             game.platforms = platform_enums
-                            print(f"  - Platforms set successfully")
+                            logger.debug(f"Platforms set successfully for {title}")
                     except Exception as e:
-                        print(f"  - ERROR setting platforms: {e}. Platform: {platform_str}")
+                        logger.error(f"ERROR setting platforms for {title}: {e}. Platform: {platform_str}")
                         # Debug information to help diagnose platform mapping issues
-                        print(f"  - Platform enum values: {[p.name for p in Platforms]}")
+                        logger.debug(f"Platform enum values: {[p.name for p in Platforms]}")
 
                     # Add description if available
                     description = game_data.get('description', '')
                     if description:
                         game.description = description
 
-                    # Handle play time from trophies data
-                    # For PS games, we estimate play time based on trophy data if available
+                    # Handle trophy data just to mark games as played
                     playstation_id = game_data.get('npCommunicationId', '')
                     if playstation_id:
                         # Look for matching trophy data
                         for trophy_title in psn_trophies:
                             if trophy_title.get('npCommunicationId') == playstation_id:
                                 # Found matching trophy title
-                                trophy_progress = trophy_title.get('progress', 0)
                                 trophy_earned = trophy_title.get('earnedTrophies', {}).get('total', 0)
 
-                                # If we have earned trophies or made progress, mark as played
-                                if trophy_earned > 0 or trophy_progress > 0:
+                                # If we have earned trophies, mark as played
+                                if trophy_earned > 0:
                                     from data_mapping import CompletionStatus
                                     game.play_count = 1
                                     game.completion_status = CompletionStatus.PLAYED
-
-                                    # Rough play time estimate based on trophies (very approximate)
-                                    if trophy_progress > 0:
-                                        # Estimate: 1 hour per 10% progress (very rough)
-                                        estimated_hours = (trophy_progress / 10.0) * 1.0
-                                        game.play_time = int(estimated_hours * 3600)  # Convert to seconds
-                                        print(f"  - Estimated play time: {game.play_time} seconds (from {trophy_progress}% trophy progress)")
+                                    logger.debug(f"Game {title} marked as played with {trophy_earned} trophies earned")
 
                                 # Stop looking after finding a match
                                 break
@@ -845,7 +868,7 @@ class SourceHandler:
 
                         # Download and save the cover image immediately
                         try:
-                            print(f"  - Downloading cover image from URL: {image_url}")
+                            logger.debug(f"Downloading cover image for {title} from URL: {image_url}")
                             import requests
                             import tempfile
 
@@ -862,9 +885,11 @@ class SourceHandler:
 
                             # Use the temporary file for the game image
                             game.image = temp_path
-                            print(f"  - Image downloaded to temporary file: {temp_path}")
+                            logger.debug(f"Cover image downloaded to temporary file: {temp_path}")
+                        except requests.RequestException as req_err:
+                            logger.error(f"Network error downloading cover image for {title}: {req_err}")
                         except Exception as img_err:
-                            print(f"  - ERROR downloading cover image: {img_err}")
+                            logger.error(f"Error downloading cover image for {title}: {img_err}")
 
                     # Save the game
                     if self.data_handler.save_game(game):
@@ -872,31 +897,31 @@ class SourceHandler:
                         if hasattr(game, 'play_time') and game.play_time > 0:
                             # Use the data_handler method to save play time
                             if not self.data_handler.update_play_time(game, game.play_time):
-                                print(f"  - WARNING: Failed to save play time for {game.title}")
+                                logger.warning(f"Failed to save play time for {game.title}")
 
                         # Save play count if set
                         if hasattr(game, 'play_count') and game.play_count > 0:
                             if not self.data_handler.update_play_count(game, game.play_count):
-                                print(f"  - WARNING: Failed to save play count for {game.title}")
+                                logger.warning(f"Failed to save play count for {game.title}")
 
                         # Save the cover image if it was downloaded to a temporary file
                         if hasattr(game, 'image') and game.image:
                             try:
                                 # Use data_handler to save the cover image
                                 if self.data_handler.save_game_image(game.image, game.id):
-                                    print(f"  - Cover image saved successfully for {game.title}")
+                                    logger.debug(f"Cover image saved successfully for {game.title}")
                                 else:
-                                    print(f"  - WARNING: Failed to save cover image for {game.title}")
+                                    logger.warning(f"Failed to save cover image for {game.title}")
 
                                 # Clean up the temporary file
                                 import os
                                 try:
                                     os.unlink(game.image)
-                                    print(f"  - Temporary image file deleted: {game.image}")
+                                    logger.debug(f"Temporary image file deleted: {game.image}")
                                 except Exception as del_err:
-                                    print(f"  - WARNING: Failed to delete temporary image file: {del_err}")
+                                    logger.warning(f"Failed to delete temporary image file: {del_err}")
                             except Exception as img_save_err:
-                                print(f"  - ERROR saving cover image: {img_save_err}")
+                                logger.error(f"Error saving cover image for {game.title}: {img_save_err}")
 
                         added_count += 1
                     else:
@@ -904,9 +929,9 @@ class SourceHandler:
 
                 except Exception as e:
                     game_name = game_data.get('name', 'Unknown')
-                    print(f"ERROR processing game {game_name}: {e}")
+                    logger.error(f"Error processing game {game_name}: {e}")
                     import traceback
-                    traceback.print_exc()
+                    logger.error(traceback.format_exc())
                     errors.append(f"Error processing game {game_name}: {e}")
 
             # Final progress update
@@ -914,7 +939,7 @@ class SourceHandler:
                 try:
                     progress_callback(100, 100, "Complete")
                 except Exception as e:
-                    print(f"Error with final progress callback: {e}")
+                    logger.error(f"Error with final progress callback: {e}")
 
             return added_count, errors
 
@@ -923,6 +948,6 @@ class SourceHandler:
                 try:
                     progress_callback(100, 100, f"Error: {e}")
                 except Exception as callback_error:
-                    print(f"Error with error progress callback: {callback_error}")
+                    logger.error(f"Error with error progress callback: {callback_error}")
 
             return 0, [f"Error syncing PSN source: {e}"]

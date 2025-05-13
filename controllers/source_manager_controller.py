@@ -1,4 +1,5 @@
 import gi
+import logging
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Gio, GObject
@@ -7,6 +8,9 @@ from data import Source, SourceType
 from source_handler import SourceHandler
 from controllers.source_item_controller import SourceItem
 from controllers.source_wizard_controller import SourceWizard
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class SourceListModel(GObject.Object):
@@ -241,12 +245,18 @@ class SourceManager(Gtk.Box):
             dialog.set_default_size(400, -1)
             dialog.present()
 
-            # Define a simplified progress callback for Xbox
+            # Define a progress callback for Xbox
             def xbox_progress_callback(current, total, item_name):
                 # Use GLib.idle_add to ensure UI updates happen in the main thread
                 def update_ui():
+                    progress_text = ""
+                    if total > 0:
+                        progress_text = f" ({current} of {total})"
+
                     if item_name:
-                        status_label.set_text(item_name)
+                        status_label.set_text(f"{item_name}{progress_text}")
+                    elif progress_text:
+                        status_label.set_text(f"Processing games{progress_text}")
 
                     # If we're done, update the status and stop the spinner
                     if current >= total and total > 0:
@@ -261,35 +271,211 @@ class SourceManager(Gtk.Box):
             # Start the scan in a separate thread
             import threading
 
+            # Flag to track if the dialog has been closed
+            dialog_active = [True]
+
+            # Handle dialog close properly
+            def on_dialog_response(dialog, response):
+                dialog_active[0] = False
+                dialog.destroy()
+
+            # Connect dialog response handler
+            dialog.connect("response", on_dialog_response)
+
             def run_scan():
-                added, errors = self.source_handler.sync_xbox_source(source, xbox_progress_callback)
+                try:
+                    added, errors = self.source_handler.sync_xbox_source(source, xbox_progress_callback)
 
-                # Update UI on completion if needed
-                def on_complete():
-                    # Stop the spinner
-                    spinner.stop()
+                    # Update UI on completion if dialog is still active
+                    def on_complete():
+                        if not dialog_active[0]:
+                            # Dialog already closed, just emit the signal that games were added
+                            self.emit("games-added", added)
+                            return False
 
-                    # Update status
-                    if added > 0:
-                        status_label.set_text(f"Sync complete: Added {added} games")
-                    else:
-                        status_label.set_text(f"Sync complete: No new games added")
+                        # Stop the spinner
+                        spinner.stop()
 
-                    # Handle errors if any
-                    if errors:
-                        # Show errors after a delay so user can see completion message
-                        GObject.timeout_add(2000, lambda: self._show_scan_errors(errors) or False)
+                        # Update status
+                        if added > 0:
+                            status_label.set_text(f"Sync complete: Added {added} games")
+                        else:
+                            status_label.set_text(f"Sync complete: No new games added")
 
-                    # Tell the app we added games
-                    self.emit("games-added", added)
+                        # Handle errors if any
+                        if errors:
+                            # Show errors after a delay so user can see completion message
+                            GObject.timeout_add(2000, lambda: self._show_scan_errors(errors) if dialog_active[0] else False)
 
-                    # Close the dialog after a delay
-                    GObject.timeout_add(3000, lambda: dialog.close() or False)
+                        # Tell the app we added games
+                        self.emit("games-added", added)
 
-                    return False
+                        # Close the dialog after a delay if it's still active
+                        GObject.timeout_add(3000, lambda: dialog.close() if dialog_active[0] else False)
 
-                # Schedule UI update on the main thread
-                GObject.idle_add(on_complete)
+                        return False
+
+                    # Schedule UI update on the main thread
+                    GObject.idle_add(on_complete)
+                except Exception as e:
+                    # Handle thread exceptions
+                    def on_error():
+                        if not dialog_active[0]:
+                            return False
+
+                        # Stop the spinner
+                        spinner.stop()
+
+                        # Show error in dialog
+                        status_label.set_text(f"Error: {str(e)}")
+                        logger.error(f"Error in Xbox sync thread: {e}")
+
+                        return False
+
+                    GObject.idle_add(on_error)
+
+            # Start scan thread
+            scan_thread = threading.Thread(target=run_scan)
+            scan_thread.daemon = True
+            scan_thread.start()
+
+            return
+
+        # PlayStation Network sources should also use the special background processing
+        if source.source_type == SourceType.PLAYSTATION:
+            dialog = Gtk.Dialog(
+                title=f"PlayStation Network Sync: {source.name}",
+                transient_for=self.get_root(),
+                modal=False
+            )
+
+            # Add a close button
+            dialog.add_button("Close", Gtk.ResponseType.CLOSE)
+
+            # Add content
+            content_area = dialog.get_content_area()
+            content_area.set_spacing(12)
+            content_area.set_margin_start(12)
+            content_area.set_margin_end(12)
+            content_area.set_margin_top(12)
+            content_area.set_margin_bottom(12)
+
+            # Add explanatory label
+            label = Gtk.Label()
+            label.set_markup(f"<b>Syncing games from PlayStation Network</b>")
+            label.set_margin_bottom(10)
+            content_area.append(label)
+
+            status_label = Gtk.Label(label="Connecting to PlayStation Network...")
+            status_label.set_wrap(True)
+            status_label.set_width_chars(40)
+            status_label.set_justify(Gtk.Justification.LEFT)
+            status_label.set_halign(Gtk.Align.START)
+            content_area.append(status_label)
+
+            # No progress bar, just using the spinner and status text
+
+            # Activity indicator
+            spinner = Gtk.Spinner()
+            spinner.set_size_request(32, 32)
+            spinner.start()
+            content_area.append(spinner)
+
+            # Connect close response
+            dialog.connect("response", lambda d, r: d.destroy())
+
+            # Show the dialog
+            dialog.set_default_size(400, -1)
+            dialog.present()
+
+            # Define a progress callback for PSN
+            def psn_progress_callback(current, total, item_name):
+                # Use GLib.idle_add to ensure UI updates happen in the main thread
+                def update_ui():
+                    progress_text = ""
+                    if total > 0:
+                        progress_text = f" ({current} of {total})"
+
+                    if item_name:
+                        status_label.set_text(f"{item_name}{progress_text}")
+                    elif progress_text:
+                        status_label.set_text(f"Processing games{progress_text}")
+
+                    # If we're done, update the status and stop the spinner
+                    if current >= total and total > 0:
+                        spinner.stop()
+                        status_label.set_text(f"Sync complete: Added {current} games")
+                        GObject.timeout_add(3000, lambda: dialog.close() or False)
+                    return False  # Don't repeat
+
+                GObject.idle_add(update_ui)
+                return True
+
+            # Start the scan in a separate thread
+            import threading
+
+            # Flag to track if the dialog has been closed
+            dialog_active = [True]
+
+            # Handle dialog close properly
+            def on_dialog_response(dialog, response):
+                dialog_active[0] = False
+                dialog.destroy()
+
+            # Connect dialog response handler
+            dialog.connect("response", on_dialog_response)
+
+            def run_scan():
+                try:
+                    added, errors = self.source_handler.sync_psn_source(source, psn_progress_callback)
+
+                    # Update UI on completion if dialog is still active
+                    def on_complete():
+                        if not dialog_active[0]:
+                            # Dialog already closed, just emit the signal that games were added
+                            self.emit("games-added", added)
+                            return False
+
+                        # Stop the spinner
+                        spinner.stop()
+
+                        # Update status
+                        if added > 0:
+                            status_label.set_text(f"Sync complete: Added {added} games")
+                        else:
+                            status_label.set_text(f"Sync complete: No new games added")
+
+                        # Handle errors if any
+                        if errors:
+                            # Show errors after a delay so user can see completion message
+                            GObject.timeout_add(2000, lambda: self._show_scan_errors(errors) if dialog_active[0] else False)
+
+                        # Tell the app we added games
+                        self.emit("games-added", added)
+
+                        # Close the dialog after a delay if it's still active
+                        GObject.timeout_add(3000, lambda: dialog.close() if dialog_active[0] else False)
+
+                        return False
+
+                    # Schedule UI update on the main thread
+                    GObject.idle_add(on_complete)
+                except Exception as e:
+                    # Handle thread exceptions
+                    def on_error():
+                        if not dialog_active[0]:
+                            return False
+
+                        # Stop the spinner
+                        spinner.stop()
+
+                        # Show error in dialog
+                        status_label.set_text(f"Error: {str(e)}")
+                        logger.error(f"Error in PSN sync thread: {e}")
+
+                        return False
+
+                    GObject.idle_add(on_error)
 
             # Start scan thread
             scan_thread = threading.Thread(target=run_scan)
@@ -358,8 +544,8 @@ class SourceManager(Gtk.Box):
 
     def _do_scan(self, source, progress_callback):
         """Perform the actual scan"""
-        # Skip Xbox sources as they're handled specially in _scan_source_with_progress
-        if source.source_type == SourceType.XBOX:
+        # Skip Xbox and PlayStation sources as they're handled specially in _scan_source_with_progress
+        if source.source_type in [SourceType.XBOX, SourceType.PLAYSTATION]:
             return False
 
         # Scan the source (non-Xbox sources)
