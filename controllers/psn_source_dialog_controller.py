@@ -12,6 +12,7 @@ class PSNSourceDialog(Gtk.Dialog):
     token_entry = Gtk.Template.Child()
     verify_button = Gtk.Template.Child()
     status_label = Gtk.Template.Child()
+    download_images_switch = Gtk.Template.Child()
     active_switch = Gtk.Template.Child()
     cancel_button = Gtk.Template.Child()
     save_button = Gtk.Template.Child()
@@ -30,6 +31,13 @@ class PSNSourceDialog(Gtk.Dialog):
             self.name_entry.set_text(source.name)
             self.active_switch.set_active(source.active)
 
+            # Set download_images_switch based on source config
+            if source.config and "download_images" in source.config:
+                self.download_images_switch.set_active(source.config.get("download_images", True))
+            else:
+                # Default to True if not specified
+                self.download_images_switch.set_active(True)
+
             # If we have existing auth info
             if source.config and "npsso_token" in source.config:
                 self.token_entry.set_text(source.config.get("npsso_token", ""))
@@ -42,6 +50,8 @@ class PSNSourceDialog(Gtk.Dialog):
             self.set_title("Add PlayStation Source")
             self.name_entry.set_text("PlayStation Games")
             self.status_label.set_text("Authentication: Not verified")
+            # Default to True for new sources
+            self.download_images_switch.set_active(True)
 
         # Connect signals
         self.verify_button.connect("clicked", self.on_verify_clicked)
@@ -125,6 +135,7 @@ class PSNSourceDialog(Gtk.Dialog):
             if not self.source.config:
                 self.source.config = {}
             self.source.config["npsso_token"] = self.auth_token
+            self.source.config["download_images"] = self.download_images_switch.get_active()
         else:
             # Create new source
             from data import Source, SourceType
@@ -134,7 +145,10 @@ class PSNSourceDialog(Gtk.Dialog):
                 path="",  # Not needed for PSN sources
                 source_type=SourceType.PLAYSTATION,
                 active=self.active_switch.get_active(),
-                config={"npsso_token": self.auth_token}
+                config={
+                    "npsso_token": self.auth_token,
+                    "download_images": self.download_images_switch.get_active()
+                }
             )
 
         # Save and emit signal

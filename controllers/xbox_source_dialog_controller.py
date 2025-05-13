@@ -19,6 +19,7 @@ class XboxSourceDialog(Gtk.Dialog):
 
     name_entry = Gtk.Template.Child()
     active_switch = Gtk.Template.Child()
+    download_images_switch = Gtk.Template.Child()
     auth_button = Gtk.Template.Child()
     auth_status_label = Gtk.Template.Child()
     cancel_button = Gtk.Template.Child()
@@ -42,6 +43,13 @@ class XboxSourceDialog(Gtk.Dialog):
             self.name_entry.set_text(source.name)
             self.active_switch.set_active(source.active)
 
+            # Set download_images_switch based on source config
+            if source.config and "download_images" in source.config:
+                self.download_images_switch.set_active(source.config.get("download_images", True))
+            else:
+                # Default to True if not specified
+                self.download_images_switch.set_active(True)
+
             # For Xbox sources, we need to check if there are valid tokens in the tokens directory
             # We'll check this dynamically each time the dialog is shown
             if self.source_handler:
@@ -53,6 +61,8 @@ class XboxSourceDialog(Gtk.Dialog):
             self.set_title("Add Xbox Source")
             self.name_entry.set_text("Xbox Games")
             self.auth_status_label.set_text("Authentication: Not connected")
+            # Default to True for new sources
+            self.download_images_switch.set_active(True)
 
         # Connect signals
         self.auth_button.connect("clicked", self.on_auth_clicked)
@@ -229,6 +239,11 @@ class XboxSourceDialog(Gtk.Dialog):
             self.source.name = name
             self.source.active = self.active_switch.get_active()
 
+            # Update the download_images setting in config
+            if not self.source.config:
+                self.source.config = {}
+            self.source.config["download_images"] = self.download_images_switch.get_active()
+
             # No need to store any authentication state in the config
             # as we're dynamically checking the token files
         else:
@@ -240,7 +255,7 @@ class XboxSourceDialog(Gtk.Dialog):
                 path="",  # Not needed for Xbox sources
                 source_type=SourceType.XBOX,
                 active=self.active_switch.get_active(),
-                config={}  # No need to store any authentication state
+                config={"download_images": self.download_images_switch.get_active()}
             )
 
             # If we used a temporary ID for new sources, we need to rename the token directory

@@ -5,13 +5,19 @@ import time
 import stat
 import shutil
 import logging
+import threading
+import traceback
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+from threading import Thread
+from gi.repository import GLib
 
 from data import Source, SourceType, Game
 from data_handler import DataHandler
+from data_mapping import Platforms, Genres, CompletionStatus
 from sources.xbox_client import XboxLibrary
 from sources.psn_client import PSNClient
+from cover_fetch import CoverFetcher
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -503,7 +509,6 @@ class SourceHandler:
                         game.description = detail.get('description', '')
 
                         # Add genres
-                        from data_mapping import Genres
 
                         genres = detail.get('genres', [])
                         print(f"  - Original genres: {genres}")
@@ -563,8 +568,7 @@ class SourceHandler:
                     # Check if game has been played
                     if game.play_time > 0:
                         game.play_count = 1
-                        # Use the enum value directly instead of a string
-                        from data_mapping import CompletionStatus
+                        # Use the enum value directly
                         game.completion_status = CompletionStatus.PLAYED
 
                     # Get title history data (for last played date)
@@ -584,28 +588,15 @@ class SourceHandler:
                         source.config['game_covers'][title] = display_image
                         self.save_source(source)
 
-                        # Download and save the cover image immediately
-                        try:
-                            print(f"  - Downloading cover image from URL: {display_image}")
-                            import requests
-                            import tempfile
+                        # Check if we should download images automatically
+                        download_images = source.config.get("download_images", True)
 
-                            # Download the image to a temporary file
-                            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
-                                response = requests.get(display_image, stream=True, timeout=10)
-                                response.raise_for_status()  # Raise error for bad status codes
-
-                                # Write the image data to the temporary file
-                                for chunk in response.iter_content(chunk_size=8192):
-                                    temp_file.write(chunk)
-
-                                temp_path = temp_file.name
-
-                            # Use the temporary file for the game image
-                            game.image = temp_path
-                            print(f"  - Image downloaded to temporary file: {temp_path}")
-                        except Exception as img_err:
-                            print(f"  - ERROR downloading cover image: {img_err}")
+                        if download_images:
+                            # Store the URL in the game.image so we can fetch it later
+                            print(f"  - Cover image URL found: {display_image}")
+                            game.image = display_image
+                        else:
+                            print(f"  - Skipping image download (disabled in source settings)")
 
                     # Save the game
                     if self.data_handler.save_game(game):
@@ -620,24 +611,23 @@ class SourceHandler:
                             if not self.data_handler.update_play_count(game, game.play_count):
                                 print(f"  - WARNING: Failed to save play count for {game.title}")
 
-                        # Save the cover image if it was downloaded to a temporary file
-                        if hasattr(game, 'image') and game.image:
+                        # Download and save the cover image if URL is available
+                        if hasattr(game, 'image') and game.image and source.config.get("download_images", True):
                             try:
-                                # Use data_handler to save the cover image
-                                if self.data_handler.save_game_image(game.image, game.id):
-                                    logger.debug(f"Cover image saved successfully for {game.title}")
-                                else:
-                                    logger.warning(f"Failed to save cover image for {game.title}")
+                                # Use CoverFetcher to download and save the image
+                                cover_fetcher = CoverFetcher(self.data_handler)
+                                success, error = cover_fetcher.fetch_and_save_for_game(
+                                    game.id,
+                                    game.image,
+                                    source_name="Xbox"
+                                )
 
-                                # Clean up the temporary file
-                                import os
-                                try:
-                                    os.unlink(game.image)
-                                    logger.debug(f"Temporary image file deleted: {game.image}")
-                                except Exception as del_err:
-                                    logger.warning(f"Failed to delete temporary image file: {del_err}")
-                            except Exception as img_save_err:
-                                logger.error(f"Error saving cover image for {game.title}: {img_save_err}")
+                                if success:
+                                    logger.debug(f"Cover image downloaded and saved successfully for {game.title}")
+                                else:
+                                    logger.warning(f"Failed to download/save cover image for {game.title}: {error}")
+                            except Exception as img_err:
+                                logger.error(f"Error processing cover image for {game.title}: {img_err}")
 
                         added_count += 1
                     else:
@@ -646,7 +636,6 @@ class SourceHandler:
                 except Exception as e:
                     game_name = game_data.get('name', 'Unknown')
                     logger.error(f"Error processing game {game_name}: {e}")
-                    import traceback
                     logger.error(traceback.format_exc())
                     errors.append(f"Error processing game {game_name}: {e}")
 
@@ -793,7 +782,6 @@ class SourceHandler:
                     )
 
                     # Extract platform info
-                    from data_mapping import Platforms
 
                     platform_enums = []
                     platform_str = game_data.get('platform', '')
@@ -837,7 +825,6 @@ class SourceHandler:
 
                                 # If we have earned trophies, mark as played
                                 if trophy_earned > 0:
-                                    from data_mapping import CompletionStatus
                                     game.play_count = 1
                                     game.completion_status = CompletionStatus.PLAYED
                                     logger.debug(f"Game {title} marked as played with {trophy_earned} trophies earned")
@@ -845,18 +832,8 @@ class SourceHandler:
                                 # Stop looking after finding a match
                                 break
 
-                    # Get cover image if available
-                    image_url = None
-
-                    # Try different image sources in priority order
-                    if 'image' in game_data and game_data['image']:
-                        image_url = game_data['image']
-                    elif 'imageUrl' in game_data and game_data['imageUrl']:
-                        image_url = game_data['imageUrl']
-                    elif 'images' in game_data and game_data['images']:
-                        images = game_data['images']
-                        if len(images) > 0 and 'url' in images[0]:
-                            image_url = images[0]['url']
+                    # Get cover image URL if available
+                    image_url = psn.get_cover_image_url(game_data)
 
                     if image_url:
                         # Store the URL in config for reference
@@ -866,30 +843,15 @@ class SourceHandler:
                         source.config['game_covers'][title] = image_url
                         self.save_source(source)
 
-                        # Download and save the cover image immediately
-                        try:
-                            logger.debug(f"Downloading cover image for {title} from URL: {image_url}")
-                            import requests
-                            import tempfile
+                        # Check if we should download images automatically
+                        download_images = source.config.get("download_images", True)
 
-                            # Download the image to a temporary file
-                            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
-                                response = requests.get(image_url, stream=True, timeout=10)
-                                response.raise_for_status()  # Raise error for bad status codes
-
-                                # Write the image data to the temporary file
-                                for chunk in response.iter_content(chunk_size=8192):
-                                    temp_file.write(chunk)
-
-                                temp_path = temp_file.name
-
-                            # Use the temporary file for the game image
-                            game.image = temp_path
-                            logger.debug(f"Cover image downloaded to temporary file: {temp_path}")
-                        except requests.RequestException as req_err:
-                            logger.error(f"Network error downloading cover image for {title}: {req_err}")
-                        except Exception as img_err:
-                            logger.error(f"Error downloading cover image for {title}: {img_err}")
+                        if download_images:
+                            # Store the URL in game.image so we can download it after game is saved
+                            logger.debug(f"Found cover image URL for {title}: {image_url}")
+                            game.image = image_url
+                        else:
+                            logger.debug(f"Skipping image download for {title} (disabled in source settings)")
 
                     # Save the game
                     if self.data_handler.save_game(game):
@@ -904,24 +866,23 @@ class SourceHandler:
                             if not self.data_handler.update_play_count(game, game.play_count):
                                 logger.warning(f"Failed to save play count for {game.title}")
 
-                        # Save the cover image if it was downloaded to a temporary file
-                        if hasattr(game, 'image') and game.image:
+                        # Download and save the cover image if URL is available
+                        if hasattr(game, 'image') and game.image and source.config.get("download_images", True):
                             try:
-                                # Use data_handler to save the cover image
-                                if self.data_handler.save_game_image(game.image, game.id):
-                                    logger.debug(f"Cover image saved successfully for {game.title}")
-                                else:
-                                    logger.warning(f"Failed to save cover image for {game.title}")
+                                # Use CoverFetcher to download and save the image
+                                cover_fetcher = CoverFetcher(self.data_handler)
+                                success, error = cover_fetcher.fetch_and_save_for_game(
+                                    game.id,
+                                    game.image,
+                                    source_name="PlayStation"
+                                )
 
-                                # Clean up the temporary file
-                                import os
-                                try:
-                                    os.unlink(game.image)
-                                    logger.debug(f"Temporary image file deleted: {game.image}")
-                                except Exception as del_err:
-                                    logger.warning(f"Failed to delete temporary image file: {del_err}")
-                            except Exception as img_save_err:
-                                logger.error(f"Error saving cover image for {game.title}: {img_save_err}")
+                                if success:
+                                    logger.debug(f"Cover image downloaded and saved successfully for {game.title}")
+                                else:
+                                    logger.warning(f"Failed to download/save cover image for {game.title}: {error}")
+                            except Exception as img_err:
+                                logger.error(f"Error processing cover image for {game.title}: {img_err}")
 
                         added_count += 1
                     else:
@@ -930,7 +891,6 @@ class SourceHandler:
                 except Exception as e:
                     game_name = game_data.get('name', 'Unknown')
                     logger.error(f"Error processing game {game_name}: {e}")
-                    import traceback
                     logger.error(traceback.format_exc())
                     errors.append(f"Error processing game {game_name}: {e}")
 

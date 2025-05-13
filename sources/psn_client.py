@@ -496,45 +496,28 @@ class PSNClient:
         }
         return result
 
-    def download_game_cover(self, game_data: Dict[str, Any], output_path: str) -> bool:
+    def get_cover_image_url(self, game_data: Dict[str, Any]) -> Optional[str]:
         """
-        Download a game's cover image to the specified path
-        Returns True if successful, False otherwise
+        Get the cover image URL from the game data
+
+        Args:
+            game_data: The game data dictionary
+
+        Returns:
+            The URL of the cover image, or None if not found
         """
-        try:
-            # Get the image URL from the game data
-            image_url = None
+        # Try different image sources in priority order
+        if 'image' in game_data and game_data['image']:
+            return game_data['image']
+        elif 'imageUrl' in game_data and game_data['imageUrl']:
+            return game_data['imageUrl']
+        elif 'images' in game_data and game_data['images']:
+            images = game_data['images']
+            if len(images) > 0 and 'url' in images[0]:
+                return images[0]['url']
 
-            # Try different image sources in priority order
-            if 'image' in game_data and game_data['image']:
-                image_url = game_data['image']
-            elif 'imageUrl' in game_data and game_data['imageUrl']:
-                image_url = game_data['imageUrl']
-            elif 'images' in game_data and game_data['images']:
-                images = game_data['images']
-                if len(images) > 0 and 'url' in images[0]:
-                    image_url = images[0]['url']
-
-            if not image_url:
-                logger.debug(f"No image URL found for game: {game_data.get('name', 'Unknown')}")
-                return False
-
-            # Download the image
-            response = requests.get(image_url, stream=True)
-            if response.status_code != 200:
-                logger.debug(f"Error downloading image: HTTP {response.status_code}")
-                return False
-
-            # Save to file
-            with open(output_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-
-            logger.debug(f"Downloaded cover image to {output_path}")
-            return True
-        except Exception as e:
-            logger.debug(f"Error downloading cover image: {str(e)}")
-            return False
+        logger.debug(f"No image URL found for game: {game_data.get('name', 'Unknown')}")
+        return None
 
     @staticmethod
     def get_auth_instructions() -> str:
