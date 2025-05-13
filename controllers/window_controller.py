@@ -303,37 +303,59 @@ class GameShelfWindow(Adw.ApplicationWindow):
             # Clear old sidebar index selection to avoid interference with new filter system
             self.controller.settings_manager.set_sidebar_selection(0)
 
-            # Initialize with active filters from settings
-            active_filters = self.controller.settings_manager.get_sidebar_active_filters()
-            filter_runners = active_filters.get("runner", set())
-            filter_completion_statuses = active_filters.get("completion_status", set())
-
-            # Convert old format if needed
-            if filter_runners and not isinstance(filter_runners, set):
-                filter_runners = {filter_runners} if filter_runners is not None else set()
-
-            if filter_completion_statuses and not isinstance(filter_completion_statuses, set):
-                filter_completion_statuses = {filter_completion_statuses} if filter_completion_statuses is not None else set()
-
-            # Get search text from settings
-            search_text = self.controller.settings_manager.get_search_text()
-
-            # Populate games with stored filters
-            self.controller.game_grid_controller.populate_games(
-                filter_runners=filter_runners,
-                filter_completion_statuses=filter_completion_statuses,
-                search_text=search_text
-            )
-
         # 3. Then details panel
         if hasattr(self, 'details_content') and hasattr(self, 'details_panel'):
             print("Setting up details panel")
             self.controller.details_controller.setup_details_panel(self.details_content, self.details_panel)
 
-        # 4. Finally sidebar (which needs the others for filtering/selection)
+        # 4. Set up the sidebar (needed before applying filters)
         if hasattr(self, 'sidebar_container') and self.sidebar_container is not None:
             print("Setting up sidebar")
             self.controller.sidebar_controller.setup_sidebar(self.sidebar_container)
+
+        # 5. Apply saved filters after sidebar is set up
+        if hasattr(self, 'games_grid') and self.games_grid is not None:
+            # Initialize with active filters from settings
+            active_filters = self.controller.settings_manager.get_sidebar_active_filters()
+
+            # We'll let the sidebar controller apply the filters since it has all the filter categories
+            if hasattr(self.controller, 'sidebar_controller') and self.controller.sidebar_controller:
+                print("Applying saved filters from settings")
+
+                # Set active filters in the sidebar controller
+                self.controller.sidebar_controller.active_filters = active_filters
+
+                # Update selection state in the UI
+                self.controller.sidebar_controller._update_selection_state()
+
+                # Update "All Games" label to reflect if filters are active
+                self.controller.sidebar_controller._update_all_games_label()
+
+                # Apply filters to the grid
+                runner_filters = active_filters.get("runner", set())
+                completion_status_filters = active_filters.get("completion_status", set())
+                platform_filters = active_filters.get("platforms", set())
+                genre_filters = active_filters.get("genres", set())
+                age_rating_filters = active_filters.get("age_ratings", set())
+                feature_filters = active_filters.get("features", set())
+                region_filters = active_filters.get("regions", set())
+                source_filters = active_filters.get("sources", set())
+
+                # Get search text from settings
+                search_text = self.controller.settings_manager.get_search_text()
+
+                # Populate games with stored filters
+                self.controller.game_grid_controller.populate_games(
+                    filter_runners=runner_filters,
+                    filter_completion_statuses=completion_status_filters,
+                    filter_platforms=platform_filters,
+                    filter_genres=genre_filters,
+                    filter_age_ratings=age_rating_filters,
+                    filter_features=feature_filters,
+                    filter_regions=region_filters,
+                    filter_sources=source_filters,
+                    search_text=search_text
+                )
 
     def refresh_sidebar_runners(self):
         """Delegate to sidebar controller - refresh filters"""
