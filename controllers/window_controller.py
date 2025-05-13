@@ -52,6 +52,22 @@ class GameShelfController:
     def get_runner(self, runner_id: str) -> Optional[Runner]:
         return self.runners.get(runner_id)
 
+    def get_search_text(self) -> str:
+        """
+        Get the current search text from the UI or settings
+
+        Returns:
+            str: The current search text or empty string if not available
+        """
+        search_text = ""
+        # Try to get from UI
+        if self.window and hasattr(self.window, 'search_entry'):
+            search_text = self.window.search_entry.get_text().strip().lower()
+        # Fall back to settings if UI not available
+        elif hasattr(self, 'settings_manager'):
+            search_text = self.settings_manager.get_search_text()
+        return search_text
+
     def add_game(self, game: Game) -> bool:
         result = self.data_handler.save_game(game)
         if result:
@@ -82,10 +98,8 @@ class GameShelfController:
 
         print(f"Reloaded data: {len(self.games)} games, {len(self.runners)} runners")
 
-        # Get search text from the window if available
-        search_text = ""
-        if self.window and hasattr(self.window, 'search_entry'):
-            search_text = self.window.search_entry.get_text().strip().lower()
+        # Get search text
+        search_text = self.get_search_text()
 
         # Refresh the sidebar if requested
         if refresh_sidebar and self.sidebar_controller:
@@ -93,44 +107,10 @@ class GameShelfController:
             self.sidebar_controller.refresh_filters()
 
         # Refresh games grid if requested
-        if refresh_grid:
-            # Get active filters from sidebar controller if available
-            filter_runners = None
-            filter_completion_statuses = None
-            filter_platforms = None
-            filter_genres = None
-            filter_age_ratings = None
-            filter_features = None
-            filter_regions = None
-
-            if self.sidebar_controller:
-                sidebar = self.sidebar_controller
-                filter_runners = sidebar.active_filters.get("runner", set())
-                filter_completion_statuses = sidebar.active_filters.get("completion_status", set())
-                filter_platforms = sidebar.active_filters.get("platforms", set())
-                filter_genres = sidebar.active_filters.get("genres", set())
-                filter_age_ratings = sidebar.active_filters.get("age_ratings", set())
-                filter_features = sidebar.active_filters.get("features", set())
-                filter_regions = sidebar.active_filters.get("regions", set())
-            else:
-                # Fall back to legacy filter if sidebar controller not available
-                if self.current_filter is not None:
-                    filter_runners = {self.current_filter}
-
-            if hasattr(self, 'game_grid_controller') and self.game_grid_controller:
-                print(f"Populating games with filters: runners={filter_runners}, completion_statuses={filter_completion_statuses}, "
-                      f"platforms={filter_platforms}, genres={filter_genres}, age_ratings={filter_age_ratings}, "
-                      f"features={filter_features}, regions={filter_regions}, search={search_text}")
-                self.game_grid_controller.populate_games(
-                    filter_runners=filter_runners,
-                    filter_completion_statuses=filter_completion_statuses,
-                    filter_platforms=filter_platforms,
-                    filter_genres=filter_genres,
-                    filter_age_ratings=filter_age_ratings,
-                    filter_features=filter_features,
-                    filter_regions=filter_regions,
-                    search_text=search_text
-                )
+        if refresh_grid and hasattr(self, 'game_grid_controller') and self.game_grid_controller:
+            # Let the grid controller handle the filtering using the sidebar controller
+            print("Refreshing game grid with current filters")
+            self.game_grid_controller.populate_games(search_text=search_text)
 
     def get_game_pixbuf(self, game: Game, width: int = 200, height: int = 260) -> Optional[GdkPixbuf.Pixbuf]:
         """Get a game's image as a pixbuf, using the data handler"""
@@ -169,50 +149,17 @@ class GameShelfController:
         # Save state to settings
         self.settings_manager.set_show_hidden(self.show_hidden)
 
-        # Get search text from the window if available
-        search_text = ""
-        if self.window and hasattr(self.window, 'search_entry'):
-            search_text = self.window.search_entry.get_text().strip().lower()
-            # Save search text
-            self.settings_manager.set_search_text(search_text)
+        # Get search text and save it
+        search_text = self.get_search_text()
+        self.settings_manager.set_search_text(search_text)
 
         # Refresh the sidebar to update filter counts
         if hasattr(self, 'sidebar_controller') and self.sidebar_controller:
             self.sidebar_controller.refresh_filters()
 
-        # Only refresh the grid, sidebar doesn't need to change when toggling visibility
+        # Refresh grid with updated filters and visibility setting
         if hasattr(self, 'game_grid_controller') and self.game_grid_controller:
-            # Get active filters from sidebar controller if available
-            filter_runners = None
-            filter_completion_statuses = None
-            filter_platforms = None
-            filter_genres = None
-            filter_age_ratings = None
-            filter_features = None
-            filter_regions = None
-
-            if hasattr(self, 'sidebar_controller') and self.sidebar_controller:
-                sidebar = self.sidebar_controller
-                filter_runners = sidebar.active_filters.get("runner", set())
-                filter_completion_statuses = sidebar.active_filters.get("completion_status", set())
-                filter_platforms = sidebar.active_filters.get("platforms", set())
-                filter_genres = sidebar.active_filters.get("genres", set())
-                filter_age_ratings = sidebar.active_filters.get("age_ratings", set())
-                filter_features = sidebar.active_filters.get("features", set())
-                filter_regions = sidebar.active_filters.get("regions", set())
-                filter_sources = sidebar.active_filters.get("sources", set())
-
-            self.game_grid_controller.populate_games(
-                filter_runners=filter_runners,
-                filter_completion_statuses=filter_completion_statuses,
-                filter_platforms=filter_platforms,
-                filter_genres=filter_genres,
-                filter_age_ratings=filter_age_ratings,
-                filter_features=filter_features,
-                filter_regions=filter_regions,
-                filter_sources=filter_sources,
-                search_text=search_text
-            )
+            self.game_grid_controller.populate_games(search_text=search_text)
 
     def add_action(self, action: Gio.SimpleAction):
         """
@@ -331,31 +278,11 @@ class GameShelfWindow(Adw.ApplicationWindow):
                 # Update "All Games" label to reflect if filters are active
                 self.controller.sidebar_controller._update_all_games_label()
 
-                # Apply filters to the grid
-                runner_filters = active_filters.get("runner", set())
-                completion_status_filters = active_filters.get("completion_status", set())
-                platform_filters = active_filters.get("platforms", set())
-                genre_filters = active_filters.get("genres", set())
-                age_rating_filters = active_filters.get("age_ratings", set())
-                feature_filters = active_filters.get("features", set())
-                region_filters = active_filters.get("regions", set())
-                source_filters = active_filters.get("sources", set())
-
                 # Get search text from settings
                 search_text = self.controller.settings_manager.get_search_text()
 
-                # Populate games with stored filters
-                self.controller.game_grid_controller.populate_games(
-                    filter_runners=runner_filters,
-                    filter_completion_statuses=completion_status_filters,
-                    filter_platforms=platform_filters,
-                    filter_genres=genre_filters,
-                    filter_age_ratings=age_rating_filters,
-                    filter_features=feature_filters,
-                    filter_regions=region_filters,
-                    filter_sources=source_filters,
-                    search_text=search_text
-                )
+                # Populate games with filters from sidebar controller
+                self.controller.game_grid_controller.populate_games(search_text=search_text)
 
     def refresh_sidebar_runners(self):
         """Delegate to sidebar controller - refresh filters"""
@@ -420,11 +347,6 @@ class GameShelfWindow(Adw.ApplicationWindow):
     def _on_games_added_from_source(self, source_manager, count):
         """Handle games being added from a source scan"""
         if count > 0:
-            # Get current active filters before reloading
-            active_filters = {}
-            if hasattr(self.controller, 'sidebar_controller') and self.controller.sidebar_controller:
-                active_filters = self.controller.sidebar_controller.active_filters.copy()
-
             # Reload the game and runner data
             self.controller.games = self.controller.data_handler.load_games()
             self.controller.runners = {runner.id: runner for runner in self.controller.data_handler.load_runners()}
@@ -433,40 +355,14 @@ class GameShelfWindow(Adw.ApplicationWindow):
             if hasattr(self.controller, 'sidebar_controller') and self.controller.sidebar_controller:
                 self.controller.sidebar_controller.refresh_filters()
 
-            # If we had active filters, preserve and reapply them
-            if active_filters and hasattr(self.controller, 'game_grid_controller') and self.controller.game_grid_controller:
-                print(f"Re-applying filters after source scan: {active_filters}")
+            # Get search text
+            search_text = ""
+            if hasattr(self, 'search_entry'):
+                search_text = self.search_entry.get_text().strip().lower()
 
-                # Get search text
-                search_text = ""
-                if hasattr(self, 'search_entry'):
-                    search_text = self.search_entry.get_text().strip().lower()
-
-                # Get all filter values
-                filter_runners = active_filters.get("runner", set())
-                filter_completion_statuses = active_filters.get("completion_status", set())
-                filter_platforms = active_filters.get("platforms", set())
-                filter_genres = active_filters.get("genres", set())
-                filter_age_ratings = active_filters.get("age_ratings", set())
-                filter_features = active_filters.get("features", set())
-                filter_regions = active_filters.get("regions", set())
-                filter_sources = active_filters.get("sources", set())
-
-                # Apply filters to the grid
-                self.controller.game_grid_controller.populate_games(
-                    filter_runners=filter_runners,
-                    filter_completion_statuses=filter_completion_statuses,
-                    filter_platforms=filter_platforms,
-                    filter_genres=filter_genres,
-                    filter_age_ratings=filter_age_ratings,
-                    filter_features=filter_features,
-                    filter_regions=filter_regions,
-                    filter_sources=filter_sources,
-                    search_text=search_text
-                )
-            else:
-                # No filters, normal reload
-                self.controller.reload_data(refresh_sidebar=False)
+            # Refresh the grid with current sidebar filters
+            if hasattr(self.controller, 'game_grid_controller') and self.controller.game_grid_controller:
+                self.controller.game_grid_controller.populate_games(search_text=search_text)
 
             # Show a notification
             self._show_notification(f"Added {count} games from source")

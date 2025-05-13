@@ -536,110 +536,32 @@ class GameGridController:
         # Show the menu
         menu.show()
 
-    def populate_games(self, filter_runner: Optional[str] = None,
-                    filter_completion_status: Optional[str] = None,
-                    filter_runners: Optional[Set[str]] = None,
-                    filter_completion_statuses: Optional[Set[str]] = None,
-                    filter_platforms: Optional[Set[str]] = None,
-                    filter_genres: Optional[Set[str]] = None,
-                    filter_age_ratings: Optional[Set[str]] = None,
-                    filter_features: Optional[Set[str]] = None,
-                    filter_regions: Optional[Set[str]] = None,
-                    filter_sources: Optional[Set[str]] = None,
-                    search_text: str = ""):
+    def populate_games(self, search_text: str = "", filtered_games: List[Game] = None):
         """
         Populate the games grid with filtered games
 
         Args:
-            filter_runner: (Legacy) Runner ID to filter by, or None for no filter
-            filter_completion_status: (Legacy) Completion status enum name to filter by, or None for no filter
-            filter_runners: Set of runner IDs to filter by (OR within this category), or None for no filter
-            filter_completion_statuses: Set of completion status enum names to filter by (OR within this category), or None for no filter
-            filter_platforms: Set of platform enum names to filter by, or None for no filter
-            filter_genres: Set of genre enum names to filter by, or None for no filter
-            filter_age_ratings: Set of age rating enum names to filter by, or None for no filter
-            filter_features: Set of feature enum names to filter by, or None for no filter
-            filter_regions: Set of region enum names to filter by, or None for no filter
-            filter_sources: Set of source IDs to filter by, or None for no filter
             search_text: Text to search in game titles
+            filtered_games: Optional pre-filtered list of games. If None, will get all games
+                           and apply filters from sidebar controller.
         """
-        # For backward compatibility, store single runner filter in main controller
-        self.main_controller.current_filter = filter_runner
-
         # Clear the current games model
         self.games_model.remove_all()
 
         # Reset selection tracking when repopulating
         self.last_selected_position = -1
 
-        # Get all games
-        games = self.main_controller.get_games()
-        print(f"Populating games grid with {len(games)} total games...")
+        # Get all games if filtered_games is not provided
+        if filtered_games is None:
+            games = self.main_controller.get_games()
+            print(f"Populating games grid with {len(games)} total games...")
 
-        # For backward compatibility, convert legacy filters to sets if provided
-        if filter_runners is None and filter_runner is not None:
-            # Handle case where filter_runner might already be a set
-            if isinstance(filter_runner, set):
-                filter_runners = filter_runner
-            else:
-                filter_runners = {filter_runner}
-
-        if filter_completion_statuses is None and filter_completion_status is not None:
-            # Handle case where filter_completion_status might already be a set
-            if isinstance(filter_completion_status, set):
-                filter_completion_statuses = filter_completion_status
-            else:
-                filter_completion_statuses = {filter_completion_status}
-
-        # Apply runner filters (OR within category)
-        if filter_runners:
-            games = [g for g in games if g.runner in filter_runners]
-            print(f"After runner filters ({len(filter_runners)} selected): {len(games)} games")
-
-        # Apply completion status filters (OR within category)
-        if filter_completion_statuses:
-            games = [g for g in games if g.completion_status.name in filter_completion_statuses]
-            print(f"After completion status filters ({len(filter_completion_statuses)} selected): {len(games)} games")
-
-        # Apply platform filters (OR within category, AND across categories)
-        if filter_platforms:
-            games = [g for g in games if g.platforms and any(platform.name in filter_platforms for platform in g.platforms)]
-            print(f"After platform filters ({len(filter_platforms)} selected): {len(games)} games")
-
-        # Apply genre filters (OR within category, AND across categories)
-        if filter_genres:
-            games = [g for g in games if g.genres and any(genre.name in filter_genres for genre in g.genres)]
-            print(f"After genre filters ({len(filter_genres)} selected): {len(games)} games")
-
-        # Apply age rating filters (OR within category, AND across categories)
-        if filter_age_ratings:
-            games = [g for g in games if g.age_ratings and any(rating.name in filter_age_ratings for rating in g.age_ratings)]
-            print(f"After age rating filters ({len(filter_age_ratings)} selected): {len(games)} games")
-
-        # Apply feature filters (OR within category, AND across categories)
-        if filter_features:
-            games = [g for g in games if g.features and any(feature.name in filter_features for feature in g.features)]
-            print(f"After feature filters ({len(filter_features)} selected): {len(games)} games")
-
-        # Apply region filters (OR within category, AND across categories)
-        if filter_regions:
-            games = [g for g in games if g.regions and any(region.name in filter_regions for region in g.regions)]
-            print(f"After region filters ({len(filter_regions)} selected): {len(games)} games")
-
-        # Apply source filters (OR within category)
-        if filter_sources:
-            # Special case for empty source filter (matches games with no source)
-            if "" in filter_sources:
-                if len(filter_sources) == 1:
-                    # Only filtering for "No Source" - get all games with no source or empty source
-                    games = [g for g in games if g.source is None or g.source == ""]
-                else:
-                    # Mixed filter including "No Source" and other sources
-                    games = [g for g in games if g.source is None or g.source == "" or g.source in filter_sources]
-            else:
-                # Normal source filtering
-                games = [g for g in games if g.source in filter_sources]
-            print(f"After source filters ({len(filter_sources)} selected): {len(games)} games")
+            # Apply filters from sidebar controller if available
+            if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
+                games = self.main_controller.sidebar_controller.apply_filters_to_games(games)
+        else:
+            games = filtered_games
+            print(f"Populating games grid with {len(games)} pre-filtered games...")
 
         # Apply search filter if search text is provided
         if search_text:
@@ -1018,52 +940,16 @@ class GameGridController:
                     # Get all games to check against filters
                     all_games = self.main_controller.get_games()
 
-                    # Now check if applying the filters would result in any games
-                    would_have_results = False
-
-                    # Function to check if any game would match all filters
-                    def game_matches_all_filters(game):
-                        # Check each filter category (AND logic across categories)
-                        for category, values in original_filters.items():
-                            if not values:  # Skip empty filter sets
-                                continue
-
-                            if category == "runner":
-                                if game.runner not in values:
-                                    return False
-                            elif category == "completion_status":
-                                if game.completion_status.name not in values:
-                                    return False
-                            elif category == "platforms":
-                                if not game.platforms or not any(platform.name in values for platform in game.platforms):
-                                    return False
-                            elif category == "genres":
-                                if not game.genres or not any(genre.name in values for genre in game.genres):
-                                    return False
-                            elif category == "age_ratings":
-                                if not game.age_ratings or not any(rating.name in values for rating in game.age_ratings):
-                                    return False
-                            elif category == "features":
-                                if not game.features or not any(feature.name in values for feature in game.features):
-                                    return False
-                            elif category == "regions":
-                                if not game.regions or not any(region.name in values for region in game.regions):
-                                    return False
-                            elif category == "sources":
-                                if game.source not in values:
-                                    return False
-
-                        # If we get here, this game matches all filters
-                        return True
-
                     # Consider the show_hidden setting when checking for matches
                     is_showing_hidden = hasattr(self.main_controller, 'show_hidden') and self.main_controller.show_hidden
 
                     # Filter games based on hidden status
                     visible_games = [g for g in all_games if g.hidden == is_showing_hidden]
 
-                    # Check if any visible game would match all the filters
-                    would_have_results = any(game_matches_all_filters(game) for game in visible_games)
+                    # Apply original filters to visible_games and see if any games match
+                    self.main_controller.sidebar_controller.active_filters = original_filters
+                    filtered_games = self.main_controller.sidebar_controller.apply_filters_to_games(visible_games)
+                    would_have_results = len(filtered_games) > 0
 
                     # Restore filters if they would have results, otherwise leave them cleared
                     if would_have_results:
@@ -1072,34 +958,16 @@ class GameGridController:
                         self.main_controller.sidebar_controller._update_selection_state()
                         # Re-apply filters with proper source filters
                         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
-                            # Get all filter values
-                            filter_runners = original_filters.get("runner", set())
-                            filter_completion_statuses = original_filters.get("completion_status", set())
-                            filter_platforms = original_filters.get("platforms", set())
-                            filter_genres = original_filters.get("genres", set())
-                            filter_age_ratings = original_filters.get("age_ratings", set())
-                            filter_features = original_filters.get("features", set())
-                            filter_regions = original_filters.get("regions", set())
-                            filter_sources = original_filters.get("sources", set())
+                            # Filter values are stored in sidebar controller's active_filters
 
                             # Get search text
                             search_text = ""
-                            if self.main_controller.window and hasattr(self.main_controller.window, 'search_entry'):
-                                search_text = self.main_controller.window.search_entry.get_text().strip().lower()
+                            if hasattr(self.main_controller, 'get_search_text'):
+                                search_text = self.main_controller.get_search_text()
 
-                            # Directly populate with the filters
-                            print(f"Re-applying original filters: sources={filter_sources}")
-                            self.main_controller.game_grid_controller.populate_games(
-                                filter_runners=filter_runners,
-                                filter_completion_statuses=filter_completion_statuses,
-                                filter_platforms=filter_platforms,
-                                filter_genres=filter_genres,
-                                filter_age_ratings=filter_age_ratings,
-                                filter_features=filter_features,
-                                filter_regions=filter_regions,
-                                filter_sources=filter_sources,
-                                search_text=search_text
-                            )
+                            # Directly populate with the filters - use new approach
+                            print(f"Re-applying original filters")
+                            self.populate_games(search_text=search_text)
                     else:
                         print("Filters would result in empty view after deletion, showing all games")
                         # Keep filters cleared and update UI to reflect this

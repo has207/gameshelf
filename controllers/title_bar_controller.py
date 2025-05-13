@@ -139,43 +139,10 @@ class TitleBarController:
         # Save search text to settings
         self.main_controller.settings_manager.set_search_text(search_text)
 
-        # Get all active filters from sidebar controller if available
-        filter_runners = None
-        filter_completion_statuses = None
-        filter_platforms = None
-        filter_genres = None
-        filter_age_ratings = None
-        filter_features = None
-        filter_regions = None
-        filter_sources = None
-
-        if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
-            sidebar = self.main_controller.sidebar_controller
-            filter_runners = sidebar.active_filters.get("runner")
-            filter_completion_statuses = sidebar.active_filters.get("completion_status")
-            filter_platforms = sidebar.active_filters.get("platforms")
-            filter_genres = sidebar.active_filters.get("genres")
-            filter_age_ratings = sidebar.active_filters.get("age_ratings")
-            filter_features = sidebar.active_filters.get("features")
-            filter_regions = sidebar.active_filters.get("regions")
-            filter_sources = sidebar.active_filters.get("sources")
-        else:
-            # Fall back to legacy filter if sidebar controller not available
-            filter_runners = self.main_controller.current_filter
-
-        # Update games grid directly without a full reload
+        # Update games grid directly with just the new search text
+        # The grid controller will automatically get filters from the sidebar controller
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
-            self.main_controller.game_grid_controller.populate_games(
-                filter_runners=filter_runners,
-                filter_completion_statuses=filter_completion_statuses,
-                filter_platforms=filter_platforms,
-                filter_genres=filter_genres,
-                filter_age_ratings=filter_age_ratings,
-                filter_features=filter_features,
-                filter_regions=filter_regions,
-                filter_sources=filter_sources,
-                search_text=search_text
-            )
+            self.main_controller.game_grid_controller.populate_games(search_text=search_text)
 
     def update_sort(self, sort_field: str, ascending: bool):
         """
