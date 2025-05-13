@@ -484,11 +484,11 @@ class SourceManager(Gtk.Box):
 
             return
 
-        # For other source types, use the regular progress dialog
+        # For other source types, use a similar thread-based approach as Xbox/PSN
         dialog = Gtk.Dialog(
             title=f"Scanning {source.name}",
             transient_for=self.get_root(),
-            modal=True
+            modal=False  # Non-modal to prevent UI freezing
         )
 
         # Add content
@@ -499,66 +499,135 @@ class SourceManager(Gtk.Box):
         content_area.set_margin_top(12)
         content_area.set_margin_bottom(12)
 
-        label = Gtk.Label(label=f"Scanning {source.name}...")
+        # Add explanatory label
+        label = Gtk.Label()
+        label.set_markup(f"<b>Scanning directory: {source.name}</b>")
+        label.set_margin_bottom(10)
         content_area.append(label)
 
-        progress_bar = Gtk.ProgressBar()
-        progress_bar.set_fraction(0)
-        progress_bar.set_show_text(True)
-        content_area.append(progress_bar)
-
-        status_label = Gtk.Label(label="")
+        # Status label to show current progress
+        status_label = Gtk.Label(label="Preparing scan...")
+        status_label.set_wrap(True)
+        status_label.set_width_chars(40)
+        status_label.set_justify(Gtk.Justification.LEFT)
+        status_label.set_halign(Gtk.Align.START)
         content_area.append(status_label)
 
+        # No progress bar, just using text status updates
+
+        # Activity indicator
+        spinner = Gtk.Spinner()
+        spinner.set_size_request(32, 32)
+        spinner.start()
+        content_area.append(spinner)
+
+        # Add a close button
+        dialog.add_button("Close", Gtk.ResponseType.CLOSE)
+
         # Show dialog
+        dialog.set_default_size(400, -1)
         dialog.present()
 
-        # Function to update progress
-        def update_progress(current, total, item_name):
-            if total > 0:
-                fraction = min(current / total, 1.0)
-                progress_bar.set_fraction(fraction)
-                progress_bar.set_text(f"{current} of {total}")
+        # Flag to track if the dialog has been closed
+        dialog_active = [True]
 
-            if item_name:
-                status_label.set_text(f"Processing: {item_name}")
+        # Handle dialog close properly
+        def on_dialog_response(dialog, response):
+            dialog_active[0] = False
+            dialog.destroy()
 
-            # If the scan is complete, close the dialog after a delay
-            if current >= total and total > 0:
-                # Show number of games added in status label
-                status_label.set_text(f"Scan complete: {current} files processed")
+        # Connect dialog response handler
+        dialog.connect("response", on_dialog_response)
 
-                # Schedule a timeout to close the dialog
-                GObject.timeout_add(1500, lambda: dialog.close() or False)
+        # Function to update progress - thread-safe
+        def directory_progress_callback(current, total, item_name):
+            # Use GObject.idle_add to ensure UI updates happen in the main thread
+            def update_ui():
+                if not dialog_active[0]:
+                    return False
 
+                progress_text = ""
+                if total > 0:
+                    progress_text = f" ({current} of {total})"
+
+                if item_name:
+                    status_label.set_text(f"{item_name}{progress_text}")
+                elif progress_text:
+                    status_label.set_text(f"Scanning files{progress_text}")
+
+                # If the scan is complete, close the dialog after a delay
+                if current >= total and total > 0:
+                    spinner.stop()
+                    status_label.set_text(f"Scan complete: {current} files processed")
+                    # Close the dialog after a delay if still active
+                    GObject.timeout_add(3000, lambda: dialog.close() if dialog_active[0] else False)
+                return False  # Don't repeat
+
+            GObject.idle_add(update_ui)
             return True
 
-        # Use GLib.timeout_add for scanning in smaller chunks
-        def start_scan():
-            # Start the scan process
-            self._do_scan(source, update_progress)
-            return False  # Do not repeat
+        # Start the scan in a separate thread
+        import threading
 
-        # Start scanning after a short delay to let the UI update
-        GObject.timeout_add(100, start_scan)
+        def run_scan():
+            try:
+                # Perform the scan in a background thread
+                added, errors = self.source_handler.scan_source(source, directory_progress_callback)
 
-    def _do_scan(self, source, progress_callback):
-        """Perform the actual scan"""
-        # Skip Xbox and PlayStation sources as they're handled specially in _scan_source_with_progress
-        if source.source_type in [SourceType.XBOX, SourceType.PLAYSTATION]:
-            return False
+                # Update UI on completion
+                def on_complete():
+                    if not dialog_active[0]:
+                        # Dialog already closed, just emit the signal that games were added
+                        self.emit("games-added", added)
+                        return False
 
-        # Scan the source (non-Xbox sources)
-        added, errors = self.source_handler.scan_source(source, progress_callback)
+                    # Stop the spinner
+                    spinner.stop()
 
-        if errors:
-            # Show errors in a dialog after scan completes
-            GObject.timeout_add(1500, lambda: self._show_scan_errors(errors) or False)
+                    # Update status
+                    if added > 0:
+                        status_label.set_text(f"Scan complete: Added {added} games")
+                    else:
+                        status_label.set_text(f"Scan complete: No new games added")
 
-        # Emit a signal that games were added
-        self.emit("games-added", added)
+                    # Handle errors if any
+                    if errors:
+                        # Show errors after a delay so user can see completion message
+                        GObject.timeout_add(2000, lambda: self._show_scan_errors(errors) if dialog_active[0] else False)
 
-        return False  # Don't call again
+                    # Tell the app we added games
+                    self.emit("games-added", added)
+
+                    # Close the dialog after a delay if it's still active
+                    GObject.timeout_add(3000, lambda: dialog.close() if dialog_active[0] else False)
+
+                    return False
+
+                # Schedule UI update on the main thread
+                GObject.idle_add(on_complete)
+            except Exception as e:
+                # Handle thread exceptions
+                def on_error():
+                    if not dialog_active[0]:
+                        return False
+
+                    # Stop the spinner
+                    spinner.stop()
+
+                    # Show error in dialog
+                    status_label.set_text(f"Error: {str(e)}")
+                    logger.error(f"Error in directory scan thread: {e}")
+
+                    return False
+
+                GObject.idle_add(on_error)
+
+        # Start scan thread
+        scan_thread = threading.Thread(target=run_scan)
+        scan_thread.daemon = True
+        scan_thread.start()
+
+    # _do_scan method removed as we now perform scanning directly in the thread
 
     def _show_scan_errors(self, errors):
         """Show errors from scanning in a dialog"""
