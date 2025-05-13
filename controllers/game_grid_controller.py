@@ -751,26 +751,110 @@ class GameGridController:
         if not window:
             return
 
-        # Create confirmation dialog
-        dialog = Gtk.MessageDialog(
+        # Create custom confirmation dialog to support progress indicator
+        dialog = Gtk.Dialog(
+            title=f"Remove {len(games)} games?",
             transient_for=window,
-            modal=True,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text=f"Remove {len(games)} games?",
-            secondary_text="This action cannot be undone. The selected games will be permanently removed."
+            modal=True
         )
+
+        # Add buttons
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        delete_button = dialog.add_button("Delete", Gtk.ResponseType.YES)
+        delete_button.add_css_class("destructive-action")
+
+        # Set up the content area
+        content_area = dialog.get_content_area()
+        content_area.set_spacing(10)
+        content_area.set_margin_start(20)
+        content_area.set_margin_end(20)
+        content_area.set_margin_top(20)
+        content_area.set_margin_bottom(20)
+
+        # Create warning icon and message
+        message_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+
+        # Add warning icon
+        icon = Gtk.Image.new_from_icon_name("dialog-warning")
+        icon.set_pixel_size(32)
+        message_box.append(icon)
+
+        # Add message text
+        text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        main_text = Gtk.Label()
+        main_text.set_markup(f"<b>Remove {len(games)} games?</b>")
+        main_text.set_halign(Gtk.Align.START)
+        main_text.set_wrap(True)
+        text_box.append(main_text)
+
+        desc_text = Gtk.Label(label="This action cannot be undone. The selected games will be permanently removed.")
+        desc_text.set_halign(Gtk.Align.START)
+        desc_text.set_wrap(True)
+        text_box.append(desc_text)
+
+        message_box.append(text_box)
+        content_area.append(message_box)
+
+        # Create progress area (initially hidden)
+        progress_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        progress_box.set_margin_top(10)
+        progress_box.set_visible(False)  # Initially hidden
+
+        # Add a separator above the progress area
+        separator = Gtk.Separator()
+        separator.set_margin_top(5)
+        progress_box.append(separator)
+
+        # Add a descriptive header
+        header_label = Gtk.Label()
+        header_label.set_markup("<b>Operation in progress</b>")
+        header_label.set_margin_top(10)
+        header_label.set_halign(Gtk.Align.CENTER)
+        progress_box.append(header_label)
+
+        # Progress details
+        progress_label = Gtk.Label(label="Deleting games...")
+        progress_label.set_halign(Gtk.Align.CENTER)
+        progress_label.set_margin_top(5)
+        progress_box.append(progress_label)
+
+        # Spinner for showing activity
+        spinner = Gtk.Spinner()
+        spinner.set_size_request(48, 48)  # Make it larger for better visibility
+        spinner.set_halign(Gtk.Align.CENTER)  # Center the spinner
+        spinner.set_spinning(True)  # Pre-activate the spinner
+        # Make sure the spinner has enough space to be visible
+        spinner_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        spinner_box.set_margin_top(10)
+        spinner_box.set_margin_bottom(10)
+        spinner_box.set_hexpand(True)  # Expand horizontally to fill space
+        spinner_box.append(spinner)
+        progress_box.append(spinner_box)
+
+        content_area.append(progress_box)
+
+        # Store references for later use
+        dialog.progress_box = progress_box
+        dialog.progress_label = progress_label
+        dialog.spinner = spinner
+        dialog.delete_button = delete_button
+
+        # Connect response handler
         dialog.connect("response", self._on_multi_delete_response, games)
         dialog.show()
 
     def _on_multi_delete_response(self, dialog, response_id, games):
         """Handle the response from the remove confirmation dialog"""
         if response_id == Gtk.ResponseType.YES:
-            # User confirmed removal
-            removed_count = 0
-            for game in games:
-                if self.main_controller.remove_game(game):
-                    removed_count += 1
+            # User confirmed removal - show progress UI
+            dialog.progress_box.set_visible(True)
+
+            # Make sure the spinner is running - use set_spinning which is used elsewhere in the app
+            dialog.spinner.set_spinning(True)
+
+            # Disable buttons during deletion
+            dialog.set_response_sensitive(Gtk.ResponseType.YES, False)
+            dialog.set_response_sensitive(Gtk.ResponseType.CANCEL, False)
 
             # Get the window to update UI if needed
             from controllers.window_controller import GameShelfWindow
@@ -779,129 +863,44 @@ class GameGridController:
                 window.details_panel.set_reveal_flap(False)
                 window.current_selected_game = None
 
-            # Refresh UI once after all games are removed
-            if removed_count > 0:
-                # Store the current active filters before reloading data
-                active_filters = {}
-                if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
-                    active_filters = self.main_controller.sidebar_controller.active_filters.copy() if self.main_controller.sidebar_controller.active_filters else {}
+            # Store current active filters for later restoration
+            active_filters = {}
+            if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
+                active_filters = self.main_controller.sidebar_controller.active_filters.copy() if self.main_controller.sidebar_controller.active_filters else {}
 
-                # Schedule data reload and sidebar refresh async
-                def refresh_with_filter_preservation():
-                    # If we have active filters, check if they will result in an empty view after deletion
-                    if active_filters and hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
-                        # Temporarily clear the active filters in the controller
-                        original_filters = self.main_controller.sidebar_controller.active_filters.copy()
-                        self.main_controller.sidebar_controller.active_filters = {}
+            # Run deletion in a background thread
+            def delete_thread():
+                removed_count = 0
+                total_games = len(games)
 
-                        # Reload data with sidebar refresh but without filters applied
-                        self.main_controller.reload_data(refresh_sidebar=True)
+                for i, game in enumerate(games):
+                    # Update progress in main thread
+                    GLib.idle_add(
+                        lambda idx=i, title=game.title: self._update_delete_progress(
+                            dialog, idx + 1, total_games, title
+                        )
+                    )
 
-                        # Get all games to check against filters
-                        all_games = self.main_controller.get_games()
+                    # Perform actual deletion
+                    if self.main_controller.remove_game(game):
+                        removed_count += 1
 
-                        # Now check if applying the filters would result in any games
-                        would_have_results = False
+                # Process completed - update UI in main thread
+                GLib.idle_add(
+                    lambda count=removed_count: self._complete_deletion(
+                        dialog, count, active_filters
+                    )
+                )
 
-                        # Function to check if any game would match all filters
-                        def game_matches_all_filters(game):
-                            # Check each filter category (AND logic across categories)
-                            for category, values in original_filters.items():
-                                if not values:  # Skip empty filter sets
-                                    continue
+            # Start deletion thread
+            thread = threading.Thread(target=delete_thread)
+            thread.daemon = True
+            thread.start()
 
-                                if category == "runner":
-                                    if game.runner not in values:
-                                        return False
-                                elif category == "completion_status":
-                                    if game.completion_status.name not in values:
-                                        return False
-                                elif category == "platforms":
-                                    if not game.platforms or not any(platform.name in values for platform in game.platforms):
-                                        return False
-                                elif category == "genres":
-                                    if not game.genres or not any(genre.name in values for genre in game.genres):
-                                        return False
-                                elif category == "age_ratings":
-                                    if not game.age_ratings or not any(rating.name in values for rating in game.age_ratings):
-                                        return False
-                                elif category == "features":
-                                    if not game.features or not any(feature.name in values for feature in game.features):
-                                        return False
-                                elif category == "regions":
-                                    if not game.regions or not any(region.name in values for region in game.regions):
-                                        return False
-                                elif category == "sources":
-                                    if game.source not in values:
-                                        return False
+            # Don't destroy dialog yet - will be handled after thread completes
+            return
 
-                            # If we get here, this game matches all filters
-                            return True
-
-                        # Consider the show_hidden setting when checking for matches
-                        is_showing_hidden = hasattr(self.main_controller, 'show_hidden') and self.main_controller.show_hidden
-
-                        # Filter games based on hidden status
-                        visible_games = [g for g in all_games if g.hidden == is_showing_hidden]
-
-                        # Check if any visible game would match all the filters
-                        would_have_results = any(game_matches_all_filters(game) for game in visible_games)
-
-                        # Restore filters if they would have results, otherwise leave them cleared
-                        if would_have_results:
-                            print("Restoring filters after deletion - games still match filters")
-                            self.main_controller.sidebar_controller.active_filters = original_filters
-                            self.main_controller.sidebar_controller._update_selection_state()
-                            # Re-apply filters with proper source filters
-                            if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
-                                # Get all filter values
-                                filter_runners = original_filters.get("runner", set())
-                                filter_completion_statuses = original_filters.get("completion_status", set())
-                                filter_platforms = original_filters.get("platforms", set())
-                                filter_genres = original_filters.get("genres", set())
-                                filter_age_ratings = original_filters.get("age_ratings", set())
-                                filter_features = original_filters.get("features", set())
-                                filter_regions = original_filters.get("regions", set())
-                                filter_sources = original_filters.get("sources", set())
-
-                                # Get search text
-                                search_text = ""
-                                if self.main_controller.window and hasattr(self.main_controller.window, 'search_entry'):
-                                    search_text = self.main_controller.window.search_entry.get_text().strip().lower()
-
-                                # Directly populate with the filters
-                                print(f"Re-applying original filters: sources={filter_sources}")
-                                self.main_controller.game_grid_controller.populate_games(
-                                    filter_runners=filter_runners,
-                                    filter_completion_statuses=filter_completion_statuses,
-                                    filter_platforms=filter_platforms,
-                                    filter_genres=filter_genres,
-                                    filter_age_ratings=filter_age_ratings,
-                                    filter_features=filter_features,
-                                    filter_regions=filter_regions,
-                                    filter_sources=filter_sources,
-                                    search_text=search_text
-                                )
-                        else:
-                            print("Filters would result in empty view after deletion, showing all games")
-                            # Keep filters cleared and update UI to reflect this
-                            self.main_controller.sidebar_controller._update_selection_state()
-                            self.main_controller.sidebar_controller._update_all_games_label()
-                            # Also save the cleared filters to settings
-                            self.main_controller.settings_manager.set_sidebar_active_filters({})
-                            self.main_controller.settings_manager.save_settings()
-                    else:
-                        # No active filters, just reload normally
-                        self.main_controller.reload_data(refresh_sidebar=True)
-
-                    return False
-
-                GLib.timeout_add(50, refresh_with_filter_preservation)
-
-                # Show feedback message
-                self._show_feedback_message(f"{removed_count} games removed")
-
-        # Destroy the dialog
+        # For cancel response, just destroy the dialog
         dialog.destroy()
 
     def create_multi_context_menu(self, games, parent_item):
@@ -989,8 +988,162 @@ class GameGridController:
         # Show confirmation dialog
         self._show_multi_delete_confirmation(games)
 
+    def _update_delete_progress(self, dialog, current, total, game_title):
+        """Update the deletion progress UI (called from main thread)"""
+        if not dialog or not hasattr(dialog, 'progress_label'):
+            return False
+
+        dialog.progress_label.set_text(f"Deleting {current} of {total}: {game_title}")
+        return False  # Remove idle callback
+
+    def _complete_deletion(self, dialog, removed_count, active_filters):
+        """Handle completion of deletion thread (called from main thread)"""
+        # Update the label to show completion
+        if dialog and hasattr(dialog, 'progress_label'):
+            dialog.progress_label.set_text(f"Refreshing game grid... ({removed_count} games removed)")
+
+        # Refresh UI once after all games are removed
+        if removed_count > 0:
+            # Schedule data reload and sidebar refresh async
+            def refresh_with_filter_preservation():
+                # If we have active filters, check if they will result in an empty view after deletion
+                if active_filters and hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
+                    # Temporarily clear the active filters in the controller
+                    original_filters = self.main_controller.sidebar_controller.active_filters.copy()
+                    self.main_controller.sidebar_controller.active_filters = {}
+
+                    # Reload data with sidebar refresh but without filters applied
+                    self.main_controller.reload_data(refresh_sidebar=True)
+
+                    # Get all games to check against filters
+                    all_games = self.main_controller.get_games()
+
+                    # Now check if applying the filters would result in any games
+                    would_have_results = False
+
+                    # Function to check if any game would match all filters
+                    def game_matches_all_filters(game):
+                        # Check each filter category (AND logic across categories)
+                        for category, values in original_filters.items():
+                            if not values:  # Skip empty filter sets
+                                continue
+
+                            if category == "runner":
+                                if game.runner not in values:
+                                    return False
+                            elif category == "completion_status":
+                                if game.completion_status.name not in values:
+                                    return False
+                            elif category == "platforms":
+                                if not game.platforms or not any(platform.name in values for platform in game.platforms):
+                                    return False
+                            elif category == "genres":
+                                if not game.genres or not any(genre.name in values for genre in game.genres):
+                                    return False
+                            elif category == "age_ratings":
+                                if not game.age_ratings or not any(rating.name in values for rating in game.age_ratings):
+                                    return False
+                            elif category == "features":
+                                if not game.features or not any(feature.name in values for feature in game.features):
+                                    return False
+                            elif category == "regions":
+                                if not game.regions or not any(region.name in values for region in game.regions):
+                                    return False
+                            elif category == "sources":
+                                if game.source not in values:
+                                    return False
+
+                        # If we get here, this game matches all filters
+                        return True
+
+                    # Consider the show_hidden setting when checking for matches
+                    is_showing_hidden = hasattr(self.main_controller, 'show_hidden') and self.main_controller.show_hidden
+
+                    # Filter games based on hidden status
+                    visible_games = [g for g in all_games if g.hidden == is_showing_hidden]
+
+                    # Check if any visible game would match all the filters
+                    would_have_results = any(game_matches_all_filters(game) for game in visible_games)
+
+                    # Restore filters if they would have results, otherwise leave them cleared
+                    if would_have_results:
+                        print("Restoring filters after deletion - games still match filters")
+                        self.main_controller.sidebar_controller.active_filters = original_filters
+                        self.main_controller.sidebar_controller._update_selection_state()
+                        # Re-apply filters with proper source filters
+                        if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
+                            # Get all filter values
+                            filter_runners = original_filters.get("runner", set())
+                            filter_completion_statuses = original_filters.get("completion_status", set())
+                            filter_platforms = original_filters.get("platforms", set())
+                            filter_genres = original_filters.get("genres", set())
+                            filter_age_ratings = original_filters.get("age_ratings", set())
+                            filter_features = original_filters.get("features", set())
+                            filter_regions = original_filters.get("regions", set())
+                            filter_sources = original_filters.get("sources", set())
+
+                            # Get search text
+                            search_text = ""
+                            if self.main_controller.window and hasattr(self.main_controller.window, 'search_entry'):
+                                search_text = self.main_controller.window.search_entry.get_text().strip().lower()
+
+                            # Directly populate with the filters
+                            print(f"Re-applying original filters: sources={filter_sources}")
+                            self.main_controller.game_grid_controller.populate_games(
+                                filter_runners=filter_runners,
+                                filter_completion_statuses=filter_completion_statuses,
+                                filter_platforms=filter_platforms,
+                                filter_genres=filter_genres,
+                                filter_age_ratings=filter_age_ratings,
+                                filter_features=filter_features,
+                                filter_regions=filter_regions,
+                                filter_sources=filter_sources,
+                                search_text=search_text
+                            )
+                    else:
+                        print("Filters would result in empty view after deletion, showing all games")
+                        # Keep filters cleared and update UI to reflect this
+                        self.main_controller.sidebar_controller._update_selection_state()
+                        self.main_controller.sidebar_controller._update_all_games_label()
+                        # Also save the cleared filters to settings
+                        self.main_controller.settings_manager.set_sidebar_active_filters({})
+                        self.main_controller.settings_manager.save_settings()
+                else:
+                    # No active filters, just reload normally
+                    self.main_controller.reload_data(refresh_sidebar=True)
+
+                # Data is now refreshed, now we can stop the spinner and close the dialog
+                if dialog:
+                    # Update the label to show completion
+                    if hasattr(dialog, 'progress_label'):
+                        dialog.progress_label.set_text(f"Completed: {removed_count} games removed")
+
+                    # Stop the spinner now that all operations are complete
+                    if hasattr(dialog, 'spinner'):
+                        dialog.spinner.set_spinning(False)
+
+                    # Close the dialog after a short delay to show the completion message
+                    GLib.timeout_add(1000, lambda: dialog.destroy() or False)
+
+                return False
+
+            # Run the refresh after a short delay to allow the UI to update
+            GLib.timeout_add(50, refresh_with_filter_preservation)
+        else:
+            # No games removed, just stop the spinner and close dialog
+            if dialog:
+                # Stop the spinner
+                if hasattr(dialog, 'spinner'):
+                    dialog.spinner.set_spinning(False)
+
+                # Close the dialog after a short delay
+                GLib.timeout_add(1000, lambda: dialog.destroy() or False)
+
+        return False  # Remove idle callback
+
     def _show_feedback_message(self, message):
-        """Show a feedback dialog with the result of a bulk operation"""
+        """Show a feedback dialog with the result of a bulk operation
+        Note: This is no longer used for deletion operations but kept for other operations."""
         from controllers.window_controller import GameShelfWindow
         window = self.grid_view.get_ancestor(GameShelfWindow)
         if not window:
