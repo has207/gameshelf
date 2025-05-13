@@ -781,8 +781,122 @@ class GameGridController:
 
             # Refresh UI once after all games are removed
             if removed_count > 0:
+                # Store the current active filters before reloading data
+                active_filters = {}
+                if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
+                    active_filters = self.main_controller.sidebar_controller.active_filters.copy() if self.main_controller.sidebar_controller.active_filters else {}
+
                 # Schedule data reload and sidebar refresh async
-                GLib.timeout_add(50, lambda: self.main_controller.reload_data(refresh_sidebar=True) or False)
+                def refresh_with_filter_preservation():
+                    # If we have active filters, check if they will result in an empty view after deletion
+                    if active_filters and hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
+                        # Temporarily clear the active filters in the controller
+                        original_filters = self.main_controller.sidebar_controller.active_filters.copy()
+                        self.main_controller.sidebar_controller.active_filters = {}
+
+                        # Reload data with sidebar refresh but without filters applied
+                        self.main_controller.reload_data(refresh_sidebar=True)
+
+                        # Get all games to check against filters
+                        all_games = self.main_controller.get_games()
+
+                        # Now check if applying the filters would result in any games
+                        would_have_results = False
+
+                        # Function to check if any game would match all filters
+                        def game_matches_all_filters(game):
+                            # Check each filter category (AND logic across categories)
+                            for category, values in original_filters.items():
+                                if not values:  # Skip empty filter sets
+                                    continue
+
+                                if category == "runner":
+                                    if game.runner not in values:
+                                        return False
+                                elif category == "completion_status":
+                                    if game.completion_status.name not in values:
+                                        return False
+                                elif category == "platforms":
+                                    if not game.platforms or not any(platform.name in values for platform in game.platforms):
+                                        return False
+                                elif category == "genres":
+                                    if not game.genres or not any(genre.name in values for genre in game.genres):
+                                        return False
+                                elif category == "age_ratings":
+                                    if not game.age_ratings or not any(rating.name in values for rating in game.age_ratings):
+                                        return False
+                                elif category == "features":
+                                    if not game.features or not any(feature.name in values for feature in game.features):
+                                        return False
+                                elif category == "regions":
+                                    if not game.regions or not any(region.name in values for region in game.regions):
+                                        return False
+                                elif category == "sources":
+                                    if game.source not in values:
+                                        return False
+
+                            # If we get here, this game matches all filters
+                            return True
+
+                        # Consider the show_hidden setting when checking for matches
+                        is_showing_hidden = hasattr(self.main_controller, 'show_hidden') and self.main_controller.show_hidden
+
+                        # Filter games based on hidden status
+                        visible_games = [g for g in all_games if g.hidden == is_showing_hidden]
+
+                        # Check if any visible game would match all the filters
+                        would_have_results = any(game_matches_all_filters(game) for game in visible_games)
+
+                        # Restore filters if they would have results, otherwise leave them cleared
+                        if would_have_results:
+                            print("Restoring filters after deletion - games still match filters")
+                            self.main_controller.sidebar_controller.active_filters = original_filters
+                            self.main_controller.sidebar_controller._update_selection_state()
+                            # Re-apply filters with proper source filters
+                            if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
+                                # Get all filter values
+                                filter_runners = original_filters.get("runner", set())
+                                filter_completion_statuses = original_filters.get("completion_status", set())
+                                filter_platforms = original_filters.get("platforms", set())
+                                filter_genres = original_filters.get("genres", set())
+                                filter_age_ratings = original_filters.get("age_ratings", set())
+                                filter_features = original_filters.get("features", set())
+                                filter_regions = original_filters.get("regions", set())
+                                filter_sources = original_filters.get("sources", set())
+
+                                # Get search text
+                                search_text = ""
+                                if self.main_controller.window and hasattr(self.main_controller.window, 'search_entry'):
+                                    search_text = self.main_controller.window.search_entry.get_text().strip().lower()
+
+                                # Directly populate with the filters
+                                print(f"Re-applying original filters: sources={filter_sources}")
+                                self.main_controller.game_grid_controller.populate_games(
+                                    filter_runners=filter_runners,
+                                    filter_completion_statuses=filter_completion_statuses,
+                                    filter_platforms=filter_platforms,
+                                    filter_genres=filter_genres,
+                                    filter_age_ratings=filter_age_ratings,
+                                    filter_features=filter_features,
+                                    filter_regions=filter_regions,
+                                    filter_sources=filter_sources,
+                                    search_text=search_text
+                                )
+                        else:
+                            print("Filters would result in empty view after deletion, showing all games")
+                            # Keep filters cleared and update UI to reflect this
+                            self.main_controller.sidebar_controller._update_selection_state()
+                            self.main_controller.sidebar_controller._update_all_games_label()
+                            # Also save the cleared filters to settings
+                            self.main_controller.settings_manager.set_sidebar_active_filters({})
+                            self.main_controller.settings_manager.save_settings()
+                    else:
+                        # No active filters, just reload normally
+                        self.main_controller.reload_data(refresh_sidebar=True)
+
+                    return False
+
+                GLib.timeout_add(50, refresh_with_filter_preservation)
 
                 # Show feedback message
                 self._show_feedback_message(f"{removed_count} games removed")

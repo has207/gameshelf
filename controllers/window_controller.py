@@ -420,8 +420,53 @@ class GameShelfWindow(Adw.ApplicationWindow):
     def _on_games_added_from_source(self, source_manager, count):
         """Handle games being added from a source scan"""
         if count > 0:
-            # Reload data after games are added
-            self.controller.reload_data(refresh_sidebar=True)
+            # Get current active filters before reloading
+            active_filters = {}
+            if hasattr(self.controller, 'sidebar_controller') and self.controller.sidebar_controller:
+                active_filters = self.controller.sidebar_controller.active_filters.copy()
+
+            # Reload the game and runner data
+            self.controller.games = self.controller.data_handler.load_games()
+            self.controller.runners = {runner.id: runner for runner in self.controller.data_handler.load_runners()}
+
+            # Refresh the sidebar to update counts
+            if hasattr(self.controller, 'sidebar_controller') and self.controller.sidebar_controller:
+                self.controller.sidebar_controller.refresh_filters()
+
+            # If we had active filters, preserve and reapply them
+            if active_filters and hasattr(self.controller, 'game_grid_controller') and self.controller.game_grid_controller:
+                print(f"Re-applying filters after source scan: {active_filters}")
+
+                # Get search text
+                search_text = ""
+                if hasattr(self, 'search_entry'):
+                    search_text = self.search_entry.get_text().strip().lower()
+
+                # Get all filter values
+                filter_runners = active_filters.get("runner", set())
+                filter_completion_statuses = active_filters.get("completion_status", set())
+                filter_platforms = active_filters.get("platforms", set())
+                filter_genres = active_filters.get("genres", set())
+                filter_age_ratings = active_filters.get("age_ratings", set())
+                filter_features = active_filters.get("features", set())
+                filter_regions = active_filters.get("regions", set())
+                filter_sources = active_filters.get("sources", set())
+
+                # Apply filters to the grid
+                self.controller.game_grid_controller.populate_games(
+                    filter_runners=filter_runners,
+                    filter_completion_statuses=filter_completion_statuses,
+                    filter_platforms=filter_platforms,
+                    filter_genres=filter_genres,
+                    filter_age_ratings=filter_age_ratings,
+                    filter_features=filter_features,
+                    filter_regions=filter_regions,
+                    filter_sources=filter_sources,
+                    search_text=search_text
+                )
+            else:
+                # No filters, normal reload
+                self.controller.reload_data(refresh_sidebar=False)
 
             # Show a notification
             self._show_notification(f"Added {count} games from source")
