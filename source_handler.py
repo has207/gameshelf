@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from data import Source, SourceType, Game
 from data_handler import DataHandler
 from sources.xbox_client import XboxLibrary
+from sources.psn_client import PSNClient
 
 
 class SourceHandler:
@@ -188,6 +189,9 @@ class SourceHandler:
         if source.source_type == SourceType.XBOX:
             # For Xbox sources, we use sync_xbox_source instead
             return self.sync_xbox_source(source, progress_callback)
+        elif source.source_type == SourceType.PLAYSTATION:
+            # For PSN sources, use sync_psn_source
+            return self.sync_psn_source(source, progress_callback)
 
         # For directory type sources, validate the path
         if not source.path or not Path(source.path).exists():
@@ -288,6 +292,8 @@ class SourceHandler:
         # Handle different source types
         if source.source_type == SourceType.XBOX:
             return self.sync_xbox_source(source, progress_callback)
+        elif source.source_type == SourceType.PLAYSTATION:
+            return self.sync_psn_source(source, progress_callback)
         else:
             # Default to standard scan for directory sources
             return self.scan_source(source, progress_callback)
@@ -657,3 +663,266 @@ class SourceHandler:
                     print(f"Error with error progress callback: {callback_error}")
 
             return 0, [f"Error syncing Xbox source: {e}"]
+
+    def sync_psn_source(self, source: Source, progress_callback: Optional[callable] = None) -> Tuple[int, List[str]]:
+        """
+        Sync PlayStation Network games with the library.
+
+        Args:
+            source: The PSN source to sync
+            progress_callback: Optional callback function for progress updates
+
+        Returns:
+            Tuple of (number of games added/updated, list of error messages)
+        """
+        added_count = 0
+        errors = []
+
+        # Initial progress update
+        if progress_callback:
+            try:
+                progress_callback(0, 100, "Initializing PlayStation Network client...")
+            except Exception as e:
+                print(f"Error with progress callback: {e}")
+
+        try:
+            # Create secure token storage
+            tokens_dir = self.ensure_secure_token_storage(source.id)
+
+            # Create PSN client with our token directory
+            psn = PSNClient(token_dir=str(tokens_dir), debug=True)
+
+            # Check if we need to authenticate
+            if not psn.is_authenticated():
+                if progress_callback:
+                    try:
+                        progress_callback(10, 100, "PlayStation Network token missing or invalid. Authentication required.")
+                    except Exception as e:
+                        print(f"Error with progress callback: {e}")
+
+                # Return error if not authenticated - requires manual token entry
+                # We don't include the full instructions here as they're shown in the authentication dialog
+                return 0, ["PlayStation Network authentication required. Please click the 'Authenticate with PlayStation' button in the source settings."]
+
+            # Update progress
+            if progress_callback:
+                try:
+                    progress_callback(30, 100, "Fetching PlayStation Network library...")
+                except Exception as e:
+                    print(f"Error with progress callback: {e}")
+
+            # Get PSN library data
+            psn_data = psn.fetch_all_data()
+            psn_games = psn_data.get('games', [])
+            psn_trophies = psn_data.get('trophies', [])
+
+            # Get existing games from this source
+            existing_games_by_title = {}
+            for game in self.data_handler.load_games():
+                if game.source == source.id:
+                    existing_games_by_title[game.title.lower()] = game
+
+            # Update progress
+            total_games = len(psn_games)
+            if progress_callback:
+                try:
+                    progress_callback(40, 100, f"Processing {total_games} games...")
+                except Exception as e:
+                    print(f"Error with progress callback: {e}")
+
+            # Process each game
+            for index, game_data in enumerate(psn_games):
+                try:
+                    # Report progress
+                    if progress_callback and index % 10 == 0:
+                        try:
+                            percentage = 40 + int((index / total_games) * 60)
+                            progress_callback(percentage, 100, f"Processing game {index+1}/{total_games}")
+                        except Exception as e:
+                            print(f"Error with progress callback: {e}")
+
+                    # Get game details
+                    title = game_data.get('name', 'Unknown Game')
+                    game_id = game_data.get('titleId', '')
+
+                    # Add debug logging
+                    print(f"Processing PSN game: {title} (ID: {game_id})")
+
+                    # Check if game already exists
+                    if title.lower() in existing_games_by_title:
+                        # Game exists, update metadata if needed
+                        # For now, we'll skip updates
+                        continue
+
+                    # Create a new game
+                    game = Game(
+                        id="",  # ID will be assigned by data handler
+                        title=title,
+                        source=source.id
+                    )
+
+                    # Extract platform info
+                    from data_mapping import Platforms
+
+                    platform_enums = []
+                    platform_str = game_data.get('platform', '')
+
+                    try:
+                        # Map platform string to our platform enum
+                        if platform_str == "PS5":
+                            platform_enums.append(Platforms.PLAYSTATION5)
+                        elif platform_str == "PS4":
+                            platform_enums.append(Platforms.PLAYSTATION4)
+                        elif platform_str == "PS3":
+                            platform_enums.append(Platforms.PLAYSTATION3)
+                        elif platform_str == "PS Vita":
+                            platform_enums.append(Platforms.PLAYSTATION_VITA)
+                        elif platform_str == "PSP":
+                            platform_enums.append(Platforms.PSP)
+
+                        print(f"  - Mapped platforms: {[p.value for p in platform_enums]}")
+
+                        if platform_enums:
+                            game.platforms = platform_enums
+                            print(f"  - Platforms set successfully")
+                    except Exception as e:
+                        print(f"  - ERROR setting platforms: {e}. Platform: {platform_str}")
+                        # Debug information to help diagnose platform mapping issues
+                        print(f"  - Platform enum values: {[p.name for p in Platforms]}")
+
+                    # Add description if available
+                    description = game_data.get('description', '')
+                    if description:
+                        game.description = description
+
+                    # Handle play time from trophies data
+                    # For PS games, we estimate play time based on trophy data if available
+                    playstation_id = game_data.get('npCommunicationId', '')
+                    if playstation_id:
+                        # Look for matching trophy data
+                        for trophy_title in psn_trophies:
+                            if trophy_title.get('npCommunicationId') == playstation_id:
+                                # Found matching trophy title
+                                trophy_progress = trophy_title.get('progress', 0)
+                                trophy_earned = trophy_title.get('earnedTrophies', {}).get('total', 0)
+
+                                # If we have earned trophies or made progress, mark as played
+                                if trophy_earned > 0 or trophy_progress > 0:
+                                    from data_mapping import CompletionStatus
+                                    game.play_count = 1
+                                    game.completion_status = CompletionStatus.PLAYED
+
+                                    # Rough play time estimate based on trophies (very approximate)
+                                    if trophy_progress > 0:
+                                        # Estimate: 1 hour per 10% progress (very rough)
+                                        estimated_hours = (trophy_progress / 10.0) * 1.0
+                                        game.play_time = int(estimated_hours * 3600)  # Convert to seconds
+                                        print(f"  - Estimated play time: {game.play_time} seconds (from {trophy_progress}% trophy progress)")
+
+                                # Stop looking after finding a match
+                                break
+
+                    # Get cover image if available
+                    image_url = None
+
+                    # Try different image sources in priority order
+                    if 'image' in game_data and game_data['image']:
+                        image_url = game_data['image']
+                    elif 'imageUrl' in game_data and game_data['imageUrl']:
+                        image_url = game_data['imageUrl']
+                    elif 'images' in game_data and game_data['images']:
+                        images = game_data['images']
+                        if len(images) > 0 and 'url' in images[0]:
+                            image_url = images[0]['url']
+
+                    if image_url:
+                        # Store the URL in config for reference
+                        if 'game_covers' not in source.config:
+                            source.config['game_covers'] = {}
+
+                        source.config['game_covers'][title] = image_url
+                        self.save_source(source)
+
+                        # Download and save the cover image immediately
+                        try:
+                            print(f"  - Downloading cover image from URL: {image_url}")
+                            import requests
+                            import tempfile
+
+                            # Download the image to a temporary file
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as temp_file:
+                                response = requests.get(image_url, stream=True, timeout=10)
+                                response.raise_for_status()  # Raise error for bad status codes
+
+                                # Write the image data to the temporary file
+                                for chunk in response.iter_content(chunk_size=8192):
+                                    temp_file.write(chunk)
+
+                                temp_path = temp_file.name
+
+                            # Use the temporary file for the game image
+                            game.image = temp_path
+                            print(f"  - Image downloaded to temporary file: {temp_path}")
+                        except Exception as img_err:
+                            print(f"  - ERROR downloading cover image: {img_err}")
+
+                    # Save the game
+                    if self.data_handler.save_game(game):
+                        # After the game is saved with an ID, save the playtime separately
+                        if hasattr(game, 'play_time') and game.play_time > 0:
+                            # Use the data_handler method to save play time
+                            if not self.data_handler.update_play_time(game, game.play_time):
+                                print(f"  - WARNING: Failed to save play time for {game.title}")
+
+                        # Save play count if set
+                        if hasattr(game, 'play_count') and game.play_count > 0:
+                            if not self.data_handler.update_play_count(game, game.play_count):
+                                print(f"  - WARNING: Failed to save play count for {game.title}")
+
+                        # Save the cover image if it was downloaded to a temporary file
+                        if hasattr(game, 'image') and game.image:
+                            try:
+                                # Use data_handler to save the cover image
+                                if self.data_handler.save_game_image(game.image, game.id):
+                                    print(f"  - Cover image saved successfully for {game.title}")
+                                else:
+                                    print(f"  - WARNING: Failed to save cover image for {game.title}")
+
+                                # Clean up the temporary file
+                                import os
+                                try:
+                                    os.unlink(game.image)
+                                    print(f"  - Temporary image file deleted: {game.image}")
+                                except Exception as del_err:
+                                    print(f"  - WARNING: Failed to delete temporary image file: {del_err}")
+                            except Exception as img_save_err:
+                                print(f"  - ERROR saving cover image: {img_save_err}")
+
+                        added_count += 1
+                    else:
+                        errors.append(f"Failed to save game '{title}'")
+
+                except Exception as e:
+                    game_name = game_data.get('name', 'Unknown')
+                    print(f"ERROR processing game {game_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    errors.append(f"Error processing game {game_name}: {e}")
+
+            # Final progress update
+            if progress_callback:
+                try:
+                    progress_callback(100, 100, "Complete")
+                except Exception as e:
+                    print(f"Error with final progress callback: {e}")
+
+            return added_count, errors
+
+        except Exception as e:
+            if progress_callback:
+                try:
+                    progress_callback(100, 100, f"Error: {e}")
+                except Exception as callback_error:
+                    print(f"Error with error progress callback: {callback_error}")
+
+            return 0, [f"Error syncing PSN source: {e}"]

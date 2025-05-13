@@ -6,7 +6,7 @@ from gi.repository import Gtk, Gio, GObject
 from data import Source, SourceType
 from source_handler import SourceHandler
 from controllers.source_item_controller import SourceItem
-from controllers.source_dialog_controller import SourceDialog
+from controllers.source_wizard_controller import SourceWizard
 
 
 class SourceListModel(GObject.Object):
@@ -94,16 +94,14 @@ class SourceManager(Gtk.Box):
             source_item.active_switch.set_active(source.active)
 
     def _on_add_source_clicked(self, button):
-        """Show the dialog to add a new source"""
-        dialog = SourceDialog(source_handler=self.source_handler, parent=self.get_root())
-        dialog.connect("source-saved", self._on_source_saved)
-        dialog.show()
+        """Show the wizard to add a new source"""
+        wizard = SourceWizard(source_handler=self.source_handler, parent=self.get_root())
+        wizard.start(callback=self._on_source_saved)
 
     def _on_edit_source(self, source_item, source):
-        """Show the dialog to edit a source"""
-        dialog = SourceDialog(source=source, source_handler=self.source_handler, parent=self.get_root())
-        dialog.connect("source-saved", self._on_source_saved)
-        dialog.show()
+        """Show the wizard to edit a source"""
+        wizard = SourceWizard(source_handler=self.source_handler, parent=self.get_root(), source=source)
+        wizard.start(callback=self._on_source_saved)
 
     def _on_delete_source(self, source_item, source):
         """Show a confirmation dialog before deleting a source"""
@@ -173,8 +171,8 @@ class SourceManager(Gtk.Box):
         # Show the dialog
         dialog.present()
 
-    def _on_source_saved(self, dialog, source):
-        """Handle a source being saved in the dialog"""
+    def _on_source_saved(self, source):
+        """Handle a source being saved in the wizard"""
         self.load_sources()  # Reload the list
 
     def _on_cancel_clicked(self, button):

@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <template class="PSNSourceDialog" parent="GtkDialog">
+    <property name="title">PlayStation Source</property>
+    <property name="modal">True</property>
+    <property name="default-width">500</property>
+    <property name="default-height">750</property>
+    <property name="use-header-bar">1</property>
+    
+    <child>
+      <object class="GtkScrolledWindow">
+        <property name="hexpand">True</property>
+        <property name="vexpand">True</property>
+        <property name="min-content-height">600</property>
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">12</property>
+            <property name="margin-start">12</property>
+            <property name="margin-end">12</property>
+            <property name="margin-top">12</property>
+            <property name="margin-bottom">12</property>
+            
+            <child>
+              <object class="GtkGrid">
+                <property name="row-spacing">8</property>
+                <property name="column-spacing">12</property>
+                <property name="hexpand">True</property>
+                
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Name:</property>
+                    <property name="xalign">1</property>
+                    <layout>
+                      <property name="column">0</property>
+                      <property name="row">0</property>
+                    </layout>
+                  </object>
+                </child>
+                
+                <child>
+                  <object class="GtkEntry" id="name_entry">
+                    <property name="hexpand">True</property>
+                    <layout>
+                      <property name="column">1</property>
+                      <property name="row">0</property>
+                    </layout>
+                  </object>
+                </child>
+                
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Authentication:</property>
+                    <property name="xalign">1</property>
+                    <layout>
+                      <property name="column">0</property>
+                      <property name="row">1</property>
+                    </layout>
+                  </object>
+                </child>
+                
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">6</property>
+                    
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">To connect your PlayStation account, you need to get an NPSSO token from Sony's website:</property>
+                        <property name="wrap">True</property>
+                        <property name="xalign">0</property>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">1. Open your web browser and go to: playstation.com
+2. Log in to your PlayStation account
+3. Visit: https://ca.account.sony.com/api/v1/ssocookie
+4. Copy the value for the NPSSO token (e.g., {"npsso":"abcd1234"})
+5. Paste it below</property>
+                        <property name="wrap">True</property>
+                        <property name="xalign">0</property>
+                        <property name="margin-start">12</property>
+                        <style>
+                          <class name="monospace"/>
+                        </style>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">horizontal</property>
+                        <property name="spacing">6</property>
+                        <property name="margin-top">12</property>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">NPSSO Token:</property>
+                          </object>
+                        </child>
+                        
+                        <child>
+                          <object class="GtkEntry" id="token_entry">
+                            <property name="hexpand">True</property>
+                            <property name="placeholder-text">{"npsso":"your-token-here"} or just the token value</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkButton" id="verify_button">
+                        <property name="label">Verify Token</property>
+                        <property name="halign">start</property>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkLabel" id="status_label">
+                        <property name="xalign">0</property>
+                        <property name="wrap">True</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    
+                    <layout>
+                      <property name="column">1</property>
+                      <property name="row">1</property>
+                    </layout>
+                  </object>
+                </child>
+                
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Active:</property>
+                    <property name="xalign">1</property>
+                    <layout>
+                      <property name="column">0</property>
+                      <property name="row">2</property>
+                    </layout>
+                  </object>
+                </child>
+                
+                <child>
+                  <object class="GtkSwitch" id="active_switch">
+                    <property name="active">True</property>
+                    <property name="halign">start</property>
+                    <layout>
+                      <property name="column">1</property>
+                      <property name="row">2</property>
+                    </layout>
+                  </object>
+                </child>
+              </object>
+            </child>
+            
+            <child>
+              <object class="GtkBox">
+                <property name="spacing">12</property>
+                <property name="halign">end</property>
+                <property name="margin-top">12</property>
+                
+                <child>
+                  <object class="GtkButton" id="cancel_button">
+                    <property name="label">Cancel</property>
+                  </object>
+                </child>
+                
+                <child>
+                  <object class="GtkButton" id="save_button">
+                    <property name="label">Save</property>
+                    <style>
+                      <class name="suggested-action"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

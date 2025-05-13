@@ -10,6 +10,7 @@ class SourceType(Enum):
     """Types of game sources that can be scanned"""
     DIRECTORY = auto()  # Generic directory of files
     XBOX = auto()       # Xbox game library via API
+    PLAYSTATION = auto()  # PlayStation Network game library via API
 
     @classmethod
     def from_string(cls, value: str) -> 'SourceType':

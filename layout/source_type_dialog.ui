@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <template class="SourceTypeDialog" parent="GtkDialog">
+    <property name="title">Select Source Type</property>
+    <property name="modal">True</property>
+    <property name="default-width">400</property>
+    
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">12</property>
+        <property name="margin-start">12</property>
+        <property name="margin-end">12</property>
+        <property name="margin-top">12</property>
+        <property name="margin-bottom">12</property>
+        
+        <child>
+          <object class="GtkLabel">
+            <property name="label">Select the type of game source you want to add:</property>
+            <property name="xalign">0</property>
+            <property name="margin-bottom">12</property>
+          </object>
+        </child>
+        
+        <child>
+          <object class="GtkListBox" id="type_list">
+            <property name="selection-mode">browse</property>
+            <style>
+              <class name="boxed-list"/>
+            </style>
+            
+            <!-- Directory Source Option -->
+            <child>
+              <object class="GtkListBoxRow" id="directory_row">
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="spacing">12</property>
+                    <property name="margin-start">12</property>
+                    <property name="margin-end">12</property>
+                    <property name="margin-top">12</property>
+                    <property name="margin-bottom">12</property>
+                    
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon-name">folder-symbolic</property>
+                        <property name="pixel-size">32</property>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">4</property>
+                        <property name="hexpand">True</property>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">Directory</property>
+                            <property name="xalign">0</property>
+                            <property name="hexpand">True</property>
+                            <attributes>
+                              <attribute name="weight" value="bold"/>
+                            </attributes>
+                          </object>
+                        </child>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">Import games from a local folder on your computer</property>
+                            <property name="xalign">0</property>
+                            <property name="wrap">True</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            
+            <!-- Xbox Source Option -->
+            <child>
+              <object class="GtkListBoxRow" id="xbox_row">
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="spacing">12</property>
+                    <property name="margin-start">12</property>
+                    <property name="margin-end">12</property>
+                    <property name="margin-top">12</property>
+                    <property name="margin-bottom">12</property>
+                    
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon-name">applications-games-symbolic</property>
+                        <property name="pixel-size">32</property>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">4</property>
+                        <property name="hexpand">True</property>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">Xbox</property>
+                            <property name="xalign">0</property>
+                            <property name="hexpand">True</property>
+                            <attributes>
+                              <attribute name="weight" value="bold"/>
+                            </attributes>
+                          </object>
+                        </child>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">Import games from your Xbox Game Library</property>
+                            <property name="xalign">0</property>
+                            <property name="wrap">True</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            
+            <!-- PlayStation Source Option -->
+            <child>
+              <object class="GtkListBoxRow" id="playstation_row">
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="spacing">12</property>
+                    <property name="margin-start">12</property>
+                    <property name="margin-end">12</property>
+                    <property name="margin-top">12</property>
+                    <property name="margin-bottom">12</property>
+                    
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon-name">applications-games-symbolic</property>
+                        <property name="pixel-size">32</property>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">4</property>
+                        <property name="hexpand">True</property>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">PlayStation</property>
+                            <property name="xalign">0</property>
+                            <property name="hexpand">True</property>
+                            <attributes>
+                              <attribute name="weight" value="bold"/>
+                            </attributes>
+                          </object>
+                        </child>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">Import games from your PlayStation Network account</property>
+                            <property name="xalign">0</property>
+                            <property name="wrap">True</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <child>
+          <object class="GtkBox">
+            <property name="spacing">12</property>
+            <property name="halign">end</property>
+            <property name="margin-top">12</property>
+            
+            <child>
+              <object class="GtkButton" id="cancel_button">
+                <property name="label">Cancel</property>
+              </object>
+            </child>
+            
+            <child>
+              <object class="GtkButton" id="next_button">
+                <property name="label">Next</property>
+                <style>
+                  <class name="suggested-action"/>
+                </style>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

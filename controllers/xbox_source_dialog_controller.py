@@ -1,0 +1,339 @@
+import gi
+gi.require_version('Gtk', '4.0')
+from gi.repository import Gtk, GObject
+
+import os
+import json
+import sys
+import subprocess
+from pathlib import Path
+from datetime import datetime
+import requests
+
+from sources.xbox_client import XboxLibrary
+from sources.xbox_auth_code_wrapper import XboxAuthCodeWrapper
+
+@Gtk.Template(filename="layout/xbox_source_dialog.ui")
+class XboxSourceDialog(Gtk.Dialog):
+    __gtype_name__ = "XboxSourceDialog"
+
+    name_entry = Gtk.Template.Child()
+    active_switch = Gtk.Template.Child()
+    auth_button = Gtk.Template.Child()
+    auth_status_label = Gtk.Template.Child()
+    cancel_button = Gtk.Template.Child()
+    save_button = Gtk.Template.Child()
+
+    # Xbox API constants - copied from xbox_client.py
+    CLIENT_ID = "85736097-7c70-4eba-ae9a-0cf0de4391e1"
+    REDIRECT_URI = "https://login.live.com/oauth20_desktop.srf"
+    SCOPE = "Xboxlive.signin Xboxlive.offline_access"
+
+    def __init__(self, parent=None, source=None, source_handler=None, **kwargs):
+        super().__init__(transient_for=parent, use_header_bar=True, **kwargs)
+        self.parent = parent
+        self.source = source
+        self.source_handler = source_handler
+        self.auth_token = None
+        self.editing = source is not None
+
+        # If editing an existing source, populate the fields
+        if self.editing:
+            self.name_entry.set_text(source.name)
+            self.active_switch.set_active(source.active)
+
+            # For Xbox sources, we need to check if there are valid tokens in the tokens directory
+            # We'll check this dynamically each time the dialog is shown
+            if self.source_handler:
+                # Update the auth status immediately
+                self._update_auth_status()
+            else:
+                self.auth_status_label.set_text("Authentication: Not connected")
+        else:
+            self.set_title("Add Xbox Source")
+            self.name_entry.set_text("Xbox Games")
+            self.auth_status_label.set_text("Authentication: Not connected")
+
+        # Connect signals
+        self.auth_button.connect("clicked", self.on_auth_clicked)
+
+        # Check if these buttons exist before trying to connect them
+        if hasattr(self, 'cancel_button') and self.cancel_button is not None:
+            self.cancel_button.connect("clicked", self._on_cancel_clicked)
+
+        if hasattr(self, 'save_button') and self.save_button is not None:
+            self.save_button.connect("clicked", self._on_save_clicked)
+
+        self.connect("response", self.on_dialog_response)
+
+    def _on_cancel_clicked(self, button):
+        """Handle cancel button click"""
+        self.response(Gtk.ResponseType.CANCEL)
+        self.close()
+
+    def _on_save_clicked(self, button):
+        """Handle save button click"""
+        self.response(Gtk.ResponseType.OK)
+
+    def on_auth_clicked(self, button):
+        """Handle OAuth authentication with Xbox - launches a separate process"""
+        self.auth_status_label.set_text("Authentication: In progress...")
+        auth_token = self.authenticate_xbox()
+
+        if auth_token:
+            # After successful authentication, we'll save the token using the Xbox library
+            if self.source_handler:
+                # Get the token directory for this source
+                if self.editing:
+                    # For existing sources
+                    source_id = self.source.id
+                else:
+                    # For new sources, we need a temporary ID
+                    source_id = "temp_xbox_source"
+
+                tokens_dir = self.source_handler.ensure_secure_token_storage(source_id)
+
+                # Now we have the auth code, let's complete the authentication with our wrapper
+                try:
+                    # Use our auth code wrapper to complete the authentication flow
+                    auth_wrapper = XboxAuthCodeWrapper(tokens_dir)
+
+                    if auth_wrapper.complete_auth_with_code(auth_token):
+                        print("Successfully authenticated with Xbox")
+                        # Update the authentication status
+                        self._update_auth_status()
+                        return
+
+                    else:
+                        self.auth_status_label.set_text("Authentication: Failed to exchange code for tokens")
+                except Exception as e:
+                    print(f"Error processing Xbox authentication: {e}")
+                    self.auth_status_label.set_text(f"Authentication: Error - {str(e)}")
+            else:
+                self.auth_token = "xbox_authenticated"  # Just a marker value
+                self.auth_status_label.set_text("Authentication: Connected")
+        else:
+            self.auth_status_label.set_text("Authentication: Failed")
+
+    def authenticate_xbox(self):
+        """
+        Initiate Xbox authentication flow using a separate process
+        to avoid GTK version conflicts
+
+        Returns:
+            str: Authentication token if successful, None otherwise
+        """
+        # Get the path to the auth helper script
+        auth_helper_path = Path(__file__).parent.parent / "sources" / "xbox_auth_helper.py"
+
+        # Check if the helper script exists
+        if not auth_helper_path.exists():
+            print(f"Error: Authentication helper script not found at {auth_helper_path}")
+            return None
+
+        try:
+            # Make sure the helper script is executable
+            os.chmod(auth_helper_path, 0o755)
+
+            # Run the authentication helper as a completely separate process
+            # This ensures no GTK version conflicts
+            cmd = [
+                sys.executable,
+                str(auth_helper_path),
+                self.CLIENT_ID,
+                self.REDIRECT_URI,
+                self.SCOPE
+            ]
+
+            print("Starting authentication process in separate process...")
+
+            # Run the process and wait for completion
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True
+            )
+
+            # Show a spinner or some UI indication that we're waiting
+            self.auth_status_label.set_text("Waiting for authentication...")
+            self.auth_button.set_sensitive(False)
+
+            # Wait for the process to complete, but update the UI periodically
+            while process.poll() is None:
+                # Update UI and process events
+                while Gtk.events_pending():
+                    Gtk.main_iteration()
+
+            # Process is done
+            self.auth_button.set_sensitive(True)
+
+            stdout, stderr = process.communicate()
+            exit_code = process.returncode
+
+            if exit_code != 0:
+                print(f"Authentication process failed with exit code {exit_code}")
+                print(f"Error: {stderr}")
+                return None
+
+            # Parse the JSON output from the helper script
+            try:
+                # Remove any extra text before the JSON
+                json_start = stdout.find('{')
+                if json_start >= 0:
+                    json_str = stdout[json_start:]
+                    auth_result = json.loads(json_str)
+                    if 'error' in auth_result:
+                        print(f"Authentication error: {auth_result['error']}")
+                        return None
+                    elif 'code' in auth_result:
+                        return auth_result['code']
+                    else:
+                        print("Unexpected authentication result")
+                        return None
+                else:
+                    print("No JSON found in authentication output")
+                    print(f"Output: {stdout}")
+                    return None
+            except json.JSONDecodeError as e:
+                print(f"Failed to parse authentication result: {e}")
+                print(f"Output: {stdout}")
+                print(f"Error: {stderr}")
+                return None
+
+        except Exception as e:
+            print(f"Error running authentication: {e}")
+            return None
+
+    def on_dialog_response(self, dialog, response_id):
+        if response_id != Gtk.ResponseType.OK:
+            return
+
+        name = self.name_entry.get_text().strip()
+
+        # Validate that we have the necessary information
+        if not name:
+            self._show_error("Name is required")
+            return
+
+        # Check if we're authenticated
+        is_authenticated = self._check_auth_status(quiet=True)
+        if not is_authenticated:
+            self._show_error("Authentication required. Please authenticate with Xbox first.")
+            return
+
+        # Create or update the source
+        if self.editing:
+            # Update existing source
+            self.source.name = name
+            self.source.active = self.active_switch.get_active()
+
+            # No need to store any authentication state in the config
+            # as we're dynamically checking the token files
+        else:
+            # Create new source
+            from data import Source, SourceType
+            self.source = Source(
+                id="",  # Will be auto-generated by the handler
+                name=name,
+                path="",  # Not needed for Xbox sources
+                source_type=SourceType.XBOX,
+                active=self.active_switch.get_active(),
+                config={}  # No need to store any authentication state
+            )
+
+            # If we used a temporary ID for new sources, we need to rename the token directory
+            # after the source is saved and gets its real ID. This is handled by the source handler.
+
+        # Save and emit signal
+        if self.source_handler and self.source_handler.save_source(self.source):
+            self.emit("source-saved", self.source)
+            self.response(Gtk.ResponseType.OK)
+            self.close()
+        else:
+            self._show_error("Failed to save source")
+
+    def _check_auth_status(self, quiet=False):
+        """
+        Check if the Xbox authentication is valid
+
+        Args:
+            quiet: If True, don't update the UI
+
+        Returns:
+            bool: True if authenticated, False otherwise
+        """
+        if not self.source_handler:
+            return False
+
+        # Get the token directory for this source
+        if self.editing:
+            # For existing sources
+            tokens_dir = self.source_handler.ensure_secure_token_storage(self.source.id)
+        else:
+            # For new sources, we use a temporary ID
+            tokens_dir = self.source_handler.ensure_secure_token_storage("temp_xbox_source")
+
+        # Create an Xbox Library instance with this token directory
+        xbox = XboxLibrary(token_dir=tokens_dir)
+
+        # Check if the tokens are valid
+        is_authenticated = xbox.is_authenticated(try_refresh=True)
+
+        print(f"DEBUG: Xbox authentication check: {is_authenticated}")
+
+        # Update the UI if not in quiet mode
+        if not quiet:
+            if is_authenticated:
+                self.auth_status_label.set_text("Authentication: Connected")
+            else:
+                self.auth_status_label.set_text("Authentication: Not connected")
+
+        return is_authenticated
+
+    def _update_auth_status(self):
+        """Update the authentication status label based on current token state"""
+        self._check_auth_status(quiet=False)
+
+    def _show_error(self, message):
+        """Show an error message dialog"""
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            modal=True,
+            message_type=Gtk.MessageType.ERROR,
+            buttons=Gtk.ButtonsType.OK,
+            text="Error"
+        )
+        dialog.format_secondary_text(message)
+        dialog.connect("response", lambda d, r: d.destroy())
+        dialog.present()
+
+    @classmethod
+    def show_dialog(cls, source=None, source_handler=None, parent=None, callback=None):
+        """
+        Show the Xbox source dialog
+
+        Args:
+            source: The source to edit, or None for a new source
+            source_handler: The source handler
+            parent: The parent window
+            callback: Function to call with the saved source
+
+        Returns:
+            The dialog instance
+        """
+        dialog = cls(source=source, source_handler=source_handler, parent=parent)
+
+        # Connect the source-saved signal to the callback
+        if callback:
+            dialog.connect("source-saved", lambda _, source: callback(source))
+
+        # Show the dialog
+        dialog.present()
+        return dialog
+
+# Define custom signals
+GObject.type_register(XboxSourceDialog)
+GObject.signal_new("source-saved", XboxSourceDialog,
+                  GObject.SignalFlags.RUN_LAST, None, (object,))
