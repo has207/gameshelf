@@ -314,26 +314,35 @@ class RunnerDialog(Adw.Window):
         if not self.edit_mode or not self.runner:
             return
 
-        # Check if the runner is in use
-        games_using_runner = [g for g in self.controller.get_games() if g.runner == self.runner.id]
+        # Check if the runner might be needed by any games based on platform compatibility
+        games_with_matching_platforms = []
 
-        if games_using_runner:
-            # Show warning that this runner is in use
-            game_count = len(games_using_runner)
-            game_titles = ", ".join([g.title for g in games_using_runner[:3]])
+        # Check games that have platforms matching this runner
+        for game in self.controller.get_games():
+            # Skip games without platforms
+            if not game.platforms:
+                continue
+
+            # Check if any game platform matches any runner platform
+            for game_platform in game.platforms:
+                if game_platform in self.runner.platforms:
+                    games_with_matching_platforms.append(game)
+                    break
+
+        if games_with_matching_platforms:
+            # Show warning that this runner has compatible games
+            game_count = len(games_with_matching_platforms)
+            game_titles = ", ".join([g.title for g in games_with_matching_platforms[:3]])
             if game_count > 3:
                 game_titles += f" and {game_count - 3} more"
 
-            dialog = Gtk.MessageDialog(
-                transient_for=self,
-                modal=True,
-                message_type=Gtk.MessageType.WARNING,
-                buttons=Gtk.ButtonsType.OK,
-                text=f"Runner '{self.runner.title}' is in use",
-                secondary_text=f"This runner is currently used by {game_count} games: {game_titles}"
+            # Instead of blocking removal, just inform the user
+            show_confirmation_dialog(
+                self,
+                f"Runner '{self.runner.title}' has {game_count} compatible games",
+                f"This runner supports platforms used by {game_count} games: {game_titles}. Do you still want to remove it?",
+                self._on_remove_confirmation_response
             )
-            dialog.connect("response", lambda dialog, response: dialog.destroy())
-            dialog.show()
             return
 
         # Create a confirmation dialog
