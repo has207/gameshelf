@@ -232,6 +232,9 @@ class GameDetailsContent(Gtk.Box):
             # Update play count in UI (incremented by process tracker)
             self.play_count_label.set_text(f"Play Count: {self.game.play_count}")
 
+            # Update completion status in UI (might have changed due to play count)
+            self.completion_status_label.set_text(f"Status: {self.game.completion_status.value}")
+
             # Update last played timestamp (get it from the file)
             last_played = self.game.get_last_played_time(self.controller.data_handler.data_dir)
             if last_played:

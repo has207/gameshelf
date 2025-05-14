@@ -541,6 +541,9 @@ class DataHandler:
         """
         Update the play count for a game and save it to the play_count.yaml file.
         The file modification time will serve as the 'last played' timestamp.
+        Also manages the completion status based on play count:
+        - If count is 0 and status is Playing/Played/Beaten/Completed, reset to Not Played
+        - If count > 0 and status is Not Played, change to Played
 
         Args:
             game: The game to update the play count for
@@ -553,6 +556,29 @@ class DataHandler:
         play_count_file = game_dir / "play_count.yaml"
 
         try:
+            # Check if we need to update completion status based on play count
+            status_updated = False
+
+            # Define states that should be reset to NOT_PLAYED when play count is 0
+            playable_states = [
+                CompletionStatus.PLAYING,
+                CompletionStatus.PLAYED,
+                CompletionStatus.BEATEN,
+                CompletionStatus.COMPLETED
+            ]
+
+            # If count is 0 and the game is in a playable state, reset to NOT_PLAYED
+            if count == 0 and game.completion_status in playable_states:
+                game.completion_status = CompletionStatus.NOT_PLAYED
+                status_updated = True
+                print(f"Resetting completion status for game {game.title} to NOT_PLAYED (play count = 0)")
+
+            # If count > 0 and status is NOT_PLAYED, change to PLAYED
+            elif count > 0 and game.completion_status == CompletionStatus.NOT_PLAYED:
+                game.completion_status = CompletionStatus.PLAYED
+                status_updated = True
+                print(f"Setting completion status for game {game.title} to PLAYED (play count = {count})")
+
             # Update the play count in the game object
             game.play_count = count
 
@@ -563,6 +589,11 @@ class DataHandler:
             with open(play_count_file, "w") as f:
                 yaml.dump(play_data, f)
 
+            # If the completion status changed, update the game.yaml file
+            if status_updated:
+                self.save_game(game, True)
+                print(f"Updated completion status for {game.title} based on play count changes")
+
             return True
         except Exception as e:
             print(f"Error updating play count for {game.id}: {e}")
@@ -572,6 +603,8 @@ class DataHandler:
         """
         Increment the play count for a game by 1.
         Uses update_play_count with current count + 1.
+        This will automatically update the completion status if needed:
+        - If the current status is NOT_PLAYED and play count becomes > 0, it changes to PLAYED
 
         Args:
             game: The game to increment the play count for
@@ -579,6 +612,8 @@ class DataHandler:
         Returns:
             True if the play count was successfully incremented, False otherwise
         """
+        # Incrementing will always result in a count > 0, which means
+        # the update_play_count method will handle changing NOT_PLAYED to PLAYED
         return self.update_play_count(game, game.play_count + 1)
 
     def update_play_time(self, game: Game, seconds: int) -> bool:
