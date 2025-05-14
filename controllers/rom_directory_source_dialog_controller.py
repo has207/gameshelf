@@ -58,7 +58,7 @@ class RomDirectorySourceDialog(Gtk.Dialog):
 
             # Default values
             self.name_entry.set_text("ROMs")
-            
+
             # Select first platform by default
             self.platform_dropdown.set_selected(0)
 
@@ -66,19 +66,19 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         """Set up the platform dropdown with all available platforms"""
         # Create a string list to populate the dropdown
         platform_model = Gtk.StringList.new()
-        
+
         # Sort platforms alphabetically by display name
         platforms = sorted([p for p in Platforms], key=lambda p: p.value)
-        
+
         # Add each platform to the model and store enum values in a dict
         self.platform_mapping = {}
         for i, platform in enumerate(platforms):
             platform_model.append(platform.value)
             self.platform_mapping[i] = platform
-            
+
         # Set the model for the dropdown
         self.platform_dropdown.set_model(platform_model)
-    
+
     def _select_platform_by_value(self, platform_value):
         """Find and select a platform in the dropdown by its value"""
         # Try to find the platform in our mapping
@@ -86,7 +86,7 @@ class RomDirectorySourceDialog(Gtk.Dialog):
             if platform.value == platform_value:
                 self.platform_dropdown.set_selected(i)
                 return
-            
+
         # If not found, just select the first one
         self.platform_dropdown.set_selected(0)
 
@@ -138,7 +138,7 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         if selected_index < 0:
             self._show_error("Platform selection is required")
             return
-            
+
         platform = self.platform_mapping[selected_index]
 
         # Process extensions
@@ -157,7 +157,7 @@ class RomDirectorySourceDialog(Gtk.Dialog):
             self.source.path = path
             self.source.file_extensions = extensions
             self.source.active = active
-            
+
             # Update config with platform
             if not self.source.config:
                 self.source.config = {}
@@ -189,9 +189,9 @@ class RomDirectorySourceDialog(Gtk.Dialog):
             modal=True,
             message_type=Gtk.MessageType.ERROR,
             buttons=Gtk.ButtonsType.OK,
-            text="Error"
+            text="Error",
+            secondary_text=message
         )
-        dialog.format_secondary_text(message)
         dialog.connect("response", lambda d, r: d.destroy())
         dialog.present()
 
