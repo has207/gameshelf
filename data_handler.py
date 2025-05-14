@@ -849,6 +849,76 @@ class DataHandler:
             print(f"Error clearing PID for {game.id}: {e}")
             return False
 
+    def save_installation_data(self, game: Game, directory: str, files: List[str], total_size: int) -> bool:
+        """
+        Save installation data for a game to an installation.yaml file.
+
+        Args:
+            game: The game to save installation data for
+            directory: The directory where the game files are located
+            files: List of file paths relative to the directory
+            total_size: Total size of all files in bytes
+
+        Returns:
+            True if the installation data was successfully saved, False otherwise
+        """
+        game_dir = self._get_game_dir_from_id(game.id)
+        installation_file = game_dir / "installation.yaml"
+
+        try:
+            # Sort the files list to ensure discs appear in ascending order
+            # This uses a natural sort to ensure disc1, disc2, etc. are properly ordered
+            sorted_files = sorted(files, key=self._natural_sort_key)
+
+            # Create the installation data
+            installation_data = {
+                "directory": directory,
+                "files": sorted_files,
+                "size": total_size
+            }
+
+            # Write to the file
+            with open(installation_file, "w") as f:
+                yaml.dump(installation_data, f)
+
+            return True
+        except Exception as e:
+            print(f"Error saving installation data for {game.id}: {e}")
+            return False
+
+    def _natural_sort_key(self, s):
+        """
+        Return a key suitable for natural sorting.
+        For example, this will sort "disc2" after "disc1" and before "disc10".
+        """
+        import re
+        # Split the string into text and numeric parts
+        return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', s)]
+
+    def get_installation_data(self, game: Game) -> Optional[Dict[str, Any]]:
+        """
+        Get installation data for a game from the installation.yaml file.
+
+        Args:
+            game: The game to get installation data for
+
+        Returns:
+            Dictionary with installation data if found, None otherwise
+        """
+        installation_file = Path(game.get_installation_path(self.data_dir))
+
+        if not installation_file.exists():
+            return None
+
+        try:
+            with open(installation_file, "r") as f:
+                installation_data = yaml.safe_load(f)
+                return installation_data
+        except Exception as e:
+            print(f"Error loading installation data for {game.id}: {e}")
+
+        return None
+
     def remove_game(self, game: Game) -> bool:
         """
         Remove a game from the games directory.

@@ -217,6 +217,10 @@ class Game:
         """Get the path to the game's description file"""
         return str(self._get_game_dir_path(data_dir) / "description.yaml")
 
+    def get_installation_path(self, data_dir: Path) -> str:
+        """Get the path to the game's installation file"""
+        return str(self._get_game_dir_path(data_dir) / "installation.yaml")
+
 
     def get_last_played_time(self, data_dir: Path) -> Optional[float]:
         play_count_file = Path(self.get_play_count_path(data_dir))
