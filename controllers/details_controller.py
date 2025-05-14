@@ -548,18 +548,34 @@ class GameDetailsContent(Gtk.Box):
             else:
                 self.description_label.set_text("No description available")
 
+        # Check for installation data (files)
+        installation_data = None
+        has_installation_files = False
+        if self.controller:
+            installation_data = self.controller.data_handler.get_installation_data(game)
+            has_installation_files = installation_data and "files" in installation_data and len(installation_data["files"]) > 0
+
         # Get compatible runners
         can_play = False
         self.compatible_runners = self._get_compatible_runners(game)
-        can_play = len(self.compatible_runners) > 0 and any(r.command for r in self.compatible_runners)
+        has_compatible_runners = len(self.compatible_runners) > 0 and any(r.command for r in self.compatible_runners)
+
+        # Only enable play button if both conditions are met
+        can_play = has_compatible_runners and has_installation_files
 
         # Update the play button state based on whether the game is running
         if game.is_running(self.controller.data_handler.data_dir):
             self.play_button.set_label("Playing...")
             self.play_button.set_sensitive(False)
+        elif not has_installation_files:
+            self.play_button.set_label("No Game Files")
+            self.play_button.set_sensitive(False)
+        elif not has_compatible_runners:
+            self.play_button.set_label("No Compatible Runners")
+            self.play_button.set_sensitive(False)
         else:
             self.play_button.set_label("Play Game")
-            self.play_button.set_sensitive(can_play)
+            self.play_button.set_sensitive(True)
 
 
 class DetailsController:
