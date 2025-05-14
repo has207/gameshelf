@@ -16,6 +16,7 @@ class RomDirectorySourceDialog(Gtk.Dialog):
     path_entry = Gtk.Template.Child()
     platform_dropdown = Gtk.Template.Child()
     extensions_entry = Gtk.Template.Child()
+    name_regex_entry = Gtk.Template.Child()
     active_switch = Gtk.Template.Child()
     browse_button = Gtk.Template.Child()
     cancel_button = Gtk.Template.Child()
@@ -49,6 +50,13 @@ class RomDirectorySourceDialog(Gtk.Dialog):
             # Set active state
             self.active_switch.set_active(source.active)
 
+            # Set name regex if it exists in the source config
+            if source.config and "name_regex" in source.config:
+                self.name_regex_entry.set_text(source.config["name_regex"])
+            else:
+                # Default regex that strips file extension
+                self.name_regex_entry.set_text("^(.+?)(\.[^.]+)?$")
+
             # Set platform if it exists in the source config
             if source.config and "platform" in source.config:
                 platform_value = source.config["platform"]
@@ -58,6 +66,9 @@ class RomDirectorySourceDialog(Gtk.Dialog):
 
             # Default values
             self.name_entry.set_text("ROMs")
+
+            # Default regex that strips file extension
+            self.name_regex_entry.set_text("^(.+?)(\.[^.]+)?$")
 
             # Select first platform by default
             self.platform_dropdown.set_selected(0)
@@ -147,6 +158,12 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         if extensions_text:
             extensions = [ext.strip() for ext in extensions_text.split(",") if ext.strip()]
 
+        # Get name regex
+        name_regex = self.name_regex_entry.get_text().strip()
+        if not name_regex:
+            # Default regex that strips file extension
+            name_regex = "^(.+?)(\.[^.]+)?$"
+
         # Get active state
         active = self.active_switch.get_active()
 
@@ -158,10 +175,11 @@ class RomDirectorySourceDialog(Gtk.Dialog):
             self.source.file_extensions = extensions
             self.source.active = active
 
-            # Update config with platform
+            # Update config with platform and name regex
             if not self.source.config:
                 self.source.config = {}
             self.source.config["platform"] = platform.value
+            self.source.config["name_regex"] = name_regex
         else:
             # Create new source with ROM_DIRECTORY type
             self.source = Source(
@@ -171,7 +189,10 @@ class RomDirectorySourceDialog(Gtk.Dialog):
                 source_type=SourceType.ROM_DIRECTORY,
                 active=active,
                 file_extensions=extensions,
-                config={"platform": platform.value}
+                config={
+                    "platform": platform.value,
+                    "name_regex": name_regex
+                }
             )
 
         # Save and emit signal

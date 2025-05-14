@@ -7,6 +7,7 @@ import shutil
 import logging
 import threading
 import traceback
+import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from threading import Thread
@@ -254,11 +255,36 @@ class SourceHandler:
 
                     # If file is directly in the root directory, treat as a single game
                     if len(parts) == 1:
-                        game_key = file_path.stem
+                        # Get the filename and stem for identifying the game
+                        filename = file_path.name
+                        file_stem = file_path.stem
+
+                        # Extract the game title using the name regex
+                        # Use default regex that strips extension if not specified
+                        name_regex = source.config.get("name_regex", "^(.+?)(\.[^.]+)?$")
+
+                        try:
+                            # Apply the regex to extract the game title
+                            match = re.match(name_regex, filename)
+                            if match and match.group(1):
+                                # Use the first captured group as the title
+                                title = match.group(1)
+                                logger.debug(f"Extracted title '{title}' from '{filename}' using regex: {name_regex}")
+                            else:
+                                # Fallback if regex doesn't match
+                                title = file_stem
+                                logger.debug(f"Regex didn't match, using fallback title: {title}")
+                        except Exception as e:
+                            # Fallback in case of regex error
+                            title = file_stem
+                            logger.error(f"Error applying name regex '{name_regex}' to '{filename}': {e}")
+
+                        game_key = file_stem  # Use stem for the dictionary key to avoid duplicates
+
                         if game_key not in game_entries:
-                            logger.debug(f"Found single-file game: {game_key}")
+                            logger.debug(f"Found single-file game: {title} (key: {game_key})")
                             game_entries[game_key] = {
-                                "title": game_key,
+                                "title": title,
                                 "directory": str(source_path),
                                 "files": [str(rel_path)],
                                 "size": file_path.stat().st_size
@@ -266,21 +292,42 @@ class SourceHandler:
                         else:
                             # This is unlikely but handle it just in case
                             # A game with multiple files at the root with the same name but different extensions
-                            logger.debug(f"Adding additional file to single-game: {game_key}, file: {rel_path}")
+                            logger.debug(f"Adding additional file to single-game: {title} (key: {game_key}), file: {rel_path}")
                             game_entries[game_key]["files"].append(str(rel_path))
                             game_entries[game_key]["size"] += file_path.stat().st_size
 
                     # If file is in a subfolder, treat all files in that subfolder as part of the same game
                     else:
-                        game_key = parts[0]  # The subfolder name is the game name
+                        folder_name = parts[0]  # The subfolder name
+                        game_key = folder_name  # Use folder name as key in dictionary
                         game_subfolder = source_path / parts[0]  # Full path to the game's subfolder
                         # For multi-disc games, we want the file path to be relative to the game subfolder
                         rel_to_game_subfolder = "/".join(parts[1:])
 
+                        # Extract the game title from the folder name using regex
+                        # Use default regex that strips extension if not specified
+                        name_regex = source.config.get("name_regex", "^(.+?)(\.[^.]+)?$")
+
+                        try:
+                            # Apply the regex to extract the title from folder name
+                            match = re.match(name_regex, folder_name)
+                            if match and match.group(1):
+                                # Use the first captured group as the title
+                                title = match.group(1)
+                                logger.debug(f"Extracted title '{title}' from folder '{folder_name}' using regex: {name_regex}")
+                            else:
+                                # Fallback if regex doesn't match
+                                title = folder_name
+                                logger.debug(f"Regex didn't match folder name, using fallback title: {title}")
+                        except Exception as e:
+                            # Fallback in case of regex error
+                            title = folder_name
+                            logger.error(f"Error applying name regex '{name_regex}' to folder '{folder_name}': {e}")
+
                         if game_key not in game_entries:
-                            logger.debug(f"Found multi-disc game: {game_key}, first file: {rel_to_game_subfolder}")
+                            logger.debug(f"Found multi-disc game: {title} (key: {game_key}), first file: {rel_to_game_subfolder}")
                             game_entries[game_key] = {
-                                "title": game_key,
+                                "title": title,
                                 "directory": str(game_subfolder),  # Use the game subfolder instead of source_path
                                 "files": [rel_to_game_subfolder],  # Store path relative to the game subfolder
                                 "size": file_path.stat().st_size
