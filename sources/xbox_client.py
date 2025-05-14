@@ -768,12 +768,6 @@ class XboxLibrary(SourceScanner):
                     # Get cover image URL if available
                     display_image = game_data.get('displayImage')
                     if display_image:
-                        # Store the URL in config for reference
-                        if 'game_covers' not in source.config:
-                            source.config['game_covers'] = {}
-
-                        source.config['game_covers'][title] = display_image
-
 
                         # Check if we should download images automatically
                         download_images = source.config.get("download_images", True)

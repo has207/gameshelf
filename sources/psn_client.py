@@ -14,11 +14,13 @@ from pathlib import Path
 
 from sources.scanner_base import SourceScanner
 from data import Source, Game
-from data_mapping import Platforms, Genres, CompletionStatus
+from data_mapping import Platforms, Genres, CompletionStatus, AgeRatings, Features, Regions
 from cover_fetch import CoverFetcher
 
 # Set up logger
 logger = logging.getLogger(__name__)
+# Set logger level to DEBUG to see all messages
+#logger.setLevel(logging.DEBUG)
 
 class PSNClient(SourceScanner):
     """Client for PlayStation Network API, handling authentication and data fetching"""
@@ -678,12 +680,8 @@ class PSNClient(SourceScanner):
                             platform_enums.append(Platforms.PLAYSTATION5)
                         elif platform_str == "PS4":
                             platform_enums.append(Platforms.PLAYSTATION4)
-                        elif platform_str == "PS3":
-                            platform_enums.append(Platforms.PLAYSTATION3)
-                        elif platform_str == "PS Vita":
-                            platform_enums.append(Platforms.PLAYSTATION_VITA)
-                        elif platform_str == "PSP":
-                            platform_enums.append(Platforms.PSP)
+                        else:
+                            logger.warning(f"Unable to map platform '{platform_str}'")
 
                         logger.debug(f"Mapped platforms for {title}: {[p.value for p in platform_enums]}")
 
@@ -695,10 +693,97 @@ class PSNClient(SourceScanner):
                         # Debug information to help diagnose platform mapping issues
                         logger.debug(f"Platform enum values: {[p.name for p in Platforms]}")
 
-                    # Add description if available
-                    description = game_data.get('description', '')
-                    if description:
-                        game.description = description
+                    # Map genres from concept.genres if available
+                    genres_data = []
+
+                    # Check if concept field exists and has genres
+                    if 'concept' in game_data and isinstance(game_data['concept'], dict):
+                        # Get genres from concept
+                        genres_data = game_data['concept'].get('genres', [])
+
+                    logger.debug(f"Game {title} has concept.genres: {genres_data}")
+
+                    if genres_data:
+                        genre_enums = []
+                        for genre in genres_data:
+                            # Convert genre to uppercase for comparison
+                            genre_upper = genre.upper() if genre else ""
+                            logger.debug(f"Processing genre: '{genre}', uppercase: '{genre_upper}'")
+                            try:
+                                # Try to map common PSN genres to our genre enum
+                                if "ACTION" in genre_upper:
+                                    genre_enums.append(Genres.ACTION)
+                                elif "ADVENTURE" in genre_upper:
+                                    genre_enums.append(Genres.ADVENTURE)
+                                elif "PUZZLE" in genre_upper:
+                                    genre_enums.append(Genres.PUZZLE)
+                                elif "RPG" in genre_upper or "ROLE" in genre_upper:
+                                    genre_enums.append(Genres.ROLE_PLAYING_RPG)
+                                elif "STRATEGY" in genre_upper:
+                                    genre_enums.append(Genres.STRATEGY)
+                                elif "SPORTS" in genre_upper:
+                                    genre_enums.append(Genres.SPORTS)
+                                elif "RACING" in genre_upper:
+                                    genre_enums.append(Genres.RACING)
+                                elif "SIMULATION" in genre_upper or "SIMULATOR" in genre_upper:
+                                    genre_enums.append(Genres.SIMULATOR)
+                                elif "FIGHTING" in genre_upper:
+                                    genre_enums.append(Genres.FIGHTING)
+                                elif "PLATFORM" in genre_upper:
+                                    genre_enums.append(Genres.PLATFORMER)
+                                elif "SHOOTER" in genre_upper:
+                                    genre_enums.append(Genres.SHOOTER)
+                                elif "HORROR" in genre_upper:
+                                    genre_enums.append(Genres.HORROR)
+                                elif "MUSIC" in genre_upper:
+                                    genre_enums.append(Genres.MUSIC)
+                                elif "INDIE" in genre_upper:
+                                    genre_enums.append(Genres.INDIE)
+                                else:
+                                    logger.warning(f"Unable to map genre '{genre}'")
+                            except Exception as e:
+                                logger.warning(f"Could not map genre '{genre}': {e}")
+
+                        # Set genres if we found any
+                        if genre_enums:
+                            try:
+                                game.genres = genre_enums
+                                logger.debug(f"Set genres for {title}: {[g.value for g in genre_enums]}")
+                            except Exception as e:
+                                logger.error(f"ERROR setting genres for {title}: {e}")
+                        else:
+                            logger.debug(f"No genres were mapped for {title}")
+
+                    # Map regions from concept.country field
+                    region_enums = []
+
+                    # Check if concept field exists
+                    if 'concept' in game_data and isinstance(game_data['concept'], dict):
+                        # Get country from concept
+                        country = game_data['concept'].get('country', '')
+
+                        if country:
+                            try:
+                                # Map country code to region enum
+                                # TODO: Investigate correct values for EU countries and ASIA regions
+                                if country == "US":
+                                    region_enums.append(Regions.USA)
+                                elif country == "JP":
+                                    region_enums.append(Regions.JAPAN)
+                                else:
+                                    logger.warning(f"Unknown country code '{country}' for game {title} - not mapped to any region")
+
+                                logger.debug(f"Mapped country '{country}' to region for {title}")
+                            except Exception as e:
+                                logger.warning(f"Could not map country '{country}' to region: {e}")
+
+                    # Set regions if we found any
+                    if region_enums:
+                        try:
+                            game.regions = region_enums
+                            logger.debug(f"Set regions for {title}: {[r.value for r in region_enums]}")
+                        except Exception as e:
+                            logger.error(f"ERROR setting regions for {title}: {e}")
 
                     # Handle trophy data just to mark games as played
                     playstation_id = game_data.get('npCommunicationId', '')
@@ -722,13 +807,6 @@ class PSNClient(SourceScanner):
                     image_url = self.get_cover_image_url(game_data)
 
                     if image_url:
-                        # Store the URL in config for reference
-                        if 'game_covers' not in source.config:
-                            source.config['game_covers'] = {}
-
-                        source.config['game_covers'][title] = image_url
-
-
                         # Check if we should download images automatically
                         download_images = source.config.get("download_images", True)
 
