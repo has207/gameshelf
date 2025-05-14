@@ -787,6 +787,38 @@ class DataHandler:
         # Update the play time with the new total
         return self.update_play_time(game, new_total)
 
+    def set_last_played_time(self, game: Game, timestamp: float) -> bool:
+        """
+        Set the last played time for a game by updating the play_count.yaml file's
+        modification time.
+
+        Args:
+            game: The game to update the last played time for
+            timestamp: Unix timestamp (seconds since epoch) to set as the last played time
+
+        Returns:
+            True if the last played time was successfully updated, False otherwise
+        """
+        game_dir = self._get_game_dir_from_id(game.id)
+        play_count_file = game_dir / "play_count.yaml"
+
+        try:
+            # Ensure the play count file exists
+            if not play_count_file.exists():
+                # If it doesn't exist, create it with a default count of 0
+                # (this is appropriate since we're just setting the timestamp)
+                play_data = {"count": game.play_count or 0}
+                with open(play_count_file, "w") as f:
+                    yaml.dump(play_data, f)
+
+            # Set the access and modification times of the file
+            os.utime(play_count_file, (timestamp, timestamp))
+
+            return True
+        except Exception as e:
+            print(f"Error setting last played time for {game.id}: {e}")
+            return False
+
     def save_game_pid(self, game: Game, pid: int) -> bool:
         """
         Save the PID of a running game process to a pid.yaml file.

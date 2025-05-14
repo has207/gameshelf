@@ -287,31 +287,49 @@ class SourceManager(Gtk.Box):
                 try:
                     # Get the scanner for this source type
                     scanner = self.source_handler.get_scanner(source.source_type, source.id)
-                    added, errors = scanner.scan(source, xbox_progress_callback)
+                    counts, errors = scanner.scan(source, xbox_progress_callback)
+
+                    # Unpack the counts tuple
+                    if isinstance(counts, tuple) and len(counts) == 2:
+                        added_count, updated_count = counts
+                    else:
+                        # For backward compatibility with other scanners
+                        added_count, updated_count = counts, 0
 
                     # Update UI on completion if dialog is still active
                     def on_complete():
                         if not dialog_active[0]:
                             # Dialog already closed, just emit the signal that games were added
-                            self.emit("games-added", added)
+                            total_changes = added_count + updated_count
+                            if total_changes > 0:
+                                self.emit("games-added", total_changes)
                             return False
 
                         # Stop the spinner
                         spinner.stop()
 
-                        # Update status
-                        if added > 0:
-                            status_label.set_text(f"Sync complete: Added {added} games")
+                        # Use the counts from the scanner to report all changes
+                        changes_message = []
+                        if added_count > 0:
+                            changes_message.append(f"Added {added_count} games")
+                        if updated_count > 0:
+                            changes_message.append(f"Updated {updated_count} games")
+
+                        if changes_message:
+                            status_label.set_text(f"Sync complete: {', '.join(changes_message)}")
                         else:
-                            status_label.set_text(f"Sync complete: No new games added")
+                            status_label.set_text("Sync complete: No changes")
 
                         # Handle errors if any
                         if errors:
                             # Show errors after a delay so user can see completion message
                             GObject.timeout_add(2000, lambda: self._show_scan_errors(errors) if dialog_active[0] else False)
 
-                        # Tell the app we added games
-                        self.emit("games-added", added)
+                        # Tell the app we updated games data
+                        # Only emit a positive count if we actually had changes
+                        total_changes = added_count + updated_count
+                        if total_changes > 0:
+                            self.emit("games-added", total_changes)
 
                         # Close the dialog after a delay if it's still active
                         GObject.timeout_add(3000, lambda: dialog.close() if dialog_active[0] else False)
@@ -431,31 +449,49 @@ class SourceManager(Gtk.Box):
                 try:
                     # Get the scanner for this source type
                     scanner = self.source_handler.get_scanner(source.source_type, source.id)
-                    added, errors = scanner.scan(source, psn_progress_callback)
+                    counts, errors = scanner.scan(source, psn_progress_callback)
+
+                    # Unpack the counts tuple - PSN now returns (added_count, updated_count)
+                    if isinstance(counts, tuple) and len(counts) == 2:
+                        added_count, updated_count = counts
+                    else:
+                        # For backward compatibility with other scanners
+                        added_count, updated_count = counts, 0
 
                     # Update UI on completion if dialog is still active
                     def on_complete():
                         if not dialog_active[0]:
                             # Dialog already closed, just emit the signal that games were added
-                            self.emit("games-added", added)
+                            total_changes = added_count + updated_count
+                            if total_changes > 0:
+                                self.emit("games-added", total_changes)
                             return False
 
                         # Stop the spinner
                         spinner.stop()
 
-                        # Update status
-                        if added > 0:
-                            status_label.set_text(f"Sync complete: Added {added} games")
+                        # Use the counts from the scanner to report all changes
+                        changes_message = []
+                        if added_count > 0:
+                            changes_message.append(f"Added {added_count} games")
+                        if updated_count > 0:
+                            changes_message.append(f"Updated {updated_count} games")
+
+                        if changes_message:
+                            status_label.set_text(f"Sync complete: {', '.join(changes_message)}")
                         else:
-                            status_label.set_text(f"Sync complete: No new games added")
+                            status_label.set_text("Sync complete: No changes")
 
                         # Handle errors if any
                         if errors:
                             # Show errors after a delay so user can see completion message
                             GObject.timeout_add(2000, lambda: self._show_scan_errors(errors) if dialog_active[0] else False)
 
-                        # Tell the app we added games
-                        self.emit("games-added", added)
+                        # Tell the app we updated games data
+                        # Only emit a positive count if we actually had changes
+                        total_changes = added_count + updated_count
+                        if total_changes > 0:
+                            self.emit("games-added", total_changes)
 
                         # Close the dialog after a delay if it's still active
                         GObject.timeout_add(3000, lambda: dialog.close() if dialog_active[0] else False)
@@ -576,31 +612,48 @@ class SourceManager(Gtk.Box):
             try:
                 # Get the scanner for this source type
                 scanner = self.source_handler.get_scanner(source.source_type, source.id)
-                added, errors = scanner.scan(source, directory_progress_callback)
+                counts, errors = scanner.scan(source, directory_progress_callback)
+
+                # Unpack the counts tuple
+                if isinstance(counts, tuple) and len(counts) == 2:
+                    added_count, updated_count = counts
+                else:
+                    # For backward compatibility with other scanners
+                    added_count, updated_count = counts, 0
 
                 # Update UI on completion
                 def on_complete():
                     if not dialog_active[0]:
                         # Dialog already closed, just emit the signal that games were added
-                        self.emit("games-added", added)
+                        total_changes = added_count + updated_count
+                        if total_changes > 0:
+                            self.emit("games-added", total_changes)
                         return False
 
                     # Stop the spinner
                     spinner.stop()
 
-                    # Update status
-                    if added > 0:
-                        status_label.set_text(f"Scan complete: Added {added} games")
+                    # Use the counts from the scanner to report all changes
+                    changes_message = []
+                    if added_count > 0:
+                        changes_message.append(f"Added {added_count} games")
+                    if updated_count > 0:
+                        changes_message.append(f"Updated {updated_count} games")
+
+                    if changes_message:
+                        status_label.set_text(f"Scan complete: {', '.join(changes_message)}")
                     else:
-                        status_label.set_text(f"Scan complete: No new games added")
+                        status_label.set_text("Scan complete: No changes")
 
                     # Handle errors if any
                     if errors:
                         # Show errors after a delay so user can see completion message
                         GObject.timeout_add(2000, lambda: self._show_scan_errors(errors) if dialog_active[0] else False)
 
-                    # Tell the app we added games
-                    self.emit("games-added", added)
+                    # Tell the app we updated games data
+                    # Pass 1 as minimum to ensure UI refresh even if only existing games were updated
+                    added_or_updated = max(1, added)
+                    self.emit("games-added", added_or_updated)
 
                     # Close the dialog after a delay if it's still active
                     GObject.timeout_add(3000, lambda: dialog.close() if dialog_active[0] else False)

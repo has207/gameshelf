@@ -345,7 +345,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
         dialog.show()
 
     def _on_games_added_from_source(self, source_manager, count):
-        """Handle games being added from a source scan"""
+        """Handle games being added or updated from a source scan"""
         if count > 0:
             # Reload the game and runner data
             self.controller.games = self.controller.data_handler.load_games()
@@ -364,8 +364,11 @@ class GameShelfWindow(Adw.ApplicationWindow):
             if hasattr(self.controller, 'game_grid_controller') and self.controller.game_grid_controller:
                 self.controller.game_grid_controller.populate_games(search_text=search_text)
 
-            # Show a notification
-            self._show_notification(f"Added {count} games from source")
+            # Show a notification - the count here represents the total number of changes
+            if count == 1:
+                self._show_notification("Library updated with 1 change from source")
+            else:
+                self._show_notification(f"Library updated with {count} changes from source")
 
     def _show_notification(self, message):
         """Show a toast notification or just print if toast overlay not available"""

@@ -9,8 +9,11 @@ import time
 import webbrowser
 import logging
 import traceback
+import re
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
+from datetime import datetime
+import isodate
 
 from sources.scanner_base import SourceScanner
 from data import Source, Game
@@ -20,7 +23,7 @@ from cover_fetch import CoverFetcher
 # Set up logger
 logger = logging.getLogger(__name__)
 # Set logger level to DEBUG to see all messages
-#logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
 class PSNClient(SourceScanner):
     """Client for PlayStation Network API, handling authentication and data fetching"""
@@ -564,6 +567,7 @@ class PSNClient(SourceScanner):
             Tuple of (number of games added/updated, list of error messages)
         """
         added_count = 0
+        updated_count = 0
         errors = []
 
         # Initial progress update
@@ -612,6 +616,12 @@ class PSNClient(SourceScanner):
             psn_games = psn_data.get('games', [])
             psn_trophies = psn_data.get('trophies', [])
 
+            # Log trophy data summary
+            trophy_pairs = [(t.get('trophyTitleName', 'unknown'), t.get('npCommunicationId', 'unknown')) for t in psn_trophies]
+            logger.debug(f"Loaded {len(psn_trophies)} trophy titles, first 5 title-ID pairs:")
+            for i, (name, npc_id) in enumerate(trophy_pairs[:5]):
+                logger.debug(f"  {i+1}. '{name}' - {npc_id}")
+
             # Store raw JSON data in the source directory
             source_dir = self.data_handler.sources_dir / source.id
             json_path = source_dir / "psn_data.json"
@@ -659,8 +669,166 @@ class PSNClient(SourceScanner):
 
                     # Check if game already exists
                     if title.lower() in existing_games_by_title:
-                        # Game exists, update metadata if needed
-                        # For now, we'll skip updates
+                        # Game exists, update play data which can change when user plays on console
+                        existing_game = existing_games_by_title[title.lower()]
+                        logger.info(f"Game {title} already exists, updating play data")
+
+                        # Track if any updates were made to this game
+                        game_updated = False
+
+                        # Extract and set play duration
+                        play_duration_iso = game_data.get('playDuration')
+                        if play_duration_iso and isinstance(play_duration_iso, str):
+                            try:
+                                # Parse ISO 8601 duration format
+                                logger.debug(f"Play duration from PSN for {title}: {play_duration_iso}")
+
+                                # Parse using isodate library
+                                duration = isodate.parse_duration(play_duration_iso)
+                                total_seconds = int(duration.total_seconds())
+
+                                if total_seconds > 0:
+                                    # Only update if the new value is greater than the existing one
+                                    if total_seconds > existing_game.play_time:
+                                        logger.debug(f"Updating play time for {title} from {existing_game.play_time} to {total_seconds} seconds")
+
+                                        # Update play time
+                                        if self.data_handler.update_play_time(existing_game, total_seconds):
+                                            existing_game.play_time = total_seconds
+                                            logger.debug(f"Updated play time for {title}")
+                                            game_updated = True
+                                        else:
+                                            logger.warning(f"Failed to update play time for {title}")
+                                    else:
+                                        logger.debug(f"PSN play time ({total_seconds}s) not greater than existing play time ({existing_game.play_time}s), skipping update")
+                            except Exception as duration_err:
+                                logger.warning(f"Failed to parse play duration for {title}: {duration_err}")
+
+                        # Update play count
+                        play_count = game_data.get('playCount', 0)
+                        if play_count and isinstance(play_count, int) and play_count > 0:
+                            # Only update if the new count is greater than the existing one
+                            if play_count > existing_game.play_count:
+                                logger.debug(f"Updating play count for {title} from {existing_game.play_count} to {play_count}")
+
+                                # Update play count
+                                if self.data_handler.update_play_count(existing_game, play_count):
+                                    existing_game.play_count = play_count
+                                    logger.debug(f"Updated play count for {title}")
+                                    game_updated = True
+
+                                    # Mark as played if not already
+                                    if existing_game.completion_status == CompletionStatus.NOT_PLAYED:
+                                        if self.data_handler.update_completion_status(existing_game, CompletionStatus.PLAYED):
+                                            existing_game.completion_status = CompletionStatus.PLAYED
+                                            logger.debug(f"Updated completion status for {title} to PLAYED based on play count")
+                                            game_updated = True
+                                else:
+                                    logger.warning(f"Failed to update play count for {title}")
+                            else:
+                                logger.debug(f"PSN play count ({play_count}) not greater than existing play count ({existing_game.play_count}), skipping update")
+
+                        # Check trophy data to determine if game is completed or just played (regardless of play count)
+                        # Some games don't have npCommunicationId directly in the game data but might be available in trophies
+                        playstation_id = game_data.get('npCommunicationId', '')
+
+                        # If we don't have an ID directly, try to find it by normalized title match in trophies
+                        if not playstation_id:
+                            # Normalize the game title (remove special chars, lowercase)
+                            normalized_title = re.sub(r'[^\w\s]', '', title).lower().strip()
+                            logger.debug(f"Looking for trophy data with normalized title: '{normalized_title}'")
+
+                            for trophy_title in psn_trophies:
+                                trophy_name = trophy_title.get('trophyTitleName', '')
+                                # Normalize trophy name
+                                normalized_trophy_name = re.sub(r'[^\w\s]', '', trophy_name).lower().strip()
+
+                                if normalized_trophy_name == normalized_title:
+                                    playstation_id = trophy_title.get('npCommunicationId', '')
+                                    if playstation_id:
+                                        logger.debug(f"Found trophy ID {playstation_id} for {title} via normalized title match ('{trophy_name}')")
+                                        break
+
+                        logger.debug(f"Checking trophy data for existing game {title}, ID: {playstation_id}")
+                        if not playstation_id:
+                            logger.debug(f"No trophy ID found for game {title}. Cannot check trophy completion status.")
+                        elif playstation_id:
+                            # Look for matching trophy data
+                            trophy_match_found = False
+                            for trophy_title in psn_trophies:
+                                if trophy_title.get('npCommunicationId') == playstation_id:
+                                    # Check trophy completion using the progress field
+                                    progress = trophy_title.get('progress', 0)
+                                    logger.debug(f"Trophy progress for {title}: {progress}%")
+
+                                    # Just for logging, get counts if available
+                                    trophy_earned = trophy_title.get('earnedTrophies', {}).get('total', 0)
+                                    trophy_total = trophy_title.get('definedTrophies', {}).get('total', 0)
+
+                                    # If 100% progress, mark as COMPLETED
+                                    if progress == 100:
+                                        logger.debug(f"Game {title} has 100% trophy completion: {trophy_earned}/{trophy_total}")
+                                        if existing_game.completion_status != CompletionStatus.COMPLETED:
+                                            if self.data_handler.update_completion_status(existing_game, CompletionStatus.COMPLETED):
+                                                existing_game.completion_status = CompletionStatus.COMPLETED
+                                                logger.debug(f"Updated completion status for {title} to COMPLETED (100% trophies)")
+                                                game_updated = True
+                                        else:
+                                            logger.debug(f"Game {title} already marked as COMPLETED, no status update needed")
+                                    # Otherwise, mark as PLAYED if not already and we have some trophies
+                                    elif trophy_earned > 0 and existing_game.completion_status == CompletionStatus.NOT_PLAYED:
+                                        if self.data_handler.update_completion_status(existing_game, CompletionStatus.PLAYED):
+                                            existing_game.completion_status = CompletionStatus.PLAYED
+                                            logger.debug(f"Updated completion status for {title} to PLAYED (has {trophy_earned} trophies)")
+                                            game_updated = True
+
+                                    # Mark that we found a trophy match
+                                    trophy_match_found = True
+                                    # Break after finding a match
+                                    break
+
+                            if not trophy_match_found:
+                                logger.debug(f"No trophy data found for game {title} with ID {playstation_id}")
+
+                        # If no trophy data but has play count, mark as PLAYED if not already
+                        if playstation_id is None and existing_game.play_count > 0 and existing_game.completion_status == CompletionStatus.NOT_PLAYED:
+                            if self.data_handler.update_completion_status(existing_game, CompletionStatus.PLAYED):
+                                existing_game.completion_status = CompletionStatus.PLAYED
+                                logger.debug(f"Updated completion status for {title} to PLAYED")
+                                game_updated = True
+
+                        # Update last played time if available
+                        last_played_iso = game_data.get('lastPlayedDateTime')
+                        if last_played_iso and isinstance(last_played_iso, str):
+                            try:
+                                # Parse ISO 8601 datetime
+                                dt = datetime.fromisoformat(last_played_iso.replace('Z', '+00:00'))
+                                unix_timestamp = dt.timestamp()
+
+                                # Get current last played time
+                                current_last_played = existing_game.get_last_played_time(self.data_handler.data_dir)
+
+                                # Only update if new timestamp is more recent
+                                if current_last_played is None or unix_timestamp > current_last_played:
+                                    logger.debug(f"Updating last played time for {title} from {current_last_played} to {unix_timestamp}")
+
+                                    # Set last played time
+                                    if self.data_handler.set_last_played_time(existing_game, unix_timestamp):
+                                        logger.debug(f"Updated last played time for {title} to {dt.strftime('%Y-%m-%d %H:%M:%S')}")
+                                        game_updated = True
+                                    else:
+                                        logger.warning(f"Failed to update last played time for {title}")
+                                else:
+                                    logger.debug(f"PSN last played time ({dt.strftime('%Y-%m-%d %H:%M:%S')}) not more recent than existing last played time, skipping update")
+                            except Exception as dt_err:
+                                logger.warning(f"Failed to parse last played date for {title}: {dt_err}")
+
+                        # If any updates were made to this game, increment the updated count
+                        if game_updated:
+                            updated_count += 1
+                            logger.info(f"Game {title} was successfully updated")
+
+                        # Skip the rest of the processing for existing games
                         continue
 
                     # Create a new game
@@ -785,20 +953,89 @@ class PSNClient(SourceScanner):
                         except Exception as e:
                             logger.error(f"ERROR setting regions for {title}: {e}")
 
-                    # Handle trophy data just to mark games as played
+                    # Extract play time and last played date if available
+                    play_duration_iso = game_data.get('playDuration')
+                    if play_duration_iso and isinstance(play_duration_iso, str):
+                        try:
+                            # Parse ISO 8601 duration format (e.g., "PT241H37M53S")
+                            logger.debug(f"Play duration from PSN for {title}: {play_duration_iso}")
+
+                            # Parse using isodate library
+                            duration = isodate.parse_duration(play_duration_iso)
+                            total_seconds = int(duration.total_seconds())
+
+                            if total_seconds > 0:
+                                game.play_time = total_seconds
+                                hours, remainder = divmod(total_seconds, 3600)
+                                minutes, seconds = divmod(remainder, 60)
+                                logger.debug(f"Set play time for {title}: {total_seconds} seconds ({hours}h {minutes}m {seconds}s)")
+                        except Exception as duration_err:
+                            logger.warning(f"Failed to parse play duration for {title}: {duration_err}")
+
+                    # Extract last played date (will be used when saving play count)
+                    last_played = game_data.get('lastPlayedDateTime')
+                    play_count = game_data.get('playCount', 0)
+
+                    # If game has been played, set play count
+                    if play_count and isinstance(play_count, int) and play_count > 0:
+                        game.play_count = play_count
+                        logger.debug(f"Set play count for {title}: {play_count}")
+
+                        # If game has been played, mark as played
+                        if game.completion_status == CompletionStatus.NOT_PLAYED:
+                            game.completion_status = CompletionStatus.PLAYED
+                            logger.debug(f"Game {title} marked as played based on play count")
+
+                    # Handle trophy data to determine completion status
                     playstation_id = game_data.get('npCommunicationId', '')
-                    if playstation_id:
+
+                    # If we don't have an ID directly, try to find it by normalized title match in trophies
+                    if not playstation_id:
+                        # Normalize the game title (remove special chars, lowercase)
+                        normalized_title = re.sub(r'[^\w\s]', '', title).lower().strip()
+                        logger.debug(f"Looking for trophy data with normalized title: '{normalized_title}'")
+
+                        for trophy_title in psn_trophies:
+                            trophy_name = trophy_title.get('trophyTitleName', '')
+                            # Normalize trophy name
+                            normalized_trophy_name = re.sub(r'[^\w\s]', '', trophy_name).lower().strip()
+
+                            if normalized_trophy_name == normalized_title:
+                                playstation_id = trophy_title.get('npCommunicationId', '')
+                                if playstation_id:
+                                    logger.debug(f"Found trophy ID {playstation_id} for {title} via normalized title match ('{trophy_name}')")
+                                    break
+
+                    logger.debug(f"Checking trophy data for new game {title}, ID: {playstation_id}")
+                    if not playstation_id:
+                        logger.debug(f"No trophy ID found for game {title}. Cannot check trophy completion status.")
+                    elif playstation_id:
                         # Look for matching trophy data
                         for trophy_title in psn_trophies:
                             if trophy_title.get('npCommunicationId') == playstation_id:
                                 # Found matching trophy title
-                                trophy_earned = trophy_title.get('earnedTrophies', {}).get('total', 0)
+                                # Check trophy completion using the progress field
+                                progress = trophy_title.get('progress', 0)
+                                logger.debug(f"Trophy progress for {title}: {progress}%")
 
-                                # If we have earned trophies, mark as played
-                                if trophy_earned > 0:
-                                    game.play_count = 1
-                                    game.completion_status = CompletionStatus.PLAYED
-                                    logger.debug(f"Game {title} marked as played with {trophy_earned} trophies earned")
+                                # Just for logging, get counts if available
+                                trophy_earned = trophy_title.get('earnedTrophies', {}).get('total', 0)
+                                trophy_total = trophy_title.get('definedTrophies', {}).get('total', 0)
+
+                                # If 100% progress, mark as COMPLETED
+                                if progress == 100:
+                                    game.completion_status = CompletionStatus.COMPLETED
+                                    logger.debug(f"Game {title} marked as COMPLETED (100% trophies)")
+
+                                    # Set play count to at least 1 if it's not already set
+                                    if game.play_count == 0:
+                                        game.play_count = 1
+
+                                # Otherwise, mark as PLAYED if trophies earned
+                                elif trophy_earned > 0 and game.play_count == 0:
+                                        game.play_count = 1
+                                        game.completion_status = CompletionStatus.PLAYED
+                                        logger.debug(f"Game {title} marked as PLAYED with {trophy_earned} trophies earned")
 
                                 # Stop looking after finding a match
                                 break
@@ -824,11 +1061,33 @@ class PSNClient(SourceScanner):
                             # Use the data_handler method to save play time
                             if not self.data_handler.update_play_time(game, game.play_time):
                                 logger.warning(f"Failed to save play time for {game.title}")
+                            else:
+                                logger.debug(f"Saved play time of {game.play_time} seconds for {game.title}")
 
                         # Save play count if set
                         if hasattr(game, 'play_count') and game.play_count > 0:
                             if not self.data_handler.update_play_count(game, game.play_count):
                                 logger.warning(f"Failed to save play count for {game.title}")
+                            else:
+                                logger.debug(f"Saved play count of {game.play_count} for {game.title}")
+
+                                # Handle last played datetime if available
+                                last_played_iso = game_data.get('lastPlayedDateTime')
+                                if last_played_iso:
+                                    logger.debug(f"Last played timestamp from PSN for {game.title}: {last_played_iso}")
+                                    try:
+                                        # Parse the ISO 8601 datetime and convert to Unix timestamp
+                                        # Format example: "2020-09-16T15:02:44.630000Z"
+                                        dt = datetime.fromisoformat(last_played_iso.replace('Z', '+00:00'))
+                                        unix_timestamp = dt.timestamp()
+
+                                        # Use data_handler to set the last played time
+                                        if self.data_handler.set_last_played_time(game, unix_timestamp):
+                                            logger.debug(f"Set last played time for {game.title} to {dt.strftime('%Y-%m-%d %H:%M:%S')}")
+                                        else:
+                                            logger.warning(f"Failed to set last played time for {game.title}")
+                                    except Exception as dt_err:
+                                        logger.warning(f"Failed to parse last played date for {game.title}: {dt_err}")
 
                         # Download and save the cover image if URL is available
                         if hasattr(game, 'image') and game.image and source.config.get("download_images", True):
@@ -861,11 +1120,21 @@ class PSNClient(SourceScanner):
             # Final progress update
             if progress_callback:
                 try:
-                    progress_callback(100, 100, "Complete")
+                    if added_count > 0 and updated_count > 0:
+                        message = f"Added {added_count} games, updated {updated_count} games"
+                    elif added_count > 0:
+                        message = f"Added {added_count} games"
+                    elif updated_count > 0:
+                        message = f"Updated {updated_count} existing games"
+                    else:
+                        message = "No changes"
+
+                    progress_callback(100, 100, message)
                 except Exception as e:
                     logger.error(f"Error with final progress callback: {e}")
 
-            return added_count, errors
+            # Return both added and updated counts separately as a tuple
+            return (added_count, updated_count), errors
 
         except Exception as e:
             if progress_callback:
@@ -874,7 +1143,9 @@ class PSNClient(SourceScanner):
                 except Exception as callback_error:
                     logger.error(f"Error with error progress callback: {callback_error}")
 
-            return 0, [f"Error syncing PSN source: {e}"]
+            logger.error(f"Error syncing PSN source: {e}")
+            logger.error(traceback.format_exc())
+            return (0, 0), [f"Error syncing PSN source: {e}"]
 
 
 # Expose verify_npsso_token at the module level for backward compatibility
