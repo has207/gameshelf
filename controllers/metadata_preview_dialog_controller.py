@@ -7,6 +7,7 @@ from gi.repository import Gtk, Adw, GObject, GdkPixbuf, Gdk, GLib
 
 from controllers.common import get_template_path
 from providers.opencritic_client import OpenCriticClient
+from providers.launchbox_client import LaunchBoxMetadata
 from providers.metadata_provider import Game as MetadataGame
 
 
@@ -34,7 +35,7 @@ class MetadataPreviewDialog(Adw.Window):
     score: Gtk.Label = Gtk.Template.Child()
     description_text: Gtk.TextView = Gtk.Template.Child()
 
-    def __init__(self, parent_window, controller, game_id, game_name):
+    def __init__(self, parent_window, controller, game_id, game_name, metadata_client=None, provider_name="OpenCritic"):
         super().__init__()
         self.parent_window = parent_window
         self.controller = controller
@@ -43,12 +44,13 @@ class MetadataPreviewDialog(Adw.Window):
         self.game_name = game_name
         self.game_metadata = None
         self.image_path = None
+        self.provider_name = provider_name
 
-        # Initialize OpenCritic client
-        self.metadata_client = OpenCriticClient()
+        # Use provided metadata client or initialize OpenCritic client by default
+        self.metadata_client = metadata_client or OpenCriticClient()
 
-        # Set the window title to include the game name
-        self.dialog_title.set_title(f"Preview: {game_name}")
+        # Set the window title to include the game name and provider
+        self.dialog_title.set_title(f"Preview: {game_name} ({provider_name})")
 
         # Set initial title
         self.game_title.set_text(game_name)

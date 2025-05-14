@@ -4,6 +4,7 @@ from gi.repository import Gtk, Adw, Gio, GObject, GLib
 
 from controllers.common import get_template_path
 from providers.opencritic_client import OpenCriticClient
+from providers.launchbox_client import LaunchBoxMetadata
 
 
 @Gtk.Template(filename=get_template_path("metadata_search_dialog.ui"))
@@ -33,8 +34,25 @@ class MetadataSearchDialog(Adw.Window):
         self.controller = controller or parent_window.controller
         self.set_transient_for(parent_window)
 
-        # Initialize OpenCritic client
+        # Initialize provider selection dropdown
+        self.provider_dropdown = Gtk.DropDown.new_from_strings(["OpenCritic", "LaunchBox"])
+        self.provider_dropdown.set_margin_start(10)
+        self.provider_dropdown.set_margin_end(10)
+        self.provider_dropdown.set_margin_top(10)
+        self.provider_dropdown.set_margin_bottom(10)
+        self.provider_dropdown.connect("notify::selected", self.on_provider_changed)
+
+        # Find the box container that has the search entry
+        parent_box = self.search_entry.get_parent()
+        if parent_box:
+            parent_box.prepend(self.provider_dropdown)
+
+        # Initialize the selected metadata client
+        self.selected_provider = "OpenCritic"
         self.metadata_client = OpenCriticClient()
+
+        # Check if LaunchBox database needs initialization
+        self.launchbox_metadata = None
 
         # State tracking
         self.search_results = []
@@ -199,10 +217,111 @@ class MetadataSearchDialog(Adw.Window):
             # Show the preview dialog
             self._show_game_details(result_id, result_name)
 
+    def on_provider_changed(self, dropdown, param):
+        """Handle metadata provider selection change"""
+        selected = dropdown.get_selected()
+        if selected == 0:  # OpenCritic
+            self.selected_provider = "OpenCritic"
+            self.metadata_client = OpenCriticClient()
+        elif selected == 1:  # LaunchBox
+            self.selected_provider = "LaunchBox"
+            if not self.launchbox_metadata:
+                # Data directory from the controller
+                data_dir = self.controller.data_handler.data_dir
+                self.launchbox_metadata = LaunchBoxMetadata(str(data_dir))
+            self.metadata_client = self.launchbox_metadata
+
+            # Check if database initialization is required
+            if not self.launchbox_metadata.database.database_exists():
+                self._show_launchbox_init_dialog()
+                # Return early - we'll handle the search after initialization
+                return
+
+        # Clear existing results when changing provider
+        self._clear_results()
+
+        # Automatically perform search if there's text in the search field
+        query = self.search_entry.get_text().strip()
+        if query:
+            self.perform_search(query)
+        else:
+            self.search_entry.grab_focus()
+
+    def _show_launchbox_init_dialog(self):
+        """Show dialog for initializing LaunchBox database"""
+        dialog = Adw.MessageDialog.new(
+            self,
+            "LaunchBox Database Required",
+            "The LaunchBox database needs to be downloaded and initialized before searching. This might take several minutes. Do you want to initialize it now?"
+        )
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("download", "Download & Initialize")
+        dialog.set_response_appearance("download", Adw.ResponseAppearance.SUGGESTED)
+        dialog.connect("response", self._on_launchbox_init_response)
+        dialog.present()
+
+    def _on_launchbox_init_response(self, dialog, response):
+        """Handle response from the LaunchBox initialization dialog"""
+        if response == "download":
+            # Start the initialization in a background thread
+            self.status_container.set_visible(True)
+            self.results_scroll.set_visible(False)
+            self.loading_spinner.set_spinning(True)
+            self.status_label.set_text("Downloading and initializing LaunchBox database...\nThis may take several minutes.")
+
+            thread = threading.Thread(
+                target=self._initialize_launchbox_thread
+            )
+            thread.daemon = True
+            thread.start()
+        else:
+            # Switch back to OpenCritic
+            self.provider_dropdown.set_selected(0)
+
+    def _initialize_launchbox_thread(self):
+        """Background thread for LaunchBox database initialization"""
+        try:
+            success = self.launchbox_metadata.initialize_database()
+            GLib.idle_add(self._on_launchbox_init_complete, success)
+        except Exception as e:
+            print(f"Error initializing LaunchBox database: {e}")
+            GLib.idle_add(self._on_launchbox_init_complete, False, str(e))
+
+    def _on_launchbox_init_complete(self, success, error_message=None):
+        """Handle completion of LaunchBox database initialization"""
+        self.loading_spinner.set_spinning(False)
+
+        if success:
+            self.status_label.set_text("LaunchBox database initialized successfully.")
+
+            # Automatically perform search if there's text in the search field
+            query = self.search_entry.get_text().strip()
+            if query:
+                # Give UI a chance to update first
+                GLib.timeout_add(500, lambda: self.perform_search(query))
+            else:
+                self.status_container.set_visible(True)
+                self.results_scroll.set_visible(False)
+                self.search_entry.grab_focus()
+        else:
+            error_msg = error_message or "Unknown error"
+            self.status_label.set_text(f"Failed to initialize LaunchBox database: {error_msg}")
+            # Switch back to OpenCritic
+            self.provider_dropdown.set_selected(0)
+
+        return False  # Remove from idle queue
+
     def _show_game_details(self, game_id, game_name):
         """Show the game details preview dialog"""
         from controllers.metadata_preview_dialog_controller import MetadataPreviewDialog
-        preview_dialog = MetadataPreviewDialog(self, self.controller, game_id, game_name)
+        preview_dialog = MetadataPreviewDialog(
+            self,
+            self.controller,
+            game_id,
+            game_name,
+            self.metadata_client,
+            self.selected_provider
+        )
         preview_dialog.connect("metadata-accepted", self._on_metadata_accepted)
         preview_dialog.show()
 
