@@ -57,7 +57,7 @@
                         
                         <child>
                           <object class="GtkLabel">
-                            <property name="label">Directory</property>
+                            <property name="label">ROM Directory</property>
                             <property name="xalign">0</property>
                             <property name="hexpand">True</property>
                             <attributes>
@@ -68,7 +68,7 @@
                         
                         <child>
                           <object class="GtkLabel">
-                            <property name="label">Import games from a local folder on your computer</property>
+                            <property name="label">Import ROM files from a folder and set their platform automatically</property>
                             <property name="xalign">0</property>
                             <property name="wrap">True</property>
                             <style>

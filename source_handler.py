@@ -59,10 +59,10 @@ class SourceHandler:
                                 try:
                                     source_type = SourceType.from_string(source_data["type"])
                                 except ValueError:
-                                    logger.warning(f"Invalid source type in {source_file}, defaulting to DIRECTORY")
-                                    source_type = SourceType.DIRECTORY
+                                    logger.warning(f"Invalid source type in {source_file}, defaulting to ROM_DIRECTORY")
+                                    source_type = SourceType.ROM_DIRECTORY
                             else:
-                                source_type = SourceType.DIRECTORY
+                                source_type = SourceType.ROM_DIRECTORY
 
                             # Process file extensions
                             file_extensions = source_data.get("file_extensions", [])
@@ -203,13 +203,27 @@ class SourceHandler:
             # For PSN sources, use sync_psn_source
             return self.sync_psn_source(source, progress_callback)
 
-        # For directory type sources, validate the path
+        # For directory/ROM type sources, validate the path
         if not source.path or not Path(source.path).exists():
             return 0, [f"Source path does not exist: {source.path}"]
 
         source_path = Path(source.path)
         added_count = 0
         errors = []
+
+        # Extract platform from source config for ROM_DIRECTORY sources
+        platform = None
+        if source.source_type == SourceType.ROM_DIRECTORY and source.config and "platform" in source.config:
+            # Look up platform enum from string value
+            platform_value = source.config["platform"]
+            for p in Platforms:
+                if p.value == platform_value:
+                    platform = p
+                    break
+
+            if not platform:
+                logger.warning(f"Unknown platform '{platform_value}' specified for source {source.name}")
+                # We'll continue without a platform in this case
 
         # Get the list of files matching the specified extensions
         if not source.file_extensions:
@@ -323,6 +337,11 @@ class SourceHandler:
                     title=title,
                     source=source.id
                 )
+
+                # Set platform for ROM_DIRECTORY sources if we have a platform specified
+                if source.source_type == SourceType.ROM_DIRECTORY and platform:
+                    game.platforms = [platform]
+                    logger.info(f"Setting platform '{platform.value}' for game '{title}'")
 
                 # Save the game
                 if self.data_handler.save_game(game):

@@ -56,14 +56,14 @@ class SourceTypeDialog(Gtk.Dialog):
     def _get_source_type_from_row(self, row):
         """Convert the selected row to a SourceType"""
         if row == self.directory_row:
-            return SourceType.DIRECTORY
+            return SourceType.ROM_DIRECTORY
         elif row == self.xbox_row:
             return SourceType.XBOX
         elif row == self.playstation_row:
             return SourceType.PLAYSTATION
         else:
-            # Default to directory if somehow none selected
-            return SourceType.DIRECTORY
+            # Default to ROM_DIRECTORY if somehow none selected
+            return SourceType.ROM_DIRECTORY
 
     @classmethod
     def show_dialog(cls, parent, callback):

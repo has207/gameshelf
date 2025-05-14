@@ -4,7 +4,7 @@ from gi.repository import Gtk, GObject
 
 from data import SourceType
 from controllers.source_type_dialog_controller import SourceTypeDialog
-from controllers.directory_source_dialog_controller import DirectorySourceDialog
+from controllers.rom_directory_source_dialog_controller import RomDirectorySourceDialog
 from controllers.xbox_source_dialog_controller import XboxSourceDialog
 from controllers.psn_source_dialog_controller import PSNSourceDialog
 
@@ -70,8 +70,8 @@ class SourceWizard:
         Args:
             source_type: The SourceType to show a dialog for
         """
-        if source_type == SourceType.DIRECTORY:
-            DirectorySourceDialog.show_dialog(
+        if source_type == SourceType.ROM_DIRECTORY:
+            RomDirectorySourceDialog.show_dialog(
                 source=self.source,
                 source_handler=self.source_handler,
                 parent=self.parent,

@@ -1001,10 +1001,10 @@ class DataHandler:
                             try:
                                 source_type = SourceType.from_string(source_data["type"])
                             except ValueError:
-                                print(f"Invalid source type in {source_file}, defaulting to DIRECTORY")
-                                source_type = SourceType.DIRECTORY
+                                print(f"Invalid source type in {source_file}, defaulting to ROM_DIRECTORY")
+                                source_type = SourceType.ROM_DIRECTORY
                         else:
-                            source_type = SourceType.DIRECTORY
+                            source_type = SourceType.ROM_DIRECTORY
 
                         # Process file extensions
                         file_extensions = source_data.get("file_extensions", [])

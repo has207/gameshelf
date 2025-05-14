@@ -5,14 +5,16 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Gio, GObject
 
 from data import Source, SourceType
+from data_mapping import Platforms
 
 
-@Gtk.Template(filename="layout/directory_source_dialog.ui")
-class DirectorySourceDialog(Gtk.Dialog):
-    __gtype_name__ = "DirectorySourceDialog"
+@Gtk.Template(filename="layout/rom_directory_source_dialog.ui")
+class RomDirectorySourceDialog(Gtk.Dialog):
+    __gtype_name__ = "RomDirectorySourceDialog"
 
     name_entry = Gtk.Template.Child()
     path_entry = Gtk.Template.Child()
+    platform_dropdown = Gtk.Template.Child()
     extensions_entry = Gtk.Template.Child()
     active_switch = Gtk.Template.Child()
     browse_button = Gtk.Template.Child()
@@ -26,6 +28,9 @@ class DirectorySourceDialog(Gtk.Dialog):
         self.source_handler = source_handler
         self.editing = source is not None
 
+        # Set up platform dropdown
+        self._setup_platform_dropdown()
+
         # Connect signal handlers
         self.browse_button.connect("clicked", self._on_browse_clicked)
         self.cancel_button.connect("clicked", self._on_cancel_clicked)
@@ -33,7 +38,7 @@ class DirectorySourceDialog(Gtk.Dialog):
 
         # If editing an existing source, fill the form with its data
         if self.editing:
-            self.set_title("Edit Directory Source")
+            self.set_title("Edit ROM Directory Source")
             self.name_entry.set_text(source.name)
             self.path_entry.set_text(source.path)
 
@@ -43,16 +48,52 @@ class DirectorySourceDialog(Gtk.Dialog):
 
             # Set active state
             self.active_switch.set_active(source.active)
+
+            # Set platform if it exists in the source config
+            if source.config and "platform" in source.config:
+                platform_value = source.config["platform"]
+                self._select_platform_by_value(platform_value)
         else:
-            self.set_title("Add Directory Source")
+            self.set_title("Add ROM Directory Source")
 
             # Default values
-            self.name_entry.set_text("Local Games")
+            self.name_entry.set_text("ROMs")
+            
+            # Select first platform by default
+            self.platform_dropdown.set_selected(0)
+
+    def _setup_platform_dropdown(self):
+        """Set up the platform dropdown with all available platforms"""
+        # Create a string list to populate the dropdown
+        platform_model = Gtk.StringList.new()
+        
+        # Sort platforms alphabetically by display name
+        platforms = sorted([p for p in Platforms], key=lambda p: p.value)
+        
+        # Add each platform to the model and store enum values in a dict
+        self.platform_mapping = {}
+        for i, platform in enumerate(platforms):
+            platform_model.append(platform.value)
+            self.platform_mapping[i] = platform
+            
+        # Set the model for the dropdown
+        self.platform_dropdown.set_model(platform_model)
+    
+    def _select_platform_by_value(self, platform_value):
+        """Find and select a platform in the dropdown by its value"""
+        # Try to find the platform in our mapping
+        for i, platform in self.platform_mapping.items():
+            if platform.value == platform_value:
+                self.platform_dropdown.set_selected(i)
+                return
+            
+        # If not found, just select the first one
+        self.platform_dropdown.set_selected(0)
 
     def _on_browse_clicked(self, button):
         """Handle browse button click"""
         dialog = Gtk.FileDialog.new()
-        dialog.set_title("Select Folder")
+        dialog.set_title("Select ROM Folder")
 
         # Configure for folder selection
         dialog.set_initial_folder(Gio.File.new_for_path(os.path.expanduser("~")))
@@ -92,6 +133,14 @@ class DirectorySourceDialog(Gtk.Dialog):
             self._show_error("Path must be a valid directory")
             return
 
+        # Get selected platform
+        selected_index = self.platform_dropdown.get_selected()
+        if selected_index < 0:
+            self._show_error("Platform selection is required")
+            return
+            
+        platform = self.platform_mapping[selected_index]
+
         # Process extensions
         extensions = []
         extensions_text = self.extensions_entry.get_text().strip()
@@ -108,15 +157,21 @@ class DirectorySourceDialog(Gtk.Dialog):
             self.source.path = path
             self.source.file_extensions = extensions
             self.source.active = active
+            
+            # Update config with platform
+            if not self.source.config:
+                self.source.config = {}
+            self.source.config["platform"] = platform.value
         else:
-            # Create new source
+            # Create new source with ROM_DIRECTORY type
             self.source = Source(
                 id="",  # Will be auto-generated by the handler
                 name=name,
                 path=path,
-                source_type=SourceType.DIRECTORY,
+                source_type=SourceType.ROM_DIRECTORY,
                 active=active,
-                file_extensions=extensions
+                file_extensions=extensions,
+                config={"platform": platform.value}
             )
 
         # Save and emit signal
@@ -143,7 +198,7 @@ class DirectorySourceDialog(Gtk.Dialog):
     @classmethod
     def show_dialog(cls, source=None, source_handler=None, parent=None, callback=None):
         """
-        Show the directory source dialog
+        Show the ROM directory source dialog
 
         Args:
             source: The source to edit, or None for a new source
@@ -164,7 +219,8 @@ class DirectorySourceDialog(Gtk.Dialog):
         dialog.present()
         return dialog
 
+
 # Define custom signals
-GObject.type_register(DirectorySourceDialog)
-GObject.signal_new("source-saved", DirectorySourceDialog,
+GObject.type_register(RomDirectorySourceDialog)
+GObject.signal_new("source-saved", RomDirectorySourceDialog,
                   GObject.SignalFlags.RUN_LAST, None, (object,))

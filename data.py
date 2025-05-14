@@ -8,7 +8,7 @@ from data_mapping import CompletionStatus, Platforms, AgeRatings, Features, Genr
 
 class SourceType(Enum):
     """Types of game sources that can be scanned"""
-    DIRECTORY = auto()  # Generic directory of files
+    ROM_DIRECTORY = auto()  # Directory containing ROM files
     XBOX = auto()       # Xbox game library via API
     PLAYSTATION = auto()  # PlayStation Network game library via API
 
@@ -26,7 +26,7 @@ class SourceType(Enum):
 
 @dataclass
 class Source:
-    def __init__(self, id: str, name: str, path: str, source_type: SourceType = SourceType.DIRECTORY,
+    def __init__(self, id: str, name: str, path: str, source_type: SourceType = SourceType.ROM_DIRECTORY,
                  active: bool = True, file_extensions: Optional[List[str]] = None, config: Optional[Dict[str, Any]] = None):
         self.id = id.lower()
         self.name = name
