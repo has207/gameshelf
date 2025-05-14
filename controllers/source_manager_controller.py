@@ -1,11 +1,13 @@
 import gi
 import logging
+import threading
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Gio, GObject
 
 from data import Source, SourceType
 from source_handler import SourceHandler
+from sources.scanner_base import SourceScanner
 from controllers.source_item_controller import SourceItem
 from controllers.source_wizard_controller import SourceWizard
 
@@ -269,7 +271,6 @@ class SourceManager(Gtk.Box):
                 return True
 
             # Start the scan in a separate thread
-            import threading
 
             # Flag to track if the dialog has been closed
             dialog_active = [True]
@@ -284,7 +285,9 @@ class SourceManager(Gtk.Box):
 
             def run_scan():
                 try:
-                    added, errors = self.source_handler.sync_xbox_source(source, xbox_progress_callback)
+                    # Get the scanner for this source type
+                    scanner = self.source_handler.get_scanner(source.source_type, source.id)
+                    added, errors = scanner.scan(source, xbox_progress_callback)
 
                     # Update UI on completion if dialog is still active
                     def on_complete():
@@ -412,7 +415,6 @@ class SourceManager(Gtk.Box):
                 return True
 
             # Start the scan in a separate thread
-            import threading
 
             # Flag to track if the dialog has been closed
             dialog_active = [True]
@@ -427,7 +429,9 @@ class SourceManager(Gtk.Box):
 
             def run_scan():
                 try:
-                    added, errors = self.source_handler.sync_psn_source(source, psn_progress_callback)
+                    # Get the scanner for this source type
+                    scanner = self.source_handler.get_scanner(source.source_type, source.id)
+                    added, errors = scanner.scan(source, psn_progress_callback)
 
                     # Update UI on completion if dialog is still active
                     def on_complete():
@@ -567,12 +571,12 @@ class SourceManager(Gtk.Box):
             return True
 
         # Start the scan in a separate thread
-        import threading
 
         def run_scan():
             try:
-                # Perform the scan in a background thread
-                added, errors = self.source_handler.scan_source(source, directory_progress_callback)
+                # Get the scanner for this source type
+                scanner = self.source_handler.get_scanner(source.source_type, source.id)
+                added, errors = scanner.scan(source, directory_progress_callback)
 
                 # Update UI on completion
                 def on_complete():
@@ -607,6 +611,7 @@ class SourceManager(Gtk.Box):
                 GObject.idle_add(on_complete)
             except Exception as e:
                 # Handle thread exceptions
+                error = e
                 def on_error():
                     if not dialog_active[0]:
                         return False
@@ -615,8 +620,8 @@ class SourceManager(Gtk.Box):
                     spinner.stop()
 
                     # Show error in dialog
-                    status_label.set_text(f"Error: {str(e)}")
-                    logger.error(f"Error in directory scan thread: {e}")
+                    status_label.set_text(f"Error: {str(error)}")
+                    logger.error(f"Error in directory scan thread: {error}")
 
                     return False
 

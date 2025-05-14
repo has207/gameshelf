@@ -8,13 +8,19 @@ import urllib.parse
 import time
 import webbrowser
 import logging
+import traceback
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
+
+from sources.scanner_base import SourceScanner
+from data import Source, Game
+from data_mapping import Platforms, Genres, CompletionStatus
+from cover_fetch import CoverFetcher
 
 # Set up logger
 logger = logging.getLogger(__name__)
 
-class PSNClient:
+class PSNClient(SourceScanner):
     """Client for PlayStation Network API, handling authentication and data fetching"""
 
     # Token storage
@@ -37,8 +43,18 @@ class PSNClient:
     MOBILE_TOKEN_AUTH = "MDk1MTUxNTktNzIzNy00MzcwLTliNDAtMzgwNmU2N2MwODkxOnVjUGprYTV0bnRCMktxc1A="
     PAGE_REQUEST_LIMIT = 100
 
-    def __init__(self, token_dir: Optional[str] = None):
-        """Initialize the PSN client with token directory"""
+    def __init__(self, data_handler=None, token_dir: Optional[str] = None):
+        """
+        Initialize the PSN client with token directory
+
+        Args:
+            data_handler: The data handler instance to use (can be None for standalone usage)
+            token_dir: Directory to store authentication tokens
+        """
+        # Initialize SourceScanner if data handler is provided
+        if data_handler:
+            super().__init__(data_handler)
+
         if token_dir:
             self.TOKEN_DIR = os.path.expanduser(token_dir)
             self.TOKEN_FILE = os.path.join(self.TOKEN_DIR, "token.json")
@@ -532,6 +548,256 @@ class PSNClient:
             "<i>For example, if you see: {\"npsso\":\"abcdef12345\"}, you should paste just: abcdef12345</i>"
         )
         return instructions
+
+    def scan(self, source: Source, progress_callback: Optional[callable] = None) -> Tuple[int, List[str]]:
+        """
+        Scan a PlayStation Network source for games and add them to the library.
+        Implements the SourceScanner interface.
+
+        Args:
+            source: The source to scan
+            progress_callback: Optional callback function for progress updates
+
+        Returns:
+            Tuple of (number of games added/updated, list of error messages)
+        """
+        added_count = 0
+        errors = []
+
+        # Initial progress update
+        if progress_callback:
+            try:
+                progress_callback(0, 100, "Initializing PlayStation Network client...")
+            except Exception as e:
+                logger.error(f"Error with progress callback: {e}")
+
+        try:
+            # If we have a token in the source config, try authenticating with it
+            if source.config and "npsso_token" in source.config:
+                logger.debug("Found npsso_token in source config, attempting to authenticate")
+                self.authenticate(source.config["npsso_token"])
+
+            # Check if we need to authenticate
+            if not self.is_authenticated():
+                # Get detailed auth status to provide better error messages
+                auth_status = self.check_authentication()
+                logger.debug(f"PSN authentication status: {auth_status}")
+
+                error_message = "PlayStation Network authentication required."
+
+                if "npsso_token" in source.config:
+                    error_message = "PlayStation Network token is invalid or expired."
+                    logger.warning(f"PSN token for {source.name} is invalid or expired. Auth status: {auth_status}")
+
+                if progress_callback:
+                    try:
+                        progress_callback(10, 100, error_message)
+                    except Exception as e:
+                        logger.error(f"Error with progress callback: {e}")
+
+                # Return error message with instructions
+                return 0, [f"{error_message} Please click the 'Authenticate with PlayStation' button in the source settings."]
+
+            # Update progress
+            if progress_callback:
+                try:
+                    progress_callback(30, 100, "Fetching PlayStation Network library...")
+                except Exception as e:
+                    logger.error(f"Error with progress callback: {e}")
+
+            # Get PSN library data
+            psn_data = self.fetch_all_data()
+            psn_games = psn_data.get('games', [])
+            psn_trophies = psn_data.get('trophies', [])
+
+            # Store raw JSON data in the source directory
+            source_dir = self.data_handler.sources_dir / source.id
+            json_path = source_dir / "psn_data.json"
+
+            try:
+                # Save the raw JSON data
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(psn_data, f, indent=2)
+                logger.info(f"Saved raw PSN data to {json_path}")
+            except Exception as e:
+                errors.append(f"Error saving PSN data: {e}")
+                logger.error(f"Error saving PSN data to {json_path}: {e}")
+
+            # Get existing games from this source
+            existing_games_by_title = {}
+            for game in self.data_handler.load_games():
+                if game.source == source.id:
+                    existing_games_by_title[game.title.lower()] = game
+
+            # Update progress
+            total_games = len(psn_games)
+            if progress_callback:
+                try:
+                    progress_callback(40, 100, f"Processing {total_games} games...")
+                except Exception as e:
+                    logger.error(f"Error with progress callback: {e}")
+
+            # Process each game
+            for index, game_data in enumerate(psn_games):
+                try:
+                    # Report progress
+                    if progress_callback and index % 10 == 0:
+                        try:
+                            percentage = 40 + int((index / total_games) * 60)
+                            progress_callback(percentage, 100, f"Processing game {index+1}/{total_games}")
+                        except Exception as e:
+                            logger.error(f"Error with progress callback: {e}")
+
+                    # Get game details
+                    title = game_data.get('name', 'Unknown Game')
+                    game_id = game_data.get('titleId', '')
+
+                    # Add debug logging
+                    logger.info(f"Processing PSN game: {title} (ID: {game_id})")
+
+                    # Check if game already exists
+                    if title.lower() in existing_games_by_title:
+                        # Game exists, update metadata if needed
+                        # For now, we'll skip updates
+                        continue
+
+                    # Create a new game
+                    game = Game(
+                        id="",  # ID will be assigned by data handler
+                        title=title,
+                        source=source.id
+                    )
+
+                    # Extract platform info
+                    platform_enums = []
+                    platform_str = game_data.get('platform', '')
+
+                    try:
+                        # Map platform string to our platform enum
+                        if platform_str == "PS5":
+                            platform_enums.append(Platforms.PLAYSTATION5)
+                        elif platform_str == "PS4":
+                            platform_enums.append(Platforms.PLAYSTATION4)
+                        elif platform_str == "PS3":
+                            platform_enums.append(Platforms.PLAYSTATION3)
+                        elif platform_str == "PS Vita":
+                            platform_enums.append(Platforms.PLAYSTATION_VITA)
+                        elif platform_str == "PSP":
+                            platform_enums.append(Platforms.PSP)
+
+                        logger.debug(f"Mapped platforms for {title}: {[p.value for p in platform_enums]}")
+
+                        if platform_enums:
+                            game.platforms = platform_enums
+                            logger.debug(f"Platforms set successfully for {title}")
+                    except Exception as e:
+                        logger.error(f"ERROR setting platforms for {title}: {e}. Platform: {platform_str}")
+                        # Debug information to help diagnose platform mapping issues
+                        logger.debug(f"Platform enum values: {[p.name for p in Platforms]}")
+
+                    # Add description if available
+                    description = game_data.get('description', '')
+                    if description:
+                        game.description = description
+
+                    # Handle trophy data just to mark games as played
+                    playstation_id = game_data.get('npCommunicationId', '')
+                    if playstation_id:
+                        # Look for matching trophy data
+                        for trophy_title in psn_trophies:
+                            if trophy_title.get('npCommunicationId') == playstation_id:
+                                # Found matching trophy title
+                                trophy_earned = trophy_title.get('earnedTrophies', {}).get('total', 0)
+
+                                # If we have earned trophies, mark as played
+                                if trophy_earned > 0:
+                                    game.play_count = 1
+                                    game.completion_status = CompletionStatus.PLAYED
+                                    logger.debug(f"Game {title} marked as played with {trophy_earned} trophies earned")
+
+                                # Stop looking after finding a match
+                                break
+
+                    # Get cover image URL if available
+                    image_url = self.get_cover_image_url(game_data)
+
+                    if image_url:
+                        # Store the URL in config for reference
+                        if 'game_covers' not in source.config:
+                            source.config['game_covers'] = {}
+
+                        source.config['game_covers'][title] = image_url
+
+
+                        # Check if we should download images automatically
+                        download_images = source.config.get("download_images", True)
+
+                        if download_images:
+                            # Store the URL in game.image so we can download it after game is saved
+                            logger.debug(f"Found cover image URL for {title}: {image_url}")
+                            game.image = image_url
+                        else:
+                            logger.debug(f"Skipping image download for {title} (disabled in source settings)")
+
+                    # Save the game
+                    if self.data_handler.save_game(game):
+                        # After the game is saved with an ID, save the playtime separately
+                        if hasattr(game, 'play_time') and game.play_time > 0:
+                            # Use the data_handler method to save play time
+                            if not self.data_handler.update_play_time(game, game.play_time):
+                                logger.warning(f"Failed to save play time for {game.title}")
+
+                        # Save play count if set
+                        if hasattr(game, 'play_count') and game.play_count > 0:
+                            if not self.data_handler.update_play_count(game, game.play_count):
+                                logger.warning(f"Failed to save play count for {game.title}")
+
+                        # Download and save the cover image if URL is available
+                        if hasattr(game, 'image') and game.image and source.config.get("download_images", True):
+                            try:
+                                # Use CoverFetcher to download and save the image
+                                cover_fetcher = CoverFetcher(self.data_handler)
+                                success, error = cover_fetcher.fetch_and_save_for_game(
+                                    game.id,
+                                    game.image,
+                                    source_name="PlayStation"
+                                )
+
+                                if success:
+                                    logger.debug(f"Cover image downloaded and saved successfully for {game.title}")
+                                else:
+                                    logger.warning(f"Failed to download/save cover image for {game.title}: {error}")
+                            except Exception as img_err:
+                                logger.error(f"Error processing cover image for {game.title}: {img_err}")
+
+                        added_count += 1
+                    else:
+                        errors.append(f"Failed to save game '{title}'")
+
+                except Exception as e:
+                    game_name = game_data.get('name', 'Unknown')
+                    logger.error(f"Error processing game {game_name}: {e}")
+                    logger.error(traceback.format_exc())
+                    errors.append(f"Error processing game {game_name}: {e}")
+
+            # Final progress update
+            if progress_callback:
+                try:
+                    progress_callback(100, 100, "Complete")
+                except Exception as e:
+                    logger.error(f"Error with final progress callback: {e}")
+
+            return added_count, errors
+
+        except Exception as e:
+            if progress_callback:
+                try:
+                    progress_callback(100, 100, f"Error: {e}")
+                except Exception as callback_error:
+                    logger.error(f"Error with error progress callback: {callback_error}")
+
+            return 0, [f"Error syncing PSN source: {e}"]
+
 
 # Expose verify_npsso_token at the module level for backward compatibility
 def verify_npsso_token(token: str) -> bool:

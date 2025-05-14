@@ -4,11 +4,22 @@ import requests
 import subprocess
 import sys
 import shlex
+import traceback
+import logging
 from pathlib import Path
 from datetime import datetime
+from typing import List, Tuple, Optional, Dict, Any
+
+from sources.scanner_base import SourceScanner
+from data import Source, Game
+from data_mapping import Platforms, Genres, CompletionStatus
+from cover_fetch import CoverFetcher
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
-class XboxLibrary:
+class XboxLibrary(SourceScanner):
     """Class to handle Xbox authentication and library management"""
 
     # Xbox API constants
@@ -16,14 +27,19 @@ class XboxLibrary:
     REDIRECT_URI = "https://login.live.com/oauth20_desktop.srf"
     SCOPE = "Xboxlive.signin Xboxlive.offline_access"
 
-    def __init__(self, token_dir=None):
+    def __init__(self, data_handler=None, token_dir=None):
         """
         Initialize the Xbox Library with token storage paths
 
         Args:
+            data_handler: The data handler instance to use (can be None for standalone usage)
             token_dir: Directory to store authentication tokens
                       If None, defaults to ~/.xbox_api_client
         """
+        # Initialize SourceScanner if data_handler is provided
+        if data_handler:
+            super().__init__(data_handler)
+
         # Set up data directories
         if token_dir:
             self.data_dir = Path(token_dir)
@@ -521,6 +537,312 @@ class XboxLibrary:
             'cross_platform': cross_platform_games,
             'total': total_games
         }
+
+    def scan(self, source: Source, progress_callback: Optional[callable] = None) -> Tuple[int, List[str]]:
+        """
+        Scan an Xbox source for games and add them to the library.
+        Implements the SourceScanner interface.
+
+        Args:
+            source: The source to scan
+            progress_callback: Optional callback function for progress updates
+
+        Returns:
+            Tuple of (number of games added/updated, list of error messages)
+        """
+        added_count = 0
+        errors = []
+
+        # Initial progress update
+        if progress_callback:
+            try:
+                progress_callback(0, 100, "Initializing Xbox client...")
+            except Exception as e:
+                logger.error(f"Error with progress callback: {e}")
+
+        try:
+            # Check if we need to authenticate
+            if not self.is_authenticated():
+                if progress_callback:
+                    try:
+                        progress_callback(10, 100, "Need to authenticate, launching login flow...")
+                    except Exception as e:
+                        logger.error(f"Error with progress callback: {e}")
+
+                # We should never get here if the source was properly created
+                # through the UI, as it requires authentication before saving
+                # But just in case, we'll handle it gracefully
+                from threading import Thread
+                from gi.repository import GLib
+
+                # Create an authentication thread with cleaner synchronization
+                import threading
+                auth_event = threading.Event()
+                auth_result = [False]  # Use a list to store result from the thread
+
+                # Function to run authentication in a thread
+                def run_auth():
+                    try:
+                        auth_result[0] = self.authenticate()
+                    except Exception as e:
+                        logger.error(f"Authentication thread error: {e}")
+                        auth_result[0] = False
+                    finally:
+                        auth_event.set()  # Signal that auth is complete
+
+                # Start auth thread
+                auth_thread = threading.Thread(target=run_auth)
+                auth_thread.daemon = True
+                auth_thread.start()
+
+                # Wait for authentication with periodic progress updates
+                import time
+                start_time = time.time()
+                while not auth_event.is_set() and time.time() - start_time < 300:  # 5 min timeout
+                    # Update progress and message periodically
+                    if progress_callback:
+                        try:
+                            elapsed = time.time() - start_time
+                            progress_callback(10, 100, f"Authentication in progress ({int(elapsed)}s)...")
+                        except Exception as e:
+                            logger.error(f"Error with progress callback: {e}")
+                    # Use shorter sleep to be more responsive
+                    time.sleep(0.2)  # Sleep briefly to not hammer the CPU
+
+                # Check authentication result
+                if not auth_result[0]:
+                    return 0, ["Authentication failed. Please try again."]
+
+            # Update progress
+            if progress_callback:
+                try:
+                    progress_callback(30, 100, "Fetching Xbox library...")
+                except Exception as e:
+                    logger.error(f"Error with progress callback: {e}")
+
+            # Get Xbox library
+            xbox_games = self.get_game_library()
+
+            # Get existing games from this source
+            existing_games_by_title = {}
+            for game in self.data_handler.load_games():
+                if game.source == source.id:
+                    existing_games_by_title[game.title.lower()] = game
+
+            # Update progress
+            total_games = len(xbox_games)
+            if progress_callback:
+                try:
+                    progress_callback(40, 100, f"Processing {total_games} games...")
+                except Exception as e:
+                    logger.error(f"Error with progress callback: {e}")
+
+            # Process each game
+            for index, game_data in enumerate(xbox_games):
+                try:
+                    # Report progress
+                    if progress_callback and index % 10 == 0:
+                        try:
+                            percentage = 40 + int((index / total_games) * 60)
+                            progress_callback(percentage, 100, f"Processing game {index+1}/{total_games}")
+                        except Exception as e:
+                            logger.error(f"Error with progress callback: {e}")
+
+                    # Check if this is a game (not an app)
+                    if game_data.get('type') != 'Game':
+                        continue
+
+                    # Get game details
+                    title = game_data.get('name', 'Unknown Game')
+                    title_id = game_data.get('titleId', '')
+
+                    # Add debug logging
+                    logger.info(f"Processing Xbox game: {title} (ID: {title_id})")
+
+                    # Generate unique ID for the game based on Xbox title ID
+                    game_key = f"xbox_{title_id}"
+
+                    # Check if game already exists
+                    if title.lower() in existing_games_by_title:
+                        # Game exists, update metadata if needed
+                        # For now, we'll skip updates
+                        continue
+
+                    # Create a new game
+                    game = Game(
+                        id="",  # ID will be assigned by data handler
+                        title=title,
+                        source=source.id
+                    )
+
+                    # Extract platform info
+                    platforms = []
+                    devices = game_data.get('devices', [])
+
+                    # Map Xbox platforms to our platform enum
+                    platform_enums = []
+
+                    try:
+                        if 'XboxOne' in devices:
+                            platform_enums.append(Platforms.XBOX_ONE)
+                        if 'XboxSeries' in devices:
+                            platform_enums.append(Platforms.XBOX_SERIES)
+                        if 'PC' in devices:
+                            platform_enums.append(Platforms.PC_WINDOWS)
+                        if 'Xbox360' in devices:
+                            platform_enums.append(Platforms.XBOX360)
+                        if 'Xbox' in devices:  # Original Xbox
+                            platform_enums.append(Platforms.XBOX)
+
+                        game.platforms = platform_enums
+                    except Exception as e:
+                        logger.error(f"ERROR setting platforms: {e}. For devices: {devices}")
+
+                    # Add genres if available
+                    detail = game_data.get('detail', {})
+                    if detail:
+                        # Add description
+                        game.description = detail.get('description', '')
+
+                        # Add genres
+                        genres = detail.get('genres', [])
+                        genre_enums = []
+                        for genre in genres:
+                            # Map Xbox genres to our genre enum
+                            try:
+                                if "Action" in genre:
+                                    genre_enums.append(Genres.ACTION)
+                                elif "Adventure" in genre:
+                                    genre_enums.append(Genres.ADVENTURE)
+                                elif "Puzzle" in genre:
+                                    genre_enums.append(Genres.PUZZLE)
+                                elif "RPG" in genre or "Role" in genre:
+                                    genre_enums.append(Genres.ROLE_PLAYING_RPG)
+                                elif "Strategy" in genre:
+                                    genre_enums.append(Genres.STRATEGY)
+                                elif "Sports" in genre:
+                                    genre_enums.append(Genres.SPORTS)
+                                elif "Racing" in genre:
+                                    genre_enums.append(Genres.RACING)
+                                elif "Simulation" in genre:
+                                    genre_enums.append(Genres.SIMULATOR)
+                                elif "Fighting" in genre:
+                                    genre_enums.append(Genres.FIGHTING)
+                                elif "Platform" in genre:
+                                    genre_enums.append(Genres.PLATFORMER)
+                                elif "Shooter" in genre:
+                                    genre_enums.append(Genres.SHOOTER)
+                            except (AttributeError, ValueError) as e:
+                                logger.warning(f"Could not map genre '{genre}': {e}")
+
+                        # Use try-except to catch any errors when setting genres
+                        try:
+                            game.genres = genre_enums
+                        except Exception as e:
+                            logger.error(f"ERROR setting genres: {e}")
+
+                    # Add playtime if available
+                    if 'minutesPlayed' in game_data and game_data['minutesPlayed'] is not None:
+                        try:
+                            minutes_played = game_data['minutesPlayed']
+                            seconds_played = int(minutes_played) * 60  # Convert minutes to seconds
+                            game.play_time = seconds_played
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"Could not convert minutes played to integer: {e}. Value was: {game_data['minutesPlayed']}")
+                            # Default to 0 seconds
+                            game.play_time = 0
+
+                    # Check if game has been played
+                    if game.play_time > 0:
+                        game.play_count = 1
+                        # Use the enum value directly
+                        game.completion_status = CompletionStatus.PLAYED
+
+                    # Get title history data (for last played date)
+                    title_history = game_data.get('titleHistory', {})
+                    if title_history and 'lastTimePlayed' in title_history:
+                        # We'll handle last played time via the YAML file's modification time
+                        # This is handled when we save the game
+                        pass
+
+                    # Get cover image URL if available
+                    display_image = game_data.get('displayImage')
+                    if display_image:
+                        # Store the URL in config for reference
+                        if 'game_covers' not in source.config:
+                            source.config['game_covers'] = {}
+
+                        source.config['game_covers'][title] = display_image
+
+
+                        # Check if we should download images automatically
+                        download_images = source.config.get("download_images", True)
+
+                        if download_images:
+                            # Store the URL in the game.image so we can fetch it later
+                            logger.debug(f"Cover image URL found: {display_image}")
+                            game.image = display_image
+                        else:
+                            logger.debug(f"Skipping image download (disabled in source settings)")
+
+                    # Save the game
+                    if self.data_handler.save_game(game):
+                        # After the game is saved with an ID, save the playtime separately
+                        if game.play_time > 0:
+                            # Use the data_handler method to save play time
+                            if not self.data_handler.update_play_time(game, game.play_time):
+                                logger.warning(f"Failed to save play time for {game.title}")
+
+                        # Save play count if set
+                        if game.play_count > 0:
+                            if not self.data_handler.update_play_count(game, game.play_count):
+                                logger.warning(f"Failed to save play count for {game.title}")
+
+                        # Download and save the cover image if URL is available
+                        if hasattr(game, 'image') and game.image and source.config.get("download_images", True):
+                            try:
+                                # Use CoverFetcher to download and save the image
+                                cover_fetcher = CoverFetcher(self.data_handler)
+                                success, error = cover_fetcher.fetch_and_save_for_game(
+                                    game.id,
+                                    game.image,
+                                    source_name="Xbox"
+                                )
+
+                                if success:
+                                    logger.debug(f"Cover image downloaded and saved successfully for {game.title}")
+                                else:
+                                    logger.warning(f"Failed to download/save cover image for {game.title}: {error}")
+                            except Exception as img_err:
+                                logger.error(f"Error processing cover image for {game.title}: {img_err}")
+
+                        added_count += 1
+                    else:
+                        errors.append(f"Failed to save game '{title}'")
+
+                except Exception as e:
+                    game_name = game_data.get('name', 'Unknown')
+                    logger.error(f"Error processing game {game_name}: {e}")
+                    logger.error(traceback.format_exc())
+                    errors.append(f"Error processing game {game_name}: {e}")
+
+            # Final progress update
+            if progress_callback:
+                try:
+                    progress_callback(100, 100, "Complete")
+                except Exception as e:
+                    logger.error(f"Error with final progress callback: {e}")
+
+            return added_count, errors
+
+        except Exception as e:
+            if progress_callback:
+                try:
+                    progress_callback(100, 100, f"Error: {e}")
+                except Exception as callback_error:
+                    logger.error(f"Error with error progress callback: {callback_error}")
+
+            return 0, [f"Error syncing Xbox source: {e}"]
 
 
 # Example usage for direct script execution
