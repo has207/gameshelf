@@ -970,9 +970,13 @@ class GameGridController:
                             self.populate_games(search_text=search_text)
                     else:
                         print("Filters would result in empty view after deletion, showing all games")
-                        # Keep filters cleared and update UI to reflect this
+                        # Completely reset active filters
+                        self.main_controller.sidebar_controller.active_filters = {}
+
+                        # Update UI to reflect cleared filters
                         self.main_controller.sidebar_controller._update_selection_state()
                         self.main_controller.sidebar_controller._update_all_games_label()
+
                         # Also save the cleared filters to settings
                         self.main_controller.settings_manager.set_sidebar_active_filters({})
                         self.main_controller.settings_manager.save_settings()
