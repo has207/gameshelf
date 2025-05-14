@@ -1,3 +1,6 @@
+import re
+import html
+
 from datetime import datetime
 from typing import Optional
 
@@ -8,8 +11,6 @@ from process_tracking import ProcessTracker
 
 from controllers.sidebar_controller import get_friendly_time, format_play_time
 from controllers.common import show_error_dialog, get_template_path
-import re
-import html
 
 def format_description_markup(description: str) -> str:
     """
@@ -344,6 +345,41 @@ class GameDetailsContent(Gtk.Box):
             # as it ensures everything is refreshed properly
         return False  # Don't repeat the timeout
 
+    def _update_play_button_state(self, game: Game):
+        """
+        Update the play button state based on game's state and eligibility to be played.
+
+        Args:
+            game: The game to update the play button for
+        """
+        if not self.controller:
+            return
+
+        # Check if the game is running
+        if game.is_running(self.controller.data_handler.data_dir):
+            self.play_button.set_label("Playing...")
+            self.play_button.set_sensitive(False)
+            return
+
+        # Check for compatible runners
+        compatible_runners = self._get_compatible_runners(game)
+        has_compatible_runners = len(compatible_runners) > 0 and any(r.command for r in compatible_runners)
+
+        # Check for installation data (files)
+        installation_data = self.controller.data_handler.get_installation_data(game)
+        has_installation_files = installation_data and "files" in installation_data and len(installation_data["files"]) > 0
+
+        # Update button state based on conditions
+        if not has_installation_files:
+            self.play_button.set_label("No Game Files")
+            self.play_button.set_sensitive(False)
+        elif not has_compatible_runners:
+            self.play_button.set_label("No Compatible Runners")
+            self.play_button.set_sensitive(False)
+        else:
+            self.play_button.set_label("Play Game")
+            self.play_button.set_sensitive(True)
+
     def _update_playtime_ui(self, game: Game):
         """
         Update the play time in the UI. This is called from the monitor thread via GLib.idle_add.
@@ -356,18 +392,8 @@ class GameDetailsContent(Gtk.Box):
             formatted_time = format_play_time(game.play_time)
             self.play_time_label.set_text(f"Play Time: {formatted_time}")
 
-            # Update the play button state based on whether the game is running
-            # (should be false now, but we check the file to be sure)
-            if self.game.is_running(self.controller.data_handler.data_dir):
-                self.play_button.set_label("Playing...")
-                self.play_button.set_sensitive(False)
-            else:
-                # The game isn't running, enable the play button if there are compatible runners
-                compatible_runners = self._get_compatible_runners(self.game)
-                can_play = len(compatible_runners) > 0 and any(r.command for r in compatible_runners)
-
-                self.play_button.set_label("Play Game")
-                self.play_button.set_sensitive(can_play)
+            # Update the play button state
+            self._update_play_button_state(self.game)
 
             # Always refresh data including sidebar after game has stopped running
             if self.controller:
@@ -548,34 +574,8 @@ class GameDetailsContent(Gtk.Box):
             else:
                 self.description_label.set_text("No description available")
 
-        # Check for installation data (files)
-        installation_data = None
-        has_installation_files = False
-        if self.controller:
-            installation_data = self.controller.data_handler.get_installation_data(game)
-            has_installation_files = installation_data and "files" in installation_data and len(installation_data["files"]) > 0
-
-        # Get compatible runners
-        can_play = False
-        self.compatible_runners = self._get_compatible_runners(game)
-        has_compatible_runners = len(self.compatible_runners) > 0 and any(r.command for r in self.compatible_runners)
-
-        # Only enable play button if both conditions are met
-        can_play = has_compatible_runners and has_installation_files
-
-        # Update the play button state based on whether the game is running
-        if game.is_running(self.controller.data_handler.data_dir):
-            self.play_button.set_label("Playing...")
-            self.play_button.set_sensitive(False)
-        elif not has_installation_files:
-            self.play_button.set_label("No Game Files")
-            self.play_button.set_sensitive(False)
-        elif not has_compatible_runners:
-            self.play_button.set_label("No Compatible Runners")
-            self.play_button.set_sensitive(False)
-        else:
-            self.play_button.set_label("Play Game")
-            self.play_button.set_sensitive(True)
+        # Update the play button state
+        self._update_play_button_state(game)
 
 
 class DetailsController:
