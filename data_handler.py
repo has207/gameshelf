@@ -124,7 +124,6 @@ class DataHandler:
 
                     game = Game(
                         title=game_data.get("title", "Unknown Game"),
-                        runner=game_data.get("runner"),
                         id=game_id,
                         created=game_data.get("created"),
                         hidden=game_data.get("hidden", False),
@@ -182,11 +181,24 @@ class DataHandler:
             try:
                 with open(runner_file, "r") as f:
                     runner_data = yaml.safe_load(f)
+
+                    # Extract platforms list if available
+                    platforms = []
+                    if "platforms" in runner_data and isinstance(runner_data["platforms"], list):
+                        for platform_str in runner_data["platforms"]:
+                            try:
+                                platform = Platforms.from_string(platform_str)
+                                platforms.append(platform)
+                            except InvalidPlatformError:
+                                # Skip invalid platforms
+                                print(f"Warning: Skipping invalid platform '{platform_str}' for runner {runner_file.stem}")
+
                     runner = Runner(
                         title=runner_data.get("title", "Unknown Runner"),
                         image=runner_data.get("image", ""),
                         command=runner_data.get("command", ""),
-                        id=runner_file.stem
+                        id=runner_file.stem,
+                        platforms=platforms
                     )
                     runners.append(runner)
             except Exception as e:
@@ -215,8 +227,6 @@ class DataHandler:
             "completion_status": game.completion_status.value
         }
 
-        if game.runner:
-            game_data["runner"] = game.runner
         if game.created:
             game_data["created"] = game.created
         if game.hidden:
@@ -266,6 +276,10 @@ class DataHandler:
             "image": runner.image,
             "command": runner.command
         }
+
+        # Save platform enum display values
+        if runner.platforms:
+            runner_data["platforms"] = [platform.value for platform in runner.platforms]
 
         try:
             with open(self.runners_dir / f"{runner.id}.yaml", "w") as f:
@@ -325,13 +339,12 @@ class DataHandler:
             print(f"Error removing cover image for game {game_id}: {e}")
             return False
 
-    def create_game_with_image(self, title: str, runner_id: Optional[str], image_path: Optional[str] = None) -> Game:
+    def create_game_with_image(self, title: str, image_path: Optional[str] = None) -> Game:
         """
         Create a new game object with an image, handling ID generation and image copying.
 
         Args:
             title: The title of the game
-            runner_id: The ID of the runner to use
             image_path: Optional path to an image file
 
         Returns:
@@ -345,7 +358,6 @@ class DataHandler:
         game = Game(
             id=game_id,
             title=title,
-            runner=runner_id,
             created=time.time(),
             completion_status=CompletionStatus.NOT_PLAYED
         )

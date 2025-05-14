@@ -244,26 +244,27 @@
           </object>
         </child>
         
-        <!-- Runner Info -->
+        
+        <!-- Compatible Runners -->
         <child>
           <object class="GtkBox">
-            <property name="spacing">12</property>
+            <property name="orientation">vertical</property>
+            <property name="spacing">8</property>
             <style>
-              <class name="runner-info"/>
+              <class name="compatible-runners"/>
             </style>
             <child>
-              <object class="GtkImage" id="runner_icon">
-                <property name="icon-name">application-x-executable-symbolic</property>
-                <property name="icon-size">large</property>
-              </object>
-            </child>
-            <child>
               <object class="GtkBox">
-                <property name="orientation">vertical</property>
-                <property name="spacing">4</property>
+                <property name="spacing">12</property>
+                <child>
+                  <object class="GtkImage">
+                    <property name="icon-name">application-x-executable-symbolic</property>
+                    <property name="icon-size">large</property>
+                  </object>
+                </child>
                 <child>
                   <object class="GtkLabel">
-                    <property name="label">Runner</property>
+                    <property name="label">Compatible Runners</property>
                     <property name="xalign">0</property>
                     <style>
                       <class name="caption-heading"/>
@@ -271,15 +272,19 @@
                     </style>
                   </object>
                 </child>
-                <child>
-                  <object class="GtkLabel" id="runner_label">
-                    <property name="xalign">0</property>
-                    <property name="ellipsize">end</property>
-                    <style>
-                      <class name="title-4"/>
-                    </style>
-                  </object>
-                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkFlowBox" id="compatible_runners_box">
+                <property name="selection-mode">none</property>
+                <property name="homogeneous">false</property>
+                <property name="column-spacing">8</property>
+                <property name="row-spacing">8</property>
+                <property name="min-children-per-line">1</property>
+                <property name="max-children-per-line">3</property>
+                <style>
+                  <class name="compatible-runners-box"/>
+                </style>
               </object>
             </child>
           </object>

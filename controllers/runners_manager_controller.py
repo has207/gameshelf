@@ -2,7 +2,8 @@ from pathlib import Path
 from typing import Optional
 
 from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk
-from data_handler import Runner
+from data import Runner
+from data_mapping import Platforms
 
 from controllers.common import get_template_path, show_error_dialog, show_confirmation_dialog, show_image_chooser_dialog
 
@@ -116,6 +117,7 @@ class RunnerDialog(Adw.Window):
     select_image_button: Gtk.Button = Gtk.Template.Child()
     clear_image_container: Gtk.Box = Gtk.Template.Child()
     clear_image_button: Gtk.Button = Gtk.Template.Child()
+    platform_flowbox: Gtk.FlowBox = Gtk.Template.Child()  # Platform selection flowbox
     action_button: Gtk.Button = Gtk.Template.Child()
     cancel_button: Gtk.Button = Gtk.Template.Child()
     remove_runner_container: Adw.PreferencesGroup = Gtk.Template.Child()
@@ -130,6 +132,7 @@ class RunnerDialog(Adw.Window):
         self.selected_image_path = None
         self.original_image_path = None
         self.runner = None
+        self.selected_platforms = []  # Track selected platforms
 
         # Configure UI based on mode (add or edit)
         if edit_mode:
@@ -152,7 +155,8 @@ class RunnerDialog(Adw.Window):
         # Add required field indicators next to the fields
         self._add_required_field_indicators()
 
-        # (Tooltips are set in _add_required_field_indicators)
+        # Initialize platform selection
+        self._init_platform_selection()
 
         # Connect entry changes to validation
         self.title_entry.connect("notify::text", self.validate_form)
@@ -160,6 +164,67 @@ class RunnerDialog(Adw.Window):
 
         # Perform initial validation
         self.validate_form()
+
+    def _init_platform_selection(self):
+        """Initialize the platform selection flowbox with all available platforms"""
+        # Get sorted list of all platforms for better user experience
+        platforms = sorted([p for p in Platforms], key=lambda p: p.value)
+
+        # Clear any existing children
+        while child := self.platform_flowbox.get_first_child():
+            self.platform_flowbox.remove(child)
+
+        # Create a checkbox for each platform
+        for platform in platforms:
+            # Create a checkbox with platform name
+            checkbox = Gtk.CheckButton(label=platform.value)
+            checkbox.set_name(platform.name)  # Use enum name as identifier
+
+            # Connect checkbox state change to validate form
+            checkbox.connect("toggled", self.validate_form)
+
+            # Wrap in a FlowBoxChild
+            flowbox_child = Gtk.FlowBoxChild()
+            flowbox_child.set_child(checkbox)
+
+            # Add to flowbox
+            self.platform_flowbox.append(flowbox_child)
+
+    def _get_selected_platforms(self):
+        """Get list of selected platforms from the flowbox"""
+        selected_platforms = []
+
+        # Iterate through all children
+        for i, child in enumerate(self.platform_flowbox):
+            # Get the checkbox from the flowbox child
+            checkbox = child.get_child()
+            if checkbox and checkbox.get_active():
+                # Get the platform enum from the checkbox name
+                platform_name = checkbox.get_name()
+                try:
+                    platform = getattr(Platforms, platform_name)
+                    selected_platforms.append(platform)
+                except (AttributeError, TypeError):
+                    print(f"Error: Platform {platform_name} not found in Platforms enum")
+
+        return selected_platforms
+
+    def _select_platforms(self, platforms):
+        """Select the specified platforms in the flowbox"""
+        if not platforms:
+            return
+
+        # Iterate through all children to find matching platforms
+        for i, child in enumerate(self.platform_flowbox):
+            checkbox = child.get_child()
+            if checkbox:
+                platform_name = checkbox.get_name()
+
+                # Check if this platform is in the list
+                for platform in platforms:
+                    if platform.name == platform_name:
+                        checkbox.set_active(True)
+                        break
 
     def set_runner(self, runner: Runner):
         """Set the runner to edit (only for edit mode)"""
@@ -181,6 +246,11 @@ class RunnerDialog(Adw.Window):
             icon_name = self.controller.data_handler.get_runner_icon(runner.id)
             icon_paintable = self.controller.data_handler.get_default_icon_paintable(icon_name, 96)
             self.image_preview.set_paintable(icon_paintable)
+
+        # Select platforms if any
+        if runner.platforms:
+            self._select_platforms(runner.platforms)
+            self.selected_platforms = runner.platforms.copy()
 
         # Enable the action button
         self.validate_form()
@@ -374,7 +444,10 @@ class RunnerDialog(Adw.Window):
         has_title = len(title) > 0
         has_command = len(command) > 0
 
-        print(f"Runner dialog validate_form: title='{title}', command='{command}'")
+        # Get currently selected platforms
+        current_platforms = self._get_selected_platforms()
+
+        print(f"Runner dialog validate_form: title='{title}', command='{command}', platforms: {len(current_platforms)}")
         print(f"Edit mode: {self.edit_mode}, Has title: {has_title}, Has command: {has_command}")
 
         if self.edit_mode and self.runner:
@@ -395,6 +468,26 @@ class RunnerDialog(Adw.Window):
             if self.selected_image_path is not None:  # Only if image was explicitly changed
                 has_changes = True
                 print(f"Image changed to '{self.selected_image_path}'")
+
+            # Check platforms change - get currently selected platforms
+            current_platforms = self._get_selected_platforms()
+
+            if len(current_platforms) != len(self.runner.platforms):
+                has_changes = True
+                print(f"Number of platforms changed from {len(self.runner.platforms)} to {len(current_platforms)}")
+            else:
+                # Check if the platforms are different
+                for platform in current_platforms:
+                    if platform not in self.runner.platforms:
+                        has_changes = True
+                        print(f"Platform {platform.value} added")
+                        break
+
+                for platform in self.runner.platforms:
+                    if platform not in current_platforms:
+                        has_changes = True
+                        print(f"Platform {platform.value} removed")
+                        break
 
             # Update button sensitivity - requires title, command, and changes
             self.action_button.set_sensitive(has_title and has_command and has_changes)
@@ -425,6 +518,9 @@ class RunnerDialog(Adw.Window):
         title = self.title_entry.get_text().strip()
         command = self.command_entry.get_text().strip()
 
+        # Get selected platforms
+        platforms = self._get_selected_platforms()
+
         # Generate an ID based on the title
         runner_id = title.lower().replace(" ", "_")
 
@@ -433,7 +529,8 @@ class RunnerDialog(Adw.Window):
             id=runner_id,
             title=title,
             command=command,
-            image=self.selected_image_path
+            image=self.selected_image_path,
+            platforms=platforms
         )
 
         # Save the runner through the controller
@@ -448,6 +545,9 @@ class RunnerDialog(Adw.Window):
             # Refresh sidebar in main window
             self.refresh_main_window_sidebar()
 
+            # Refresh the details panel if it's currently showing a game
+            self.refresh_details_panel()
+
     def _save_runner_changes(self):
         """Save changes to an existing runner (edit mode)"""
         if not self.runner:
@@ -457,9 +557,13 @@ class RunnerDialog(Adw.Window):
         title = self.title_entry.get_text().strip()
         command = self.command_entry.get_text().strip()
 
+        # Get selected platforms
+        platforms = self._get_selected_platforms()
+
         # Update the runner object
         self.runner.title = title
         self.runner.command = command
+        self.runner.platforms = platforms
 
         # Update image
         if self.selected_image_path is not None:  # Image was changed
@@ -480,6 +584,9 @@ class RunnerDialog(Adw.Window):
             # Refresh sidebar in main window
             self.refresh_main_window_sidebar()
 
+            # Refresh the details panel if it's currently showing a game
+            self.refresh_details_panel()
+
     def refresh_main_window_sidebar(self):
         """Refresh the sidebar in the main window to reflect changes"""
         if self.main_window and hasattr(self.main_window, 'refresh_sidebar_runners'):
@@ -487,3 +594,23 @@ class RunnerDialog(Adw.Window):
         elif self.controller and hasattr(self.controller, 'window') and self.controller.window:
             if hasattr(self.controller.window, 'refresh_sidebar_runners'):
                 self.controller.window.refresh_sidebar_runners()
+
+    def refresh_details_panel(self):
+        """Refresh the details panel if it's currently showing a game"""
+        # Get window reference
+        window = None
+        if self.main_window:
+            window = self.main_window
+        elif self.controller and hasattr(self.controller, 'window') and self.controller.window:
+            window = self.controller.window
+
+        # If we found the window and it has a details panel
+        if window and hasattr(window, 'details_panel') and window.details_panel:
+            # Check if details panel is visible
+            if window.details_panel.get_reveal_flap():
+                # Get the current game being displayed
+                if hasattr(window, 'current_selected_game') and window.current_selected_game:
+                    # Get the details content
+                    if hasattr(window, 'details_content') and window.details_content:
+                        # Update the game details to refresh compatible runners section
+                        window.details_content.set_game(window.current_selected_game)

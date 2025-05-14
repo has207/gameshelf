@@ -2,8 +2,8 @@ from datetime import datetime
 from typing import Optional
 
 from gi.repository import Gtk, GLib, Gdk
-from data import Game
-from data_mapping import CompletionStatus
+from data import Game, Runner
+from data_mapping import CompletionStatus, Platforms
 from process_tracking import ProcessTracker
 
 from controllers.sidebar_controller import get_friendly_time, format_play_time
@@ -74,8 +74,6 @@ def format_description_markup(description: str) -> str:
 class GameDetailsContent(Gtk.Box):
     __gtype_name__ = "GameDetailsContent"
     title_label: Gtk.Label = Gtk.Template.Child()
-    runner_label: Gtk.Label = Gtk.Template.Child()
-    runner_icon: Gtk.Image = Gtk.Template.Child()
     play_button: Gtk.Button = Gtk.Template.Child()
     edit_button: Gtk.Button = Gtk.Template.Child()
     toggle_hidden_button: Gtk.Button = Gtk.Template.Child()
@@ -92,11 +90,171 @@ class GameDetailsContent(Gtk.Box):
     features_label: Gtk.Label = Gtk.Template.Child()
     age_ratings_label: Gtk.Label = Gtk.Template.Child()
     regions_label: Gtk.Label = Gtk.Template.Child()
+    compatible_runners_box: Gtk.FlowBox = Gtk.Template.Child()
 
     def __init__(self):
         super().__init__()
         self.game = None
         self.controller = None
+        self.compatible_runners = []  # List of compatible runners for the current game
+
+    def _get_compatible_runners(self, game: Game) -> list:
+        """
+        Find runners that are compatible with the game's platforms.
+
+        Args:
+            game: The game to find compatible runners for
+
+        Returns:
+            List of compatible Runner objects
+        """
+        if not self.controller or not game.platforms:
+            return []
+
+        # Get all runners
+        all_runners = self.controller.get_runners()
+
+        # Filter to runners that support at least one of the game's platforms
+        compatible = []
+        for runner in all_runners:
+            if not runner.platforms:
+                continue
+
+            # Check if any of the game's platforms are supported by this runner
+            for platform in game.platforms:
+                if platform in runner.platforms:
+                    compatible.append(runner)
+                    break
+
+        return compatible
+
+    def _add_runner_to_flowbox(self, runner: Runner):
+        """
+        Add a runner button to the compatible runners flowbox.
+
+        Args:
+            runner: The runner to add
+        """
+        # Create a button for the runner
+        button = Gtk.Button(label=runner.title)
+        button.set_tooltip_text(f"Run with {runner.title}")
+
+        # Set up click handler
+        button.connect("clicked", self._on_runner_clicked, runner)
+
+        # Create flowbox child
+        flowbox_child = Gtk.FlowBoxChild()
+        flowbox_child.set_child(button)
+
+        # Add to flowbox
+        self.compatible_runners_box.append(flowbox_child)
+
+    def _on_runner_clicked(self, button, runner: Runner):
+        """
+        Handle click on a runner button - launches the game with the selected runner.
+
+        Args:
+            button: The button that was clicked
+            runner: The runner that was clicked
+        """
+        if not self.game or not self.controller:
+            return
+
+        # Directly launch the game with this runner
+        if runner and runner.command:
+            # Don't launch if the game is already running
+            if self.game.is_running(self.controller.data_handler.data_dir):
+                self.play_button.set_label("Playing...")
+                self.play_button.set_sensitive(False)
+                return
+
+            # Check if we have installation data (files) for this game
+            installation_data = self.controller.data_handler.get_installation_data(self.game)
+            file_path = None
+
+            # If we have multiple files, show the file selection dialog
+            if installation_data and "files" in installation_data and len(installation_data["files"]) > 0:
+                files = installation_data["files"]
+
+                # If there's only one file, use it directly
+                if len(files) == 1:
+                    file_path = files[0]
+                else:
+                    # Show file selection dialog
+                    from controllers.file_selection_dialog import FileSelectionDialog
+                    dialog = FileSelectionDialog(
+                        self.get_ancestor(Gtk.Window),
+                        installation_data.get("directory", ""),
+                        files
+                    )
+                    dialog.connect("file-selected", self._on_file_selected, runner)
+                    dialog.show()
+                    # Return and wait for the file selection callback
+                    return
+
+            # Launch the game with this runner and selected file (if any)
+            self._launch_with_runner(runner, file_path)
+
+    def _on_file_selected(self, dialog, file_path, runner):
+        """
+        Handle file selection dialog callback.
+
+        Args:
+            dialog: The dialog that was closed
+            file_path: The selected file path
+            runner: The runner to use
+        """
+        # Launch the game with this runner and selected file
+        self._launch_with_runner(runner, file_path)
+
+    def _launch_with_runner(self, runner: Runner, file_path: Optional[str] = None):
+        """
+        Launch the game with the given runner and file path.
+
+        Args:
+            runner: The runner to use
+            file_path: Optional file path to launch
+        """
+        # Launch the game with this runner
+        launch_success = self.controller.process_tracker.launch_game(
+            self.game,
+            runner.command,
+            file_path,
+            self._update_playtime_ui  # Callback when game exits
+        )
+
+        if launch_success:
+            # Update the button state immediately
+            self.play_button.set_label("Playing...")
+            self.play_button.set_sensitive(False)
+
+            # Update play count in UI (incremented by process tracker)
+            self.play_count_label.set_text(f"Play Count: {self.game.play_count}")
+
+            # Update last played timestamp (get it from the file)
+            last_played = self.game.get_last_played_time(self.controller.data_handler.data_dir)
+            if last_played:
+                friendly_time = get_friendly_time(last_played)
+                self.last_played_label.set_text(f"Last Played: {friendly_time}")
+
+            # Refresh the game grid immediately if we're sorting by play count or last played
+            # (play time will be updated when the process exits)
+            sort_field = getattr(self.controller, 'sort_field', None)
+            immediate_update_fields = ['last_played', 'play_count']
+
+            if sort_field in immediate_update_fields:
+                from controllers.window_controller import GameShelfWindow
+                window = self.get_ancestor(GameShelfWindow)
+                if window:
+                    # Create a short delay to ensure changes are saved before refreshing
+                    GLib.timeout_add(100, self._delayed_grid_refresh)
+        else:
+            # Show error dialog if launch failed
+            show_error_dialog(
+                self.get_ancestor(Gtk.Window),
+                "Failed to launch game",
+                "Could not start the game process"
+            )
 
     @Gtk.Template.Callback()
     def on_close_details_clicked(self, button):
@@ -137,47 +295,44 @@ class GameDetailsContent(Gtk.Box):
             self.play_button.set_sensitive(False)
             return
 
-        runner = self.controller.get_runner(self.game.runner)
-        if runner and runner.command:
-            # Launch the game
-            launch_success = self.controller.process_tracker.launch_game(
-                self.game,
-                runner.command,
-                self._update_playtime_ui  # Callback when game exits
+        # Get compatible runners
+        compatible_runners = self._get_compatible_runners(self.game)
+
+        # Check if we have any compatible runners
+        if not compatible_runners:
+            show_error_dialog(
+                self.get_ancestor(Gtk.Window),
+                "No Compatible Runners",
+                "No runners are compatible with this game's platform. Please add a runner for this platform."
             )
+            return
 
-            if launch_success:
-                # Update the button state immediately
-                self.play_button.set_label("Playing...")
-                self.play_button.set_sensitive(False)
+        # Filter to runners with commands
+        compatible_runners = [r for r in compatible_runners if r.command]
 
-                # Update play count in UI (incremented by process tracker)
-                self.play_count_label.set_text(f"Play Count: {self.game.play_count}")
+        if not compatible_runners:
+            show_error_dialog(
+                self.get_ancestor(Gtk.Window),
+                "Invalid Runners",
+                "None of the compatible runners have launch commands configured."
+            )
+            return
 
-                # Update last played timestamp (get it from the file)
-                last_played = self.game.get_last_played_time(self.controller.data_handler.data_dir)
-                if last_played:
-                    friendly_time = get_friendly_time(last_played)
-                    self.last_played_label.set_text(f"Last Played: {friendly_time}")
+        # If we have only one compatible runner, use it directly
+        if len(compatible_runners) == 1:
+            runner = compatible_runners[0]
+            self._on_runner_clicked(None, runner)
+        else:
+            # Show runner selection dialog
+            from controllers.runner_selection_dialog import RunnerSelectionDialog
+            window = self.get_ancestor(Gtk.Window)
+            dialog = RunnerSelectionDialog(window, compatible_runners)
+            dialog.connect("runner-selected", self._on_runner_selected_from_dialog)
+            dialog.show()
 
-                # Refresh the game grid immediately if we're sorting by play count or last played
-                # (play time will be updated when the process exits)
-                sort_field = getattr(self.controller, 'sort_field', None)
-                immediate_update_fields = ['last_played', 'play_count']
-
-                if sort_field in immediate_update_fields:
-                    from controllers.window_controller import GameShelfWindow
-                    window = self.get_ancestor(GameShelfWindow)
-                    if window:
-                        # Create a short delay to ensure changes are saved before refreshing
-                        GLib.timeout_add(100, self._delayed_grid_refresh)
-            else:
-                # Show error dialog if launch failed
-                show_error_dialog(
-                    self.get_ancestor(Gtk.Window),
-                    "Failed to launch game",
-                    "Could not start the game process"
-                )
+    def _on_runner_selected_from_dialog(self, dialog, runner):
+        """Handle runner selection from the dialog"""
+        self._on_runner_clicked(None, runner)
 
     def _delayed_grid_refresh(self):
         """Refresh the game grid and sidebar after a short delay to ensure data is saved"""
@@ -207,11 +362,9 @@ class GameDetailsContent(Gtk.Box):
                 self.play_button.set_label("Playing...")
                 self.play_button.set_sensitive(False)
             else:
-                # The game isn't running, enable the play button if there's a valid runner
-                can_play = False
-                if self.controller and self.game.runner:
-                    runner = self.controller.get_runner(self.game.runner)
-                    can_play = runner is not None and runner.command is not None
+                # The game isn't running, enable the play button if there are compatible runners
+                compatible_runners = self._get_compatible_runners(self.game)
+                can_play = len(compatible_runners) > 0 and any(r.command for r in compatible_runners)
 
                 self.play_button.set_label("Play Game")
                 self.play_button.set_sensitive(can_play)
@@ -264,6 +417,35 @@ class GameDetailsContent(Gtk.Box):
                 f"Could not open the game directory: {e}"
             )
 
+    def _update_compatible_runners(self):
+        """
+        Update the compatible runners flowbox based on the current game's platforms.
+        """
+        if not self.game or not self.controller:
+            return
+
+        # Clear existing items
+        while child := self.compatible_runners_box.get_first_child():
+            self.compatible_runners_box.remove(child)
+
+        # Get compatible runners
+        self.compatible_runners = self._get_compatible_runners(self.game)
+
+        # If there are no compatible runners, add a message
+        if not self.compatible_runners:
+            label = Gtk.Label(label="No compatible runners found")
+            label.add_css_class("dim-label")
+
+            flowbox_child = Gtk.FlowBoxChild()
+            flowbox_child.set_child(label)
+
+            self.compatible_runners_box.append(flowbox_child)
+            return
+
+        # Add each compatible runner
+        for runner in self.compatible_runners:
+            self._add_runner_to_flowbox(runner)
+
     def set_game(self, game: Game):
         self.game = game
         self.title_label.set_text(game.title)
@@ -273,16 +455,9 @@ class GameDetailsContent(Gtk.Box):
         if window and window.controller:
             self.controller = window.controller
 
-        if game.runner:
-            runner_name = game.runner.capitalize()
-            if self.controller:
-                icon_name = self.controller.data_handler.get_runner_icon(game.runner)
-                self.runner_icon.set_from_icon_name(icon_name)
-        else:
-            runner_name = "[none]"
-            self.runner_icon.set_from_icon_name("dialog-question-symbolic")
 
-        self.runner_label.set_text(runner_name)
+        # Update the compatible runners section
+        self._update_compatible_runners()
 
         # Update the toggle hidden button icon based on the game's hidden state
         if game.hidden:
@@ -373,10 +548,10 @@ class GameDetailsContent(Gtk.Box):
             else:
                 self.description_label.set_text("No description available")
 
+        # Get compatible runners
         can_play = False
-        if self.controller and game.runner:
-            runner = self.controller.get_runner(game.runner)
-            can_play = runner is not None and runner.command is not None
+        self.compatible_runners = self._get_compatible_runners(game)
+        can_play = len(self.compatible_runners) > 0 and any(r.command for r in self.compatible_runners)
 
         # Update the play button state based on whether the game is running
         if game.is_running(self.controller.data_handler.data_dir):
@@ -395,6 +570,18 @@ class DetailsController:
         # Create process tracker
         if not hasattr(main_controller, 'process_tracker'):
             main_controller.process_tracker = ProcessTracker(main_controller.data_handler)
+
+    def update_game(self, game: Game) -> bool:
+        """
+        Update an existing game.
+
+        Args:
+            game: The game to update
+
+        Returns:
+            True if successful, False otherwise
+        """
+        return self.main_controller.data_handler.save_game(game, preserve_created_time=True)
 
     def setup_details_panel(self, details_content, details_panel):
         self.details_content = details_content

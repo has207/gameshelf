@@ -145,48 +145,21 @@ class GameDialog(Adw.Window):
         # Update metadata summary labels
         self._update_metadata_summary_labels()
 
-        # Populate runners dropdown
+        # Populate runners dropdown - for informational purposes only
         self.populate_runners(self.controller.get_runners())
-
-        # Select current runner in dropdown if game has one
-        if self.game:
-            if self.game.runner:
-                # Find the index of the runner in runners_data
-                for i, runner in enumerate(self.runners_data):
-                    if runner and runner.id == self.game.runner:
-                        self.runner_dropdown.set_selected(i)
-                        self.selected_runner = runner
-                        break
-            else:
-                self.runner_dropdown.set_selected(0)
-                self.selected_runner = None
 
         # Enable the action button
         self.validate_form()
 
     def populate_runners(self, runners: List[Runner]):
-        """Populate the runner dropdown with available runners"""
-        # Create a list store for the dropdown
-        runner_store = Gio.ListStore.new(GObject.Object)
-
-        # Create a string list for displaying runner names
-        string_list = Gtk.StringList()
-
-        string_list.append("[none]")
-
-        # Add all runners
-        for runner in runners:
-            string_list.append(runner.title)
-
-        # Store runners list for reference when selected
+        """
+        Store the list of runners but don't show the dropdown
+        as runners are now associated via platforms
+        """
+        # Store runners list for reference
         self.runners_data = [None] + runners
-
-        # Set up the dropdown with the string list
-        self.runner_dropdown.set_model(string_list)
-
-        # Select "[none]" by default
-        self.runner_dropdown.set_selected(0)
-        self.selected_runner = None
+        # Ensure the runner dropdown is hidden
+        self.runner_dropdown.set_visible(False)
 
     def _populate_completion_status_dropdown(self):
         """Populate the completion status dropdown with predefined statuses from the enum"""
@@ -213,14 +186,10 @@ class GameDialog(Adw.Window):
 
     @Gtk.Template.Callback()
     def on_runner_selected(self, dropdown, gparam):
-        """Handler for runner selection changes"""
-        selected_index = dropdown.get_selected()
-        if selected_index >= 0 and selected_index < len(self.runners_data):
-            # Get the runner from our stored data using the index
-            self.selected_runner = self.runners_data[selected_index]
-        else:
-            self.selected_runner = None
-        self.validate_form()
+        """Handler for runner selection changes - no longer used but kept for compatibility"""
+        # This handler is no longer used as runners are linked via platforms
+        # We keep it for compatibility with the UI template
+        pass
 
     @Gtk.Template.Callback()
     def on_completion_status_selected(self, dropdown, gparam):
@@ -331,10 +300,7 @@ class GameDialog(Adw.Window):
             if title != self.game.title:
                 has_changes = True
 
-            # Check runner change
-            current_runner_id = self.selected_runner.id if self.selected_runner else ""
-            if current_runner_id != (self.game.runner or ""):
-                has_changes = True
+            # Note: Runners are now associated via platforms instead of direct assignment
 
             # Check play stats changes - for EntryRow
             current_play_count = self.play_count_entry.get_text().strip()
@@ -409,12 +375,10 @@ class GameDialog(Adw.Window):
         """Add a new game (add mode)"""
         # Get the input values
         title = self.title_entry.get_text().strip()
-        runner_id = self.selected_runner.id if self.selected_runner else ""
 
         # Create the game using the data handler
         game = self.controller.data_handler.create_game_with_image(
             title=title,
-            runner_id=runner_id,
             image_path=self.selected_image_path
         )
 
@@ -498,12 +462,10 @@ class GameDialog(Adw.Window):
 
         # Get the updated values
         title = self.title_entry.get_text().strip()
-        runner_id = self.selected_runner.id if self.selected_runner else ""
 
-        # Check if title or runner ID changed (these are stored in game.yaml)
-        if title != self.game.title or runner_id != self.game.runner:
+        # Check if title changed (stored in game.yaml)
+        if title != self.game.title:
             self.game.title = title
-            self.game.runner = runner_id
             need_to_save_game_yaml = True
 
         # Get play statistics

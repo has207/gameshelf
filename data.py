@@ -43,16 +43,37 @@ class Source:
 
 @dataclass
 class Runner:
-    def __init__(self, id: str, title: str, image: Optional[str] = None, command: Optional[str] = None):
+    def __init__(self, id: str, title: str, image: Optional[str] = None, command: Optional[str] = None,
+                 platforms: Optional[List[Union[Platforms, str]]] = None):
         self.id = id.lower()
         self.title = title
         self.image = image
         self.command = command
+        self.platforms = []  # List of platforms this runner supports
+
+        # Handle platforms list
+        if platforms:
+            self.platforms = []
+            for platform in platforms:
+                if isinstance(platform, str):
+                    try:
+                        self.platforms.append(Platforms.from_string(platform))
+                    except Exception as e:
+                        # Improved error reporting for debugging
+                        print(f"Error with runner '{title}' - invalid platform '{platform}': {e}")
+                        # Skip invalid platform strings
+                        pass
+                elif isinstance(platform, Platforms):
+                    self.platforms.append(platform)
+                else:
+                    # Handle unexpected types with clear error message
+                    print(f"Error with runner '{title}' - platform type '{type(platform).__name__}' is not supported. Expected string or Platforms enum.")
+                    # Skip invalid platform types
 
 
 @dataclass
 class Game:
-    def __init__(self, id: str, title: str, image: Optional[str] = None, runner: Optional[str] = None,
+    def __init__(self, id: str, title: str, image: Optional[str] = None,
                  created: Optional[float] = None, hidden: bool = False, description: Optional[str] = None,
                  completion_status: Union[CompletionStatus, str] = CompletionStatus.NOT_PLAYED,
                  platforms: Optional[List[Union[Platforms, str]]] = None,
@@ -63,7 +84,6 @@ class Game:
                  source: Optional[str] = None):
         self.id = id.lower()
         self.title = title
-        self.runner = runner.lower() if runner else ""
         self.created = created
         self.play_count = 0
         self.play_time = 0  # Total play time in seconds

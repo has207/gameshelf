@@ -142,6 +142,33 @@
                   </object>
                 </child>
                 
+                <!-- Platform Selection Section -->
+                <child>
+                  <object class="AdwPreferencesGroup">
+                    <property name="title">Supported Platforms</property>
+                    <property name="description">Select the platforms this runner can launch games for</property>
+                    
+                    <child>
+                      <object class="GtkScrolledWindow">
+                        <property name="min-content-height">150</property>
+                        <property name="max-content-height">300</property>
+                        <property name="hscrollbar-policy">never</property>
+                        <child>
+                          <object class="GtkFlowBox" id="platform_flowbox">
+                            <property name="selection-mode">none</property>
+                            <property name="homogeneous">true</property>
+                            <property name="min-children-per-line">3</property>
+                            <property name="max-children-per-line">5</property>
+                            <style>
+                              <class name="platform-selection"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
                 <!-- Remove Runner Button (only for edit mode) -->
                 <child>
                   <object class="AdwPreferencesGroup" id="remove_runner_container">

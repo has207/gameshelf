@@ -17,13 +17,14 @@ class ProcessTracker:
     def __init__(self, data_handler):
         self.data_handler = data_handler
 
-    def launch_game(self, game: Game, runner_command: str, on_exit_callback: Optional[Callable] = None) -> bool:
+    def launch_game(self, game: Game, runner_command: str, file_path: Optional[str] = None, on_exit_callback: Optional[Callable] = None) -> bool:
         """
-        Launch a game with the specified runner command.
+        Launch a game with the specified runner command and optional file path.
 
         Args:
             game: The game to launch
             runner_command: The command to run
+            file_path: Optional path to the game file to launch
             on_exit_callback: Optional callback function to call when the game exits
 
         Returns:
@@ -34,8 +35,24 @@ class ProcessTracker:
             return False
 
         try:
-            print(f"Launching game: {game.title} with command: {runner_command}")
+            # Split the command into its parts
             cmd = runner_command.split()
+
+            # Add the file path to the command if provided
+            if file_path:
+                # Combine directory and file if needed - handle both absolute and relative paths
+                full_path = file_path
+                if not os.path.isabs(file_path):
+                    # Get installation data for the directory
+                    installation_data = self.data_handler.get_installation_data(game)
+                    if installation_data and "directory" in installation_data:
+                        directory = installation_data["directory"]
+                        full_path = os.path.join(directory, file_path)
+
+                print(f"Launching game: {game.title} with command: {runner_command} {full_path}")
+                cmd.append(full_path)
+            else:
+                print(f"Launching game: {game.title} with command: {runner_command}")
 
             # Launch the game
             process = subprocess.Popen(cmd)

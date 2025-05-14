@@ -272,41 +272,7 @@ class SidebarController:
         expanded_categories = self.main_controller.settings_manager.get_sidebar_expanded_categories()
         print(f"Loaded expanded categories from settings: {expanded_categories}")
 
-        # Runner category
-        runner_category = CategoryItem(
-            name="Runner",
-            icon_name="applications-games-symbolic",
-            category_id="runner",
-            expanded=expanded_categories.get("runner", True)
-        )
-        self.filter_categories["runner"] = runner_category
-
-        # Completion status category
-        status_category = CategoryItem(
-            name="Completion Status",
-            icon_name="task-due-symbolic",
-            category_id="completion_status",
-            expanded=expanded_categories.get("completion_status", True)
-        )
-        self.filter_categories["completion_status"] = status_category
-
-        # Platform category
-        platform_category = CategoryItem(
-            name="Platforms",
-            icon_name="computer-symbolic",
-            category_id="platforms",
-            expanded=expanded_categories.get("platforms", False)
-        )
-        self.filter_categories["platforms"] = platform_category
-
-        # Genre category
-        genre_category = CategoryItem(
-            name="Genres",
-            icon_name="view-grid-symbolic",
-            category_id="genres",
-            expanded=expanded_categories.get("genres", False)
-        )
-        self.filter_categories["genres"] = genre_category
+        # Create all categories - define them in alphabetical order
 
         # Age Rating category
         age_rating_category = CategoryItem(
@@ -317,6 +283,15 @@ class SidebarController:
         )
         self.filter_categories["age_ratings"] = age_rating_category
 
+        # Completion status category
+        status_category = CategoryItem(
+            name="Completion Status",
+            icon_name="task-due-symbolic",
+            category_id="completion_status",
+            expanded=expanded_categories.get("completion_status", True)
+        )
+        self.filter_categories["completion_status"] = status_category
+
         # Feature category
         feature_category = CategoryItem(
             name="Features",
@@ -325,6 +300,24 @@ class SidebarController:
             expanded=expanded_categories.get("features", False)
         )
         self.filter_categories["features"] = feature_category
+
+        # Genre category
+        genre_category = CategoryItem(
+            name="Genres",
+            icon_name="view-grid-symbolic",
+            category_id="genres",
+            expanded=expanded_categories.get("genres", False)
+        )
+        self.filter_categories["genres"] = genre_category
+
+        # Platform category
+        platform_category = CategoryItem(
+            name="Platforms",
+            icon_name="computer-symbolic",
+            category_id="platforms",
+            expanded=expanded_categories.get("platforms", False)
+        )
+        self.filter_categories["platforms"] = platform_category
 
         # Region category
         region_category = CategoryItem(
@@ -344,8 +337,14 @@ class SidebarController:
         )
         self.filter_categories["sources"] = source_category
 
-        # Create UI for categories
-        for category_id, category_item in self.filter_categories.items():
+        # Create an ordered list of categories based on display name
+        sorted_categories = sorted(
+            [(category_id, category) for category_id, category in self.filter_categories.items()],
+            key=lambda x: x[1].name.lower()
+        )
+
+        # Create UI for categories in alphabetical order
+        for category_id, category_item in sorted_categories:
             category_row = FilterCategoryRow(category_item, self._on_category_toggled)
             category_row.category_id = category_id  # Store reference for click handling
 
@@ -406,8 +405,7 @@ class SidebarController:
         # Get all games for analysis
         games = self.main_controller.get_games()
 
-        # Update runners filter
-        self._refresh_runner_filters(games)
+        # Runner filters are no longer used - we now use platforms instead
 
         # Update completion status filter
         self._refresh_completion_status_filters(games)
@@ -434,104 +432,9 @@ class SidebarController:
         self._restore_filter_selections()
 
     def _refresh_runner_filters(self, games: List[Game]):
-        """Refresh the runner filter category with current data"""
-        runner_category = self.filter_categories.get("runner")
-        if not runner_category:
-            return
-
-        # Find the category row in the sidebar
-        category_row = None
-        child = self.sidebar_box.get_first_child()
-        while child:
-            if isinstance(child, FilterCategoryRow) and hasattr(child, 'category_id') and child.category_id == "runner":
-                category_row = child
-                break
-            child = child.get_next_sibling()
-
-        if not category_row:
-            print("Runner category row not found")
-            return
-
-        # Clear existing value rows
-        category_row.clear_values()
-
-        # Count games by runner
-        runner_counts = {}
-        for game in games:
-            runner_id = game.runner or ""
-            runner_counts[runner_id] = runner_counts.get(runner_id, 0) + 1
-
-        # Add "No Runner" option if there are games with no runner or if it's already selected
-        no_runner_count = runner_counts.get("", 0)
-        is_selected = (
-            "runner" in self.active_filters and
-            "" in self.active_filters.get("runner", set())
-        )
-        if no_runner_count > 0 or is_selected:
-            no_runner_item = ValueItem(
-                name="No Runner",
-                icon_name="dialog-question-symbolic",
-                count=no_runner_count,
-                value_id="",
-                parent_category="runner"
-            )
-            no_runner_row = FilterValueRow(no_runner_item)
-            no_runner_row.value_id = ""
-            no_runner_row.parent_category_id = "runner"
-
-            # Add left-click handler
-            left_click = Gtk.GestureClick.new()
-            left_click.set_button(1)  # Left button
-            left_click.connect("released", self._on_filter_value_clicked, no_runner_row, False)
-            no_runner_row.add_controller(left_click)
-
-            # Add right-click handler for multi-select
-            right_click = Gtk.GestureClick.new()
-            right_click.set_button(3)  # Right button
-            right_click.connect("released", self._on_filter_value_clicked, no_runner_row, True)
-            no_runner_row.add_controller(right_click)
-
-            category_row.add_value_row(no_runner_row)
-
-        # Add rows for each runner
-        runners = self.main_controller.get_runners()
-        for runner in runners:
-            # Check if this runner is currently selected
-            is_selected = (
-                "runner" in self.active_filters and
-                runner.id in self.active_filters.get("runner", set())
-            )
-
-            # Skip if no games use this runner and it's not selected
-            if (runner.id not in runner_counts or runner_counts[runner.id] == 0) and not is_selected:
-                continue
-
-            icon_name = self.main_controller.data_handler.get_runner_icon(runner.id)
-            runner_item = ValueItem(
-                name=runner.id.capitalize(),
-                icon_name=icon_name,
-                count=runner_counts.get(runner.id, 0),
-                value_id=runner.id,
-                parent_category="runner"
-            )
-
-            runner_row = FilterValueRow(runner_item)
-            runner_row.value_id = runner.id
-            runner_row.parent_category_id = "runner"
-
-            # Add left-click handler
-            left_click = Gtk.GestureClick.new()
-            left_click.set_button(1)  # Left button
-            left_click.connect("released", self._on_filter_value_clicked, runner_row, False)
-            runner_row.add_controller(left_click)
-
-            # Add right-click handler for multi-select
-            right_click = Gtk.GestureClick.new()
-            right_click.set_button(3)  # Right button
-            right_click.connect("released", self._on_filter_value_clicked, runner_row, True)
-            runner_row.add_controller(right_click)
-
-            category_row.add_value_row(runner_row)
+        """Refresh the runner filter category with current data - now deprecated"""
+        # This method is intentionally empty since runners have been replaced by platform-based filtering
+        return
 
     def _refresh_completion_status_filters(self, games: List[Game]):
         """Refresh the completion status filter category with current data"""
@@ -562,6 +465,9 @@ class SidebarController:
             status_key = status.name
             status_counts[status_key] = status_counts.get(status_key, 0) + 1
 
+        # Create a list to hold rows for sorting
+        status_rows = []
+
         # Add status options with games or if they're already selected
         for status in CompletionStatus:
             status_key = status.name
@@ -590,6 +496,7 @@ class SidebarController:
             status_row = FilterValueRow(status_item)
             status_row.value_id = status_key
             status_row.parent_category_id = "completion_status"
+            status_row.sort_key = status.value.lower()  # For alphabetical sorting
 
             # Add left-click handler
             left_click = Gtk.GestureClick.new()
@@ -603,7 +510,12 @@ class SidebarController:
             right_click.connect("released", self._on_filter_value_clicked, status_row, True)
             status_row.add_controller(right_click)
 
-            category_row.add_value_row(status_row)
+            status_rows.append(status_row)
+
+        # Sort rows alphabetically and add them to the UI
+        sorted_rows = sorted(status_rows, key=lambda row: row.sort_key)
+        for row in sorted_rows:
+            category_row.add_value_row(row)
 
     def _on_filter_value_clicked(self, gesture, n_press, x, y, value_row, multi_select=False):
         """Handle clicks on filter value rows with toggle behavior
@@ -764,6 +676,9 @@ class SidebarController:
                 platform_key = platform.name
                 platform_counts[platform_key] = platform_counts.get(platform_key, 0) + 1
 
+        # Create a list to hold rows for sorting
+        platform_rows = []
+
         # Add rows for each platform that has games
         for platform in Platforms:
             platform_key = platform.name
@@ -790,6 +705,7 @@ class SidebarController:
             platform_row = FilterValueRow(platform_item)
             platform_row.value_id = platform_key
             platform_row.parent_category_id = "platforms"
+            platform_row.sort_key = platform.value.lower()  # For alphabetical sorting
 
             # Add left-click handler
             left_click = Gtk.GestureClick.new()
@@ -803,7 +719,12 @@ class SidebarController:
             right_click.connect("released", self._on_filter_value_clicked, platform_row, True)
             platform_row.add_controller(right_click)
 
-            category_row.add_value_row(platform_row)
+            platform_rows.append(platform_row)
+
+        # Sort rows alphabetically and add them to the UI
+        sorted_rows = sorted(platform_rows, key=lambda row: row.sort_key)
+        for row in sorted_rows:
+            category_row.add_value_row(row)
 
     def _refresh_genres_filters(self, games: List[Game]):
         """Refresh the genres filter category with current data"""
@@ -826,6 +747,9 @@ class SidebarController:
             for genre in game.genres:
                 genre_key = genre.name
                 genre_counts[genre_key] = genre_counts.get(genre_key, 0) + 1
+
+        # Create a list to hold rows for sorting
+        genre_rows = []
 
         # Add rows for each genre that has games
         for genre in Genres:
@@ -853,6 +777,7 @@ class SidebarController:
             genre_row = FilterValueRow(genre_item)
             genre_row.value_id = genre_key
             genre_row.parent_category_id = "genres"
+            genre_row.sort_key = genre.value.lower()  # For alphabetical sorting
 
             # Add left-click handler
             left_click = Gtk.GestureClick.new()
@@ -866,7 +791,12 @@ class SidebarController:
             right_click.connect("released", self._on_filter_value_clicked, genre_row, True)
             genre_row.add_controller(right_click)
 
-            category_row.add_value_row(genre_row)
+            genre_rows.append(genre_row)
+
+        # Sort rows alphabetically and add them to the UI
+        sorted_rows = sorted(genre_rows, key=lambda row: row.sort_key)
+        for row in sorted_rows:
+            category_row.add_value_row(row)
 
     def _refresh_age_ratings_filters(self, games: List[Game]):
         """Refresh the age ratings filter category with current data"""
@@ -889,6 +819,9 @@ class SidebarController:
             for rating in game.age_ratings:
                 rating_key = rating.name
                 age_rating_counts[rating_key] = age_rating_counts.get(rating_key, 0) + 1
+
+        # Create a list to hold rows for sorting
+        rating_rows = []
 
         # Add rows for each age rating that has games
         for rating in AgeRatings:
@@ -916,6 +849,7 @@ class SidebarController:
             rating_row = FilterValueRow(rating_item)
             rating_row.value_id = rating_key
             rating_row.parent_category_id = "age_ratings"
+            rating_row.sort_key = rating.value.lower()  # For alphabetical sorting
 
             # Add left-click handler
             left_click = Gtk.GestureClick.new()
@@ -929,7 +863,12 @@ class SidebarController:
             right_click.connect("released", self._on_filter_value_clicked, rating_row, True)
             rating_row.add_controller(right_click)
 
-            category_row.add_value_row(rating_row)
+            rating_rows.append(rating_row)
+
+        # Sort rows alphabetically and add them to the UI
+        sorted_rows = sorted(rating_rows, key=lambda row: row.sort_key)
+        for row in sorted_rows:
+            category_row.add_value_row(row)
 
     def _refresh_features_filters(self, games: List[Game]):
         """Refresh the features filter category with current data"""
@@ -952,6 +891,9 @@ class SidebarController:
             for feature in game.features:
                 feature_key = feature.name
                 feature_counts[feature_key] = feature_counts.get(feature_key, 0) + 1
+
+        # Create a list to hold rows for sorting
+        feature_rows = []
 
         # Add rows for each feature that has games
         for feature in Features:
@@ -979,6 +921,7 @@ class SidebarController:
             feature_row = FilterValueRow(feature_item)
             feature_row.value_id = feature_key
             feature_row.parent_category_id = "features"
+            feature_row.sort_key = feature.value.lower()  # For alphabetical sorting
 
             # Add left-click handler
             left_click = Gtk.GestureClick.new()
@@ -992,7 +935,12 @@ class SidebarController:
             right_click.connect("released", self._on_filter_value_clicked, feature_row, True)
             feature_row.add_controller(right_click)
 
-            category_row.add_value_row(feature_row)
+            feature_rows.append(feature_row)
+
+        # Sort rows alphabetically and add them to the UI
+        sorted_rows = sorted(feature_rows, key=lambda row: row.sort_key)
+        for row in sorted_rows:
+            category_row.add_value_row(row)
 
     def _refresh_regions_filters(self, games: List[Game]):
         """Refresh the regions filter category with current data"""
@@ -1015,6 +963,9 @@ class SidebarController:
             for region in game.regions:
                 region_key = region.name
                 region_counts[region_key] = region_counts.get(region_key, 0) + 1
+
+        # Create a list to hold rows for sorting
+        region_rows = []
 
         # Add rows for each region that has games
         for region in Regions:
@@ -1042,6 +993,7 @@ class SidebarController:
             region_row = FilterValueRow(region_item)
             region_row.value_id = region_key
             region_row.parent_category_id = "regions"
+            region_row.sort_key = region.value.lower()  # For alphabetical sorting
 
             # Add left-click handler
             left_click = Gtk.GestureClick.new()
@@ -1055,7 +1007,12 @@ class SidebarController:
             right_click.connect("released", self._on_filter_value_clicked, region_row, True)
             region_row.add_controller(right_click)
 
-            category_row.add_value_row(region_row)
+            region_rows.append(region_row)
+
+        # Sort rows alphabetically and add them to the UI
+        sorted_rows = sorted(region_rows, key=lambda row: row.sort_key)
+        for row in sorted_rows:
+            category_row.add_value_row(row)
 
     def _refresh_sources_filters(self, games: List[Game]):
         """Refresh the sources filter category with current data"""
@@ -1261,21 +1218,31 @@ class SidebarController:
             category_row.add_value_row(row)
 
     def refresh_sidebar_runners(self):
-        """Refresh runner filters with current data"""
+        """
+        Refresh platform filters since runners are now linked to platforms
+        This method is kept with its original name for backward compatibility.
+        """
         if not self.sidebar_container:
             print("Can't refresh sidebar - not initialized")
             return
 
-        print("Refreshing sidebar runners...")
+        print("Refreshing platform filters for runners...")
 
         # Get current games
         games = self.main_controller.get_games()
 
-        # Update runner filters
-        self._refresh_runner_filters(games)
+        # Refresh platform filters since runners are now linked to platforms
+        self._refresh_platforms_filters(games)
 
         # Restore selected values
         self._restore_filter_selections()
+
+        # If we have "runner" in active filters, clear it since we no longer use runner filtering
+        if "runner" in self.active_filters:
+            print("Clearing obsolete runner filters")
+            self.active_filters.pop("runner")
+            self.main_controller.settings_manager.set_sidebar_active_filters(self.active_filters)
+            self.main_controller.settings_manager.save_settings()
 
     def get_active_filters(self):
         """
@@ -1310,8 +1277,10 @@ class SidebarController:
 
             # Apply filter based on category
             if category == "runner":
-                filtered_games = [g for g in filtered_games if g.runner in values]
-                print(f"After runner filters ({len(values)} selected): {len(filtered_games)} games")
+                # Runner filtering is no longer supported as we now use platforms instead
+                # Remove these filters since they're obsolete
+                self.active_filters.pop(category, None)
+                continue
 
             elif category == "completion_status":
                 filtered_games = [g for g in filtered_games if g.completion_status.name in values]
