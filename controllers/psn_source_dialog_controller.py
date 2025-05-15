@@ -2,7 +2,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, GObject
 
-from sources.psn_client import verify_npsso_token
+from sources.psn_client import PSNClient
 
 @Gtk.Template(filename="layout/psn_source_dialog.ui")
 class PSNSourceDialog(Gtk.Dialog):
@@ -85,7 +85,7 @@ class PSNSourceDialog(Gtk.Dialog):
         self.verify_button.set_sensitive(False)
 
         # Attempt to verify the token
-        is_valid = verify_npsso_token(token)
+        is_valid = PSNClient.verify_npsso_token(token)
 
         self.verify_button.set_sensitive(True)
 

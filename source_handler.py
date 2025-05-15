@@ -209,32 +209,6 @@ class SourceHandler:
 
         return tokens_dir
 
-    def _create_xbox_scanner(self, source):
-        """
-        Create an Xbox scanner with token directory for the given source
-
-        Args:
-            source: The source to create a scanner for
-
-        Returns:
-            An initialized Xbox scanner
-        """
-        token_dir = self.ensure_secure_token_storage(source.id)
-        return XboxLibrary(self.data_handler, token_dir=token_dir)
-
-    def _create_psn_scanner(self, source):
-        """
-        Create a PlayStation Network scanner with token directory for the given source
-
-        Args:
-            source: The source to create a scanner for
-
-        Returns:
-            An initialized PSN scanner
-        """
-        token_dir = self.ensure_secure_token_storage(source.id)
-        return PSNClient(self.data_handler, token_dir=str(token_dir))
-
     def get_scanner(self, source_type: SourceType, source_id: str = None) -> SourceScanner:
         """
         Get a scanner for the specified source type, properly initialized with tokens dir if needed

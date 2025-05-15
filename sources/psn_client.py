@@ -25,28 +25,19 @@ logger = logging.getLogger(__name__)
 # Set logger level to DEBUG to see all messages
 logger.setLevel(logging.DEBUG)
 
+MOBILE_TOKEN_AUTH = "MDk1MTUxNTktNzIzNy00MzcwLTliNDAtMzgwNmU2N2MwODkxOnVjUGprYTV0bnRCMktxc1A="
+# Updated to include all platform categories
+MOBILE_PLAYED_GAMES_URL = "https://m.np.playstation.com/api/gamelist/v2/users/me/titles?categories=ps4_game,ps5_native_game,ps3_game,psp_game,ps_vita_game,ps_now_game&limit=200&offset=%d"
+TROPHIES_MOBILE_URL = "https://m.np.playstation.com/api/trophy/v1/users/me/trophyTitles?limit=250&offset=%d"
+
+# API endpoints
+SSO_COOKIE_URL = "https://ca.account.sony.com/api/v1/ssocookie"
+MOBILE_TOKEN_URL = "https://ca.account.sony.com/api/authz/v3/oauth/token"
+MOBILE_CODE_URL = "https://ca.account.sony.com/api/authz/v3/oauth/authorize?access_type=offline&client_id=09515159-7237-4370-9b40-3806e67c0891&redirect_uri=com.scee.psxandroid.scecompcall%3A%2F%2Fredirect&response_type=code&scope=psn%3Amobile.v2.core%20psn%3Aclientapp"
+
 class PSNClient(SourceScanner):
     """Client for PlayStation Network API, handling authentication and data fetching"""
 
-    # Token storage
-    TOKEN_DIR = os.path.expanduser("~/.psn_api_client")
-    TOKEN_FILE = os.path.join(TOKEN_DIR, "token.json")
-
-    # API endpoints
-    SSO_COOKIE_URL = "https://ca.account.sony.com/api/v1/ssocookie"
-    MOBILE_TOKEN_URL = "https://ca.account.sony.com/api/authz/v3/oauth/token"
-    MOBILE_CODE_URL = "https://ca.account.sony.com/api/authz/v3/oauth/authorize?access_type=offline&client_id=09515159-7237-4370-9b40-3806e67c0891&redirect_uri=com.scee.psxandroid.scecompcall%3A%2F%2Fredirect&response_type=code&scope=psn%3Amobile.v2.core%20psn%3Aclientapp"
-    # Updated to include all platform categories
-    MOBILE_PLAYED_GAMES_URL = "https://m.np.playstation.com/api/gamelist/v2/users/me/titles?categories=ps4_game,ps5_native_game,ps3_game,psp_game,ps_vita_game,ps_now_game&limit=200&offset=%d"
-    TROPHIES_MOBILE_URL = "https://m.np.playstation.com/api/trophy/v1/users/me/trophyTitles?limit=250&offset=%d"
-
-    # Trophy endpoints
-    TROPHIES_DETAIL_URL = "https://m.np.playstation.com/api/trophy/v1/users/me/npCommunicationIds/%s/trophyGroups/%s/trophies"
-    TROPHIES_GROUPS_URL = "https://m.np.playstation.com/api/trophy/v1/users/me/npCommunicationIds/%s/trophyGroups"
-
-    # Constants
-    MOBILE_TOKEN_AUTH = "MDk1MTUxNTktNzIzNy00MzcwLTliNDAtMzgwNmU2N2MwODkxOnVjUGprYTV0bnRCMktxc1A="
-    PAGE_REQUEST_LIMIT = 100
 
     def __init__(self, data_handler=None, token_dir: Optional[str] = None):
         """
@@ -60,16 +51,17 @@ class PSNClient(SourceScanner):
         if data_handler:
             super().__init__(data_handler)
 
+        self.token_file = "token.json"
+
         if token_dir:
-            self.TOKEN_DIR = os.path.expanduser(token_dir)
-            self.TOKEN_FILE = os.path.join(self.TOKEN_DIR, "token.json")
+            token_dir = os.path.expanduser(token_dir)
+            # Create token directory if it doesn't exist
+            os.makedirs(token_dir, exist_ok=True)
+            self.token_file = os.path.join(token_dir, self.token_file)
 
         self.npsso_token = None
         self.mobile_token = None
         self.web_cookies = {}
-
-        # Create token directory if it doesn't exist
-        os.makedirs(self.TOKEN_DIR, exist_ok=True)
 
         # Attempt to load token if exists
         self._load_token()
@@ -109,7 +101,7 @@ class PSNClient(SourceScanner):
             cookies = {"npsso": token}
 
             response = requests.get(
-                "https://ca.account.sony.com/api/v1/ssocookie",
+                SSO_COOKIE_URL,
                 cookies=cookies,
                 headers=headers
             )
@@ -134,13 +126,13 @@ class PSNClient(SourceScanner):
                 "saved_at": time.time()
             }
 
-            with open(self.TOKEN_FILE, 'w', encoding='utf-8') as f:
+            with open(self.token_file, 'w', encoding='utf-8') as f:
                 json.dump(token_data, f)
 
             # Set secure permissions
-            os.chmod(self.TOKEN_FILE, 0o600)  # Only user can read/write
+            os.chmod(self.token_file, 0o600)  # Only user can read/write
 
-            logger.debug(f"Saved token to {self.TOKEN_FILE}")
+            logger.debug(f"Saved token to {self.token_file}")
             return True
         except Exception as e:
             logger.error(f"Error saving token: {str(e)}")
@@ -149,11 +141,11 @@ class PSNClient(SourceScanner):
     def _load_token(self) -> bool:
         """Load the NPSSO token from the token file if it exists"""
         try:
-            if not os.path.exists(self.TOKEN_FILE):
-                logger.debug(f"Token file {self.TOKEN_FILE} does not exist")
+            if not os.path.exists(self.token_file):
+                logger.debug(f"Token file {self.token_file} does not exist")
                 return False
 
-            with open(self.TOKEN_FILE, 'r', encoding='utf-8') as f:
+            with open(self.token_file, 'r', encoding='utf-8') as f:
                 token_data = json.load(f)
 
             if "npsso" not in token_data:
@@ -163,7 +155,7 @@ class PSNClient(SourceScanner):
             self.npsso_token = token_data["npsso"]
             self.web_cookies = self._get_web_cookies()
 
-            logger.debug(f"Loaded token from {self.TOKEN_FILE}")
+            logger.debug(f"Loaded token from {self.token_file}")
             return True
         except Exception as e:
             logger.error(f"Error loading token: {str(e)}")
@@ -207,7 +199,7 @@ class PSNClient(SourceScanner):
             }
 
             response = requests.get(
-                self.SSO_COOKIE_URL,
+                SSO_COOKIE_URL,
                 cookies=self.web_cookies,
                 headers=headers
             )
@@ -279,10 +271,10 @@ class PSNClient(SourceScanner):
         self.web_cookies = {}
 
         # Remove token file if it exists
-        if os.path.exists(self.TOKEN_FILE):
+        if os.path.exists(self.token_file):
             try:
-                os.remove(self.TOKEN_FILE)
-                logger.debug(f"Removed token file {self.TOKEN_FILE}")
+                os.remove(self.token_file)
+                logger.debug(f"Removed token file {self.token_file}")
             except Exception as e:
                 logger.debug(f"Error removing token file: {str(e)}")
 
@@ -298,9 +290,9 @@ class PSNClient(SourceScanner):
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
             }
 
-            logger.debug(f"Getting authorization code from {self.MOBILE_CODE_URL}")
+            logger.debug(f"Getting authorization code from {MOBILE_CODE_URL}")
             code_response = requests.get(
-                self.MOBILE_CODE_URL,
+                MOBILE_CODE_URL,
                 cookies=self.web_cookies,
                 headers=headers,
                 allow_redirects=False
@@ -328,7 +320,7 @@ class PSNClient(SourceScanner):
 
                 # Now exchange code for token
                 token_headers = {
-                    'Authorization': f'Basic {self.MOBILE_TOKEN_AUTH}',
+                    'Authorization': f'Basic {MOBILE_TOKEN_AUTH}',
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
 
@@ -339,9 +331,9 @@ class PSNClient(SourceScanner):
                     'token_format': 'jwt'
                 }
 
-                logger.debug(f"Exchanging code for token at {self.MOBILE_TOKEN_URL}")
+                logger.debug(f"Exchanging code for token at {MOBILE_TOKEN_URL}")
                 token_response = requests.post(
-                    self.MOBILE_TOKEN_URL,
+                    MOBILE_TOKEN_URL,
                     headers=token_headers,
                     data=token_data
                 )
@@ -380,7 +372,7 @@ class PSNClient(SourceScanner):
 
         try:
             while True:
-                url = self.MOBILE_PLAYED_GAMES_URL % offset
+                url = MOBILE_PLAYED_GAMES_URL % offset
 
                 headers = {
                     'Authorization': f"Bearer {self.mobile_token['access_token']}",
@@ -461,7 +453,7 @@ class PSNClient(SourceScanner):
 
         try:
             while True:
-                url = self.TROPHIES_MOBILE_URL % offset
+                url = TROPHIES_MOBILE_URL % offset
 
                 headers = {
                     'Authorization': f"Bearer {self.mobile_token['access_token']}",
@@ -1146,17 +1138,3 @@ class PSNClient(SourceScanner):
             logger.error(f"Error syncing PSN source: {e}")
             logger.error(traceback.format_exc())
             return (0, 0), [f"Error syncing PSN source: {e}"]
-
-
-# Expose verify_npsso_token at the module level for backward compatibility
-def verify_npsso_token(token: str) -> bool:
-    """
-    Verify if a PSN NPSSO token is valid.
-
-    Args:
-        token: The NPSSO token to verify
-
-    Returns:
-        bool: True if token is valid, False otherwise
-    """
-    return PSNClient.verify_npsso_token(token)
