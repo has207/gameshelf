@@ -35,7 +35,7 @@ class MetadataSearchDialog(Adw.Window):
         self.set_transient_for(parent_window)
 
         # Initialize provider selection dropdown
-        self.provider_dropdown = Gtk.DropDown.new_from_strings(["OpenCritic", "LaunchBox"])
+        self.provider_dropdown = Gtk.DropDown.new_from_strings(["LaunchBox", "OpenCritic"])
         self.provider_dropdown.set_margin_start(10)
         self.provider_dropdown.set_margin_end(10)
         self.provider_dropdown.set_margin_top(10)
@@ -47,9 +47,9 @@ class MetadataSearchDialog(Adw.Window):
         if parent_box:
             parent_box.prepend(self.provider_dropdown)
 
-        # Initialize the selected metadata client
-        self.selected_provider = "OpenCritic"
-        self.metadata_client = OpenCriticClient()
+        # Initialize the selected metadata client (default to LaunchBox)
+        self.selected_provider = "LaunchBox"
+        self.metadata_client = LaunchBoxMetadata()
 
         # Check if LaunchBox database needs initialization
         self.launchbox_metadata = None
