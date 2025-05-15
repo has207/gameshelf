@@ -150,7 +150,7 @@ class SourceManager(Gtk.Box):
         text_box.append(title_label)
 
         # Secondary text
-        desc_label = Gtk.Label(label="This will remove the source configuration.\nGames imported from this source will remain in your library.")
+        desc_label = Gtk.Label(label="WARNING: This will remove all games associated with this source from your library!")
         desc_label.set_halign(Gtk.Align.START)
         desc_label.set_wrap(True)
         text_box.append(desc_label)
@@ -167,6 +167,8 @@ class SourceManager(Gtk.Box):
                 # Reload the sources list if successful
                 if result:
                     self.load_sources()
+                    # Emit signal to notify that a source was removed, so sidebar can be refreshed
+                    self.emit("source-removed")
 
             # Always close the dialog
             dialog.destroy()
@@ -652,7 +654,7 @@ class SourceManager(Gtk.Box):
 
                     # Tell the app we updated games data
                     # Pass 1 as minimum to ensure UI refresh even if only existing games were updated
-                    added_or_updated = max(1, added)
+                    added_or_updated = max(1, added_count)
                     self.emit("games-added", added_or_updated)
 
                     # Close the dialog after a delay if it's still active
@@ -787,4 +789,5 @@ class SourceManager(Gtk.Box):
     __gsignals__ = {
         "closed": (GObject.SignalFlags.RUN_FIRST, None, ()),
         "games-added": (GObject.SignalFlags.RUN_FIRST, None, (int,)),
+        "source-removed": (GObject.SignalFlags.RUN_FIRST, None, ()),
     }

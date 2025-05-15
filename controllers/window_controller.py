@@ -341,6 +341,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
         # Connect signals
         source_manager.connect("closed", lambda sm: dialog.close())
         source_manager.connect("games-added", self._on_games_added_from_source)
+        source_manager.connect("source-removed", self._on_source_removed)
 
         dialog.show()
 
@@ -402,6 +403,14 @@ class GameShelfWindow(Adw.ApplicationWindow):
             # If anything goes wrong, fall back to printing
             print(f"Notification: {message}")
             print(f"Error showing toast: {e}")
+
+    def _on_source_removed(self, source_manager):
+        """Handle a source being removed"""
+        # Force a full data reload
+        self.controller.reload_data(refresh_sidebar=True, refresh_grid=True)
+
+        # Show a notification - games from this source are also removed
+        self._show_notification("Source and associated games removed successfully")
 
     @Gtk.Template.Callback()
     def on_search_changed(self, search_entry):

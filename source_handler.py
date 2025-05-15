@@ -155,6 +155,7 @@ class SourceHandler:
     def remove_source(self, source: Source) -> bool:
         """
         Remove a source and its directory from the sources directory.
+        Also removes all games associated with this source.
 
         Args:
             source: The source to remove
@@ -167,17 +168,32 @@ class SourceHandler:
         source_dir = self.sources_dir / source.id
         logger.debug(f"source directory path: {source_dir}")
         logger.debug(f"source directory exists: {source_dir.exists()}")
-        logger.debug(f"sources dir exists: {self.sources_dir.exists()}")
-        logger.debug(f"sources dir contents: {list(self.sources_dir.glob('*'))}")
 
+        # First, remove all games associated with this source
+        try:
+            # Get all games
+            games = self.data_handler.load_games()
+
+            # Find and remove games associated with this source
+            source_games = [game for game in games if game.source == source.id]
+            logger.debug(f"Found {len(source_games)} games associated with source {source.id}")
+
+            # Remove each game
+            for game in source_games:
+                logger.debug(f"Removing game {game.title} (ID: {game.id}) from source {source.id}")
+                self.data_handler.remove_game(game)
+
+            logger.debug(f"Removed {len(source_games)} games associated with source {source.id}")
+        except Exception as e:
+            logger.error(f"Error removing games for source {source.id}: {e}")
+            # Continue with source removal even if game removal had issues
+
+        # Now remove the source directory
         try:
             if source_dir.exists():
                 logger.debug(f"Attempting to remove directory {source_dir}")
-                # Remove all files in the directory
-                for file in source_dir.glob("*"):
-                    file.unlink()
-                # Remove the directory
-                source_dir.rmdir()
+                # Remove the directory recursively
+                shutil.rmtree(source_dir)
                 logger.debug(f"Directory successfully removed")
                 return True
             else:
