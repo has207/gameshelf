@@ -23,7 +23,7 @@ from cover_fetch import CoverFetcher
 # Set up logger
 logger = logging.getLogger(__name__)
 # Set logger level to DEBUG to see all messages
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 MOBILE_TOKEN_AUTH = "MDk1MTUxNTktNzIzNy00MzcwLTliNDAtMzgwNmU2N2MwODkxOnVjUGprYTV0bnRCMktxc1A="
 # Updated to include all platform categories

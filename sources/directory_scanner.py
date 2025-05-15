@@ -1,11 +1,14 @@
 import re
 import logging
+import os
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Any
 
 from data import Source, Game, SourceType
 from data_mapping import Platforms
 from sources.scanner_base import SourceScanner
+from providers.launchbox_client import LaunchBoxMetadata
+from cover_fetch import CoverFetcher
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -13,9 +16,23 @@ logger = logging.getLogger(__name__)
 class DirectoryScanner(SourceScanner):
     """Scanner for directory/ROM type sources"""
 
+    def __init__(self, data_handler):
+        """
+        Initialize the scanner with a data handler and metadata provider
+
+        Args:
+            data_handler: The data handler instance to use
+        """
+        super().__init__(data_handler)
+        # Initialize the LaunchBox metadata provider with the same data directory
+        self.metadata_provider = LaunchBoxMetadata(str(data_handler.data_dir))
+        # Initialize the cover fetcher for downloading images
+        self.cover_fetcher = CoverFetcher(data_handler)
+
     def scan(self, source: Source, progress_callback: Optional[callable] = None) -> Tuple[int, List[str]]:
         """
         Scan a directory source for games and add them to the library.
+        For RomDirectory sources with platform info, automatically fetches metadata from LaunchBox.
 
         Args:
             source: The source to scan
@@ -206,9 +223,90 @@ class DirectoryScanner(SourceScanner):
                 )
 
                 # Set platform for ROM_DIRECTORY sources if we have a platform specified
+                platform_value = ""
                 if platform:
                     game.platforms = [platform]
-                    logger.info(f"Setting platform '{platform.value}' for game '{title}'")
+                    platform_value = platform.value
+                    logger.info(f"Setting platform '{platform_value}' for game '{title}'")
+
+                # Try to fetch metadata from LaunchBox if platform is specified
+                metadata_game = None
+                if platform_value:
+                    try:
+                        # Search for the game by title and platform
+                        logger.info(f"Searching for metadata for '{title}' on platform '{platform_value}'")
+                        metadata_game = self.metadata_provider.search_by_title_and_platform(title, platform_value)
+
+                        if metadata_game:
+                            # If the metadata game title is different from our title, log the match
+                            if metadata_game.title.lower() != title.lower():
+                                logger.info(f"Found metadata for '{title}' as '{metadata_game.title}'")
+                            else:
+                                logger.info(f"Found metadata for '{title}'")
+
+                            # Update game with metadata
+                            if metadata_game.description:
+                                game.description = metadata_game.description
+
+                            # Add genres if available and valid
+                            if metadata_game.genres:
+                                # Only extract name strings, not trying to convert to enum values here
+                                genre_names = []
+                                for genre in metadata_game.genres:
+                                    if hasattr(genre, 'name'):
+                                        genre_names.append(genre.name)
+
+                                if genre_names:
+                                    logger.info(f"Found genres for '{title}': {genre_names}")
+                                    # Don't assign directly to game.genres as it expects enum values
+                                    # Instead, we'll try to map these to our genre enum values
+                                    from data_mapping import Genres
+                                    mapped_genres = []
+                                    for genre_name in genre_names:
+                                        try:
+                                            # Try to find a matching genre in our enum
+                                            for genre_enum in Genres:
+                                                if genre_name.lower() in genre_enum.value.lower():
+                                                    mapped_genres.append(genre_enum)
+                                                    break
+                                        except Exception as genre_err:
+                                            logger.warning(f"Could not map genre '{genre_name}': {genre_err}")
+
+                                    if mapped_genres:
+                                        game.genres = mapped_genres
+
+                            # Try to map age ratings if available
+                            if hasattr(metadata_game, 'rating') and metadata_game.rating:
+                                from data_mapping import AgeRatings
+                                try:
+                                    rating_str = metadata_game.rating
+                                    # Attempt to map the rating string to our enum
+                                    for rating_enum in AgeRatings:
+                                        if rating_str.lower() in rating_enum.value.lower():
+                                            game.age_ratings = [rating_enum]
+                                            logger.info(f"Set age rating '{rating_enum.value}' for '{title}'")
+                                            break
+                                except Exception as rating_err:
+                                    logger.warning(f"Could not map age rating '{metadata_game.rating}': {rating_err}")
+
+                            # Try to extract and map regions if available
+                            # This would be based on metadata about the game's region
+                            if hasattr(metadata_game, 'region') and metadata_game.region:
+                                from data_mapping import Regions
+                                try:
+                                    region_str = metadata_game.region
+                                    # Attempt to map the region string to our enum
+                                    for region_enum in Regions:
+                                        if region_str.lower() in region_enum.value.lower():
+                                            game.regions = [region_enum]
+                                            logger.info(f"Set region '{region_enum.value}' for '{title}'")
+                                            break
+                                except Exception as region_err:
+                                    logger.warning(f"Could not map region '{metadata_game.region}': {region_err}")
+
+                            # We already set the platform from source config, so we don't override it
+                    except Exception as e:
+                        logger.error(f"Error fetching metadata for '{title}': {e}")
 
                 # Save the game
                 if self.data_handler.save_game(game):
@@ -222,6 +320,23 @@ class DirectoryScanner(SourceScanner):
 
                     if not installation_success:
                         logger.warning(f"Failed to save installation data for '{title}'")
+
+                    # If we found metadata with cover art, try to download the cover image
+                    if metadata_game and metadata_game.images and metadata_game.images.box:
+                        try:
+                            image_url = metadata_game.images.box.url
+                            if image_url:
+                                logger.info(f"Downloading cover image for '{title}' from {image_url}")
+                                self.cover_fetcher.fetch_and_save_for_game(game.id, image_url, "LaunchBox")
+                        except Exception as e:
+                            logger.error(f"Error downloading cover image for '{title}': {e}")
+
+                    # If we found a description, save it separately
+                    if metadata_game and metadata_game.description:
+                        try:
+                            self.data_handler.update_game_description(game, metadata_game.description)
+                        except Exception as e:
+                            logger.error(f"Error saving description for '{title}': {e}")
 
                     added_count += 1
                 else:

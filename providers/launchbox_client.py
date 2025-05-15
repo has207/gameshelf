@@ -17,8 +17,10 @@ import logging
 
 from providers.metadata_provider import MetadataProvider, Image, ImageCollection, SearchResultItem, Game, Genre, Platform, Company
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('launchbox_metadata')
+# Set up logger
+logger = logging.getLogger(__name__)
+# Set logger level to DEBUG to see all messages
+logger.setLevel(logging.DEBUG)
 
 class LaunchBoxDatabase:
     """Handles interactions with the local LaunchBox metadata SQLite database."""
@@ -154,6 +156,177 @@ class LaunchBoxDatabase:
                     except ValueError:
                         pass
                 results.append(result)
+
+            return results
+        finally:
+            # Ensure connection is closed
+            cursor.close()
+            conn.close()
+
+    def search_games_by_title_and_platform(self, title: str, platform: str) -> List[Dict[str, Any]]:
+        """Search for games by title match (case insensitive) and platform.
+        Uses a series of increasingly lenient search methods:
+        1. Exact title match in Games table
+        2. Exact title match in GameNames table (alternate names)
+        3. Title prefix match (for games that start with the search term)
+        4. Spaces-as-wildcards match (replaces spaces with % wildcards)
+        5. Wildcard-prefix match (prepends % and replaces spaces with % wildcards)
+
+        Args:
+            title: The game title to search for
+            platform: The platform to search for
+
+        Returns:
+            List of matching games
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        try:
+            results = []
+
+            # 1. First try exact match on the main Games table
+            cursor.execute('''
+            SELECT
+                g.*
+            FROM
+                Games g
+            WHERE
+                RTRIM(LOWER(g.Name)) = RTRIM(LOWER(?)) AND
+                (LOWER(g.Platform) = LOWER(?) OR ? = '')
+            LIMIT 10
+            ''', (title, platform, platform))
+
+            for row in cursor.fetchall():
+                result = dict(row)
+                # Convert ReleaseDate to datetime if it exists
+                if result['ReleaseDate']:
+                    try:
+                        result['ReleaseDate'] = datetime.datetime.fromisoformat(result['ReleaseDate'])
+                    except ValueError:
+                        pass
+                results.append(result)
+
+            # 2. If we didn't find any results with exact title match,
+            # try searching for the title in the GameNames FTS table
+            if not results:
+                logger.debug(f"No exact match found for '{title}', trying alternate names")
+                cursor.execute('''
+                SELECT
+                    g.*
+                FROM
+                    GameNames_content gn
+                JOIN
+                    Games g ON g.DatabaseID = gn.c0
+                WHERE
+                    RTRIM(LOWER(gn.c1)) = RTRIM(LOWER(?)) AND
+                    (LOWER(g.Platform) = LOWER(?) OR ? = '')
+                LIMIT 10
+                ''', (title, platform, platform))
+
+                for row in cursor.fetchall():
+                    result = dict(row)
+                    # Convert ReleaseDate to datetime if it exists
+                    if result['ReleaseDate']:
+                        try:
+                            result['ReleaseDate'] = datetime.datetime.fromisoformat(result['ReleaseDate'])
+                        except ValueError:
+                            pass
+                    results.append(result)
+
+                if results:
+                    logger.debug(f"Found {len(results)} matches via alternate names")
+
+            # 3. If still no results, try a prefix match (title LIKE 'search%')
+            if not results:
+                logger.debug(f"No exact matches found for '{title}', trying prefix match")
+                # Add wildcard to the end of the title
+                title_prefix = title.strip() + '%'
+                cursor.execute('''
+                SELECT
+                    g.*
+                FROM
+                    Games g
+                WHERE
+                    LOWER(g.Name) LIKE LOWER(?) AND
+                    (LOWER(g.Platform) = LOWER(?) OR ? = '')
+                ORDER BY LENGTH(g.Name) ASC
+                LIMIT 10
+                ''', (title_prefix, platform, platform))
+
+                for row in cursor.fetchall():
+                    result = dict(row)
+                    # Convert ReleaseDate to datetime if it exists
+                    if result['ReleaseDate']:
+                        try:
+                            result['ReleaseDate'] = datetime.datetime.fromisoformat(result['ReleaseDate'])
+                        except ValueError:
+                            pass
+                    results.append(result)
+
+                if results:
+                    logger.debug(f"Found {len(results)} matches via prefix search")
+
+            # 4. If still no results, try replacing spaces with wildcards (t%i%t%l%e%)
+            if not results:
+                logger.debug(f"No matches found for '{title}', trying spaces-as-wildcards match")
+                # Replace spaces with % and keep the % at the end
+                if ' ' in title:
+                    wildcarded_title = title.strip().replace(' ', '%') + '%'
+                    cursor.execute('''
+                    SELECT
+                        g.*
+                    FROM
+                        Games g
+                    WHERE
+                        LOWER(g.Name) LIKE LOWER(?) AND
+                        (LOWER(g.Platform) = LOWER(?) OR ? = '')
+                    ORDER BY LENGTH(g.Name) ASC
+                    LIMIT 5
+                    ''', (wildcarded_title, platform, platform))
+
+                    for row in cursor.fetchall():
+                        result = dict(row)
+                        # Convert ReleaseDate to datetime if it exists
+                        if result['ReleaseDate']:
+                            try:
+                                result['ReleaseDate'] = datetime.datetime.fromisoformat(result['ReleaseDate'])
+                            except ValueError:
+                                pass
+                        results.append(result)
+
+                    if results:
+                        logger.debug(f"Found {len(results)} matches via spaces-as-wildcards search")
+
+            # 5. If still no results, try prepending a wildcard (%title with spaces as %)
+            if not results:
+                logger.debug(f"No matches found for '{title}', trying wildcard-prefix match")
+                # Prepend % and replace spaces with % and keep the % at the end
+                wildcarded_title = '%' + title.strip().replace(' ', '%') + '%'
+                cursor.execute('''
+                SELECT
+                    g.*
+                FROM
+                    Games g
+                WHERE
+                    LOWER(g.Name) LIKE LOWER(?) AND
+                    (LOWER(g.Platform) = LOWER(?) OR ? = '')
+                ORDER BY LENGTH(g.Name) ASC
+                LIMIT 5
+                ''', (wildcarded_title, platform, platform))
+
+                for row in cursor.fetchall():
+                    result = dict(row)
+                    # Convert ReleaseDate to datetime if it exists
+                    if result['ReleaseDate']:
+                        try:
+                            result['ReleaseDate'] = datetime.datetime.fromisoformat(result['ReleaseDate'])
+                        except ValueError:
+                            pass
+                    results.append(result)
+
+                if results:
+                    logger.debug(f"Found {len(results)} matches via wildcard-prefix search")
 
             return results
         finally:
@@ -707,6 +880,81 @@ class LaunchBoxMetadata(MetadataProvider):
             ))
 
         return results
+
+    def search_by_title_and_platform(self, title: str, platform_str: str) -> Optional[Game]:
+        """Search for a game by title match (case insensitive) and platform.
+        Uses progressive fallback search methods to find matches:
+        1. Exact title match
+        2. Alternate names match
+        3. Prefix match (games that start with the search term)
+        4. Spaces-as-wildcards match (replaces spaces with % wildcards)
+        5. Wildcard-prefix match (prepends % and replaces spaces with % wildcards)
+
+        For fuzzy matches (3-5), if exactly one result is found, it will be used.
+        For multiple matches, only uses the first result if it's a strong match.
+
+        If found, returns the full Game object with metadata.
+
+        Args:
+            title: The game title to search for
+            platform_str: The platform name to search for (can be empty string for any platform)
+
+        Returns:
+            Game object with metadata if found, None otherwise
+        """
+        if not self.database.database_exists():
+            logger.error("Database not initialized. Run initialize-database first.")
+            return None
+
+        raw_results = self.database.search_games_by_title_and_platform(title, platform_str)
+
+        if not raw_results:
+            logger.debug(f"No matches found for title '{title}' and platform '{platform_str}'")
+            return None
+
+        # Log the search success and match type
+        if len(raw_results) == 1:
+            logger.debug(f"Found a single match for '{title}': '{raw_results[0]['Name']}'")
+        else:
+            logger.debug(f"Found {len(raw_results)} matches for '{title}', best match: '{raw_results[0]['Name']}'")
+
+        # For fuzzy matches, only use the match if there's exactly one result
+        # or if the first result is a strong match (title starts with our search)
+        if len(raw_results) > 1:
+            title_lower = title.lower().strip()
+            # Check if the first result is a clear best match
+            first_match_name = raw_results[0]['Name'].lower()
+
+            # If the first match doesn't start with our search term and we have multiple results,
+            # apply stricter validation for fuzzy matches
+            if not first_match_name.startswith(title_lower) and not title_lower == first_match_name:
+                # See if our search terms can be found within the match in the right order
+                # This helps with cases where spaces have been replaced with other characters
+                words = title_lower.split()
+                if len(words) > 1:
+                    word_idx = 0
+                    search_pos = 0
+                    # Check if all words appear in sequence (with anything in between)
+                    for word in words:
+                        word_pos = first_match_name[search_pos:].find(word)
+                        if word_pos == -1:
+                            # Word not found in remaining string
+                            logger.debug(f"Multiple fuzzy matches found, but '{first_match_name}' is not a confident match for '{title}'")
+                            return None
+                        search_pos += word_pos + len(word)
+
+                    # If we get here, all words were found in sequence
+                    logger.debug(f"Using match '{first_match_name}' as it contains all search terms in sequence")
+                else:
+                    # Single word but no prefix match - not confident enough
+                    logger.debug(f"Multiple fuzzy matches found, but none are confident matches for '{title}'")
+                    return None
+            else:
+                logger.debug(f"Using first fuzzy match '{raw_results[0]['Name']}' as it starts with search term")
+
+        # Use the first match
+        game_id = raw_results[0]['DatabaseID']
+        return self.get_details(int(game_id) if game_id.isdigit() else 0)
 
     def get_details(self, game_id: int) -> Optional[Game]:
         """Get detailed information about a specific game.

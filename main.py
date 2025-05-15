@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import sys
 import gi
 import os
@@ -13,6 +14,7 @@ from app_state_manager import AppStateManager
 # Import controllers
 from controllers import GameShelfController, GameShelfWindow, SplashScreen
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 class GameShelfApp(Adw.Application):
     def __init__(self):
