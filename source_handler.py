@@ -89,7 +89,7 @@ class SourceHandler:
 
         return sources
 
-    def _get_next_source_id(self) -> int:
+    def get_next_source_id(self) -> int:
         """
         Get the next available numeric ID for a source.
 
@@ -121,7 +121,7 @@ class SourceHandler:
         """
         # Assign a numeric ID if this is a new source
         if not source.id:
-            next_id = self._get_next_source_id()
+            next_id = self.get_next_source_id()
             source.id = str(next_id)
 
         # Check if the ID is numeric (new format) or string-based (old format)

@@ -570,11 +570,6 @@ class PSNClient(SourceScanner):
                 logger.error(f"Error with progress callback: {e}")
 
         try:
-            # If we have a token in the source config, try authenticating with it
-            if source.config and "npsso_token" in source.config:
-                logger.debug("Found npsso_token in source config, attempting to authenticate")
-                self.authenticate(source.config["npsso_token"])
-
             # Check if we need to authenticate
             if not self.is_authenticated():
                 # Get detailed auth status to provide better error messages
@@ -582,10 +577,6 @@ class PSNClient(SourceScanner):
                 logger.debug(f"PSN authentication status: {auth_status}")
 
                 error_message = "PlayStation Network authentication required."
-
-                if "npsso_token" in source.config:
-                    error_message = "PlayStation Network token is invalid or expired."
-                    logger.warning(f"PSN token for {source.name} is invalid or expired. Auth status: {auth_status}")
 
                 if progress_callback:
                     try:
