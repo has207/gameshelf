@@ -37,6 +37,9 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         self.cancel_button.connect("clicked", self._on_cancel_clicked)
         self.save_button.connect("clicked", self._on_save_clicked)
 
+        # Connect platform selection handler to enable/disable extensions for Wii U
+        self.platform_dropdown.connect("notify::selected", self._on_platform_changed)
+
         # If editing an existing source, fill the form with its data
         if self.editing:
             self.set_title("Edit ROM Directory Source")
@@ -61,6 +64,8 @@ class RomDirectorySourceDialog(Gtk.Dialog):
             if source.config and "platform" in source.config:
                 platform_value = source.config["platform"]
                 self._select_platform_by_value(platform_value)
+                # Update extensions field state based on platform
+                self._update_extensions_field_state()
         else:
             self.set_title("Add ROM Directory Source")
 
@@ -72,6 +77,9 @@ class RomDirectorySourceDialog(Gtk.Dialog):
 
             # Select first platform by default
             self.platform_dropdown.set_selected(0)
+
+            # Update extensions field state based on initial platform
+            self._update_extensions_field_state()
 
     def _setup_platform_dropdown(self):
         """Set up the platform dropdown with all available platforms"""
@@ -100,6 +108,33 @@ class RomDirectorySourceDialog(Gtk.Dialog):
 
         # If not found, just select the first one
         self.platform_dropdown.set_selected(0)
+
+    def _on_platform_changed(self, dropdown, param):
+        """Handle platform selection change"""
+        self._update_extensions_field_state()
+
+    def _update_extensions_field_state(self):
+        """Update the state of the extensions field based on the selected platform"""
+        selected_index = self.platform_dropdown.get_selected()
+        if selected_index < 0:
+            return
+
+        platform = self.platform_mapping[selected_index]
+
+        # For Wii U, disable extensions field since we'll detect games based on folder structure
+        if platform == Platforms.NINTENDO_WIIU:
+            # Clear and disable extensions field for Wii U
+            self.extensions_entry.set_text("")
+            self.extensions_entry.set_sensitive(False)
+            # Add a tooltip explaining why it's disabled
+            self.extensions_entry.set_tooltip_text(
+                "File extensions not needed for Wii U games. " +
+                "Games are detected by folders containing 'content', 'meta', and 'code' subdirectories."
+            )
+        else:
+            # Enable extensions field for other platforms
+            self.extensions_entry.set_sensitive(True)
+            self.extensions_entry.set_tooltip_text("")
 
     def _on_browse_clicked(self, button):
         """Handle browse button click"""
@@ -152,11 +187,12 @@ class RomDirectorySourceDialog(Gtk.Dialog):
 
         platform = self.platform_mapping[selected_index]
 
-        # Process extensions
+        # Process extensions (only if not Wii U)
         extensions = []
-        extensions_text = self.extensions_entry.get_text().strip()
-        if extensions_text:
-            extensions = [ext.strip() for ext in extensions_text.split(",") if ext.strip()]
+        if platform != Platforms.NINTENDO_WIIU:
+            extensions_text = self.extensions_entry.get_text().strip()
+            if extensions_text:
+                extensions = [ext.strip() for ext in extensions_text.split(",") if ext.strip()]
 
         # Get name regex
         name_regex = self.name_regex_entry.get_text().strip()

@@ -38,13 +38,25 @@ class ProcessTracker:
             # Split the command into its parts
             cmd = runner_command.split()
 
-            # Add the file path to the command if provided
-            if file_path:
+            # Get installation data to check if it's a Wii U game
+            installation_data = self.data_handler.get_installation_data(game)
+
+            # Check if this is a Wii U game
+            is_wiiu_game = False
+            if installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]:
+                is_wiiu_game = True
+
+            # For Wii U games, we directly pass the game directory to the emulator
+            if is_wiiu_game and "directory" in installation_data:
+                directory = installation_data["directory"]
+                print(f"Launching Wii U game: {game.title} with command: {runner_command} {directory}")
+                cmd.append(directory)
+            # Regular games use the file path
+            elif file_path:
                 # Combine directory and file if needed - handle both absolute and relative paths
                 full_path = file_path
                 if not os.path.isabs(file_path):
                     # Get installation data for the directory
-                    installation_data = self.data_handler.get_installation_data(game)
                     if installation_data and "directory" in installation_data:
                         directory = installation_data["directory"]
                         full_path = os.path.join(directory, file_path)

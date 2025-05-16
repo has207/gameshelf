@@ -63,126 +63,22 @@ class DirectoryScanner(SourceScanner):
                 logger.warning(f"Unknown platform '{platform_value}' specified for source {source.name}")
                 # We'll continue without a platform in this case
 
-        # Get the list of files matching the specified extensions
-        if not source.file_extensions:
-            # Default to common game file extensions if none are specified
-            extensions = [".exe", ".lnk", ".url", ".desktop"]
-        else:
-            extensions = [f".{ext.lstrip('.')}" for ext in source.file_extensions]
-
-        logger.info(f"Scanning directory source: {source.path}")
-        logger.info(f"Using extensions: {extensions}")
-
         # Dictionary to store game entries, keyed by parent folder or file name
-        # For multi-disc games in subfolders, the key will be the subfolder name
-        # For standalone files at the root, the key will be the file stem
         game_entries = {}
 
-        # Build a glob pattern for each extension
-        for ext in extensions:
-            pattern = f"**/*{ext}"
-            try:
-                matched_files = list(source_path.glob(pattern))
+        # Special handling for Wii U games based on folder structure
+        if platform and platform == Platforms.NINTENDO_WIIU:
+            logger.info(f"Scanning for Wii U games in directory: {source.path}")
+            self._scan_wiiu_games(source_path, game_entries, source, progress_callback)
+        else:
+            # Standard file extension based scanning for other platforms
+            self._scan_file_extensions(source_path, game_entries, source, progress_callback)
 
-                # Process each matching file
-                for file_path in matched_files:
-                    # Determine if this is a multi-disc game in a subfolder
-                    rel_path = file_path.relative_to(source_path)
-                    parts = list(rel_path.parts)
-
-                    # If file is directly in the root directory, treat as a single game
-                    if len(parts) == 1:
-                        # Get the filename and stem for identifying the game
-                        filename = file_path.name
-                        file_stem = file_path.stem
-
-                        # Extract the game title using the name regex
-                        # Use default regex that strips extension if not specified
-                        name_regex = source.config.get("name_regex", "^(.+?)(\.[^.]+)?$")
-
-                        try:
-                            # Apply the regex to extract the game title
-                            match = re.match(name_regex, filename)
-                            if match and match.group(1):
-                                # Use the first captured group as the title
-                                title = match.group(1)
-                                logger.debug(f"Extracted title '{title}' from '{filename}' using regex: {name_regex}")
-                            else:
-                                # Fallback if regex doesn't match
-                                title = file_stem
-                                logger.debug(f"Regex didn't match, using fallback title: {title}")
-                        except Exception as e:
-                            # Fallback in case of regex error
-                            title = file_stem
-                            logger.error(f"Error applying name regex '{name_regex}' to '{filename}': {e}")
-
-                        game_key = file_stem  # Use stem for the dictionary key to avoid duplicates
-
-                        if game_key not in game_entries:
-                            logger.debug(f"Found single-file game: {title} (key: {game_key})")
-                            game_entries[game_key] = {
-                                "title": title,
-                                "directory": str(source_path),
-                                "files": [str(rel_path)],
-                                "size": file_path.stat().st_size
-                            }
-                        else:
-                            # This is unlikely but handle it just in case
-                            # A game with multiple files at the root with the same name but different extensions
-                            logger.debug(f"Adding additional file to single-game: {title} (key: {game_key}), file: {rel_path}")
-                            game_entries[game_key]["files"].append(str(rel_path))
-                            game_entries[game_key]["size"] += file_path.stat().st_size
-
-                    # If file is in a subfolder, treat all files in that subfolder as part of the same game
-                    else:
-                        folder_name = parts[0]  # The subfolder name
-                        game_key = folder_name  # Use folder name as key in dictionary
-                        game_subfolder = source_path / parts[0]  # Full path to the game's subfolder
-                        # For multi-disc games, we want the file path to be relative to the game subfolder
-                        rel_to_game_subfolder = "/".join(parts[1:])
-
-                        # Extract the game title from the folder name using regex
-                        # Use default regex that strips extension if not specified
-                        name_regex = source.config.get("name_regex", "^(.+?)(\.[^.]+)?$")
-
-                        try:
-                            # Apply the regex to extract the title from folder name
-                            match = re.match(name_regex, folder_name)
-                            if match and match.group(1):
-                                # Use the first captured group as the title
-                                title = match.group(1)
-                                logger.debug(f"Extracted title '{title}' from folder '{folder_name}' using regex: {name_regex}")
-                            else:
-                                # Fallback if regex doesn't match
-                                title = folder_name
-                                logger.debug(f"Regex didn't match folder name, using fallback title: {title}")
-                        except Exception as e:
-                            # Fallback in case of regex error
-                            title = folder_name
-                            logger.error(f"Error applying name regex '{name_regex}' to folder '{folder_name}': {e}")
-
-                        if game_key not in game_entries:
-                            logger.debug(f"Found multi-disc game: {title} (key: {game_key}), first file: {rel_to_game_subfolder}")
-                            game_entries[game_key] = {
-                                "title": title,
-                                "directory": str(game_subfolder),  # Use the game subfolder instead of source_path
-                                "files": [rel_to_game_subfolder],  # Store path relative to the game subfolder
-                                "size": file_path.stat().st_size
-                            }
-                        else:
-                            # Add this file to the multi-disc game entry
-                            logger.debug(f"Adding disc to multi-disc game: {game_key}, file: {rel_to_game_subfolder}")
-                            game_entries[game_key]["files"].append(rel_to_game_subfolder)
-                            game_entries[game_key]["size"] += file_path.stat().st_size
-
-            except Exception as e:
-                errors.append(f"Error searching for {pattern}: {e}")
-
-        # Initial progress update
+        # Initial progress update for processing
         total_games = len(game_entries)
         if progress_callback and total_games > 0:
             try:
-                progress_callback(0, total_games, "Starting scan...")
+                progress_callback(0, total_games, "Starting processing...")
             except Exception as e:
                 logger.error(f"Error with progress callback: {e}")
 
@@ -359,3 +255,208 @@ class DirectoryScanner(SourceScanner):
         logger.info(f"Added {added_count} new games. Errors: {len(errors)}.")
 
         return added_count, errors
+
+    def _scan_wiiu_games(self, source_path: Path, game_entries: dict, source: Source,
+                         progress_callback: Optional[callable] = None) -> None:
+        """
+        Scan for Wii U games by looking for folders with content/meta/code structure
+
+        Args:
+            source_path: Path to scan
+            game_entries: Dictionary to populate with game entries
+            source: Source configuration
+            progress_callback: Optional callback for progress updates
+        """
+        try:
+            # Get all immediate subdirectories
+            subdirs = [d for d in source_path.iterdir() if d.is_dir()]
+
+            # Initial progress update
+            total_dirs = len(subdirs)
+            if progress_callback and total_dirs > 0:
+                try:
+                    progress_callback(0, total_dirs, "Scanning for Wii U games...")
+                except Exception as e:
+                    logger.error(f"Error with progress callback: {e}")
+
+            # Process each directory to check if it's a Wii U game
+            for index, game_dir in enumerate(subdirs):
+                # Report progress if callback provided
+                if progress_callback and index % 5 == 0:  # Update every 5 directories
+                    try:
+                        progress_callback(index, total_dirs, f"Checking {game_dir.name}...")
+                    except Exception as e:
+                        logger.error(f"Error with progress callback: {e}")
+
+                # Check if this directory has the Wii U game structure
+                # A valid Wii U game folder contains 'content', 'meta', and 'code' subdirectories
+                if (game_dir / "content").is_dir() and (game_dir / "meta").is_dir() and (game_dir / "code").is_dir():
+                    folder_name = game_dir.name
+                    game_key = folder_name
+
+                    # Extract title from folder name
+                    name_regex = source.config.get("name_regex", "^(.+?)$")
+
+                    try:
+                        # Apply regex to extract title from folder name
+                        match = re.match(name_regex, folder_name)
+                        if match and match.group(1):
+                            title = match.group(1)
+                            logger.debug(f"Extracted title '{title}' from folder '{folder_name}' using regex: {name_regex}")
+                        else:
+                            title = folder_name
+                            logger.debug(f"Regex didn't match folder name, using fallback title: {title}")
+                    except Exception as e:
+                        title = folder_name
+                        logger.error(f"Error applying name regex '{name_regex}' to folder '{folder_name}': {e}")
+
+                    # Calculate total size of the game directory
+                    total_size = 0
+                    for root, _, files in os.walk(game_dir):
+                        for file in files:
+                            file_path = Path(root) / file
+                            try:
+                                total_size += file_path.stat().st_size
+                            except Exception as e:
+                                logger.warning(f"Error getting size of {file_path}: {e}")
+
+                    logger.debug(f"Found Wii U game: {title} (key: {game_key})")
+                    game_entries[game_key] = {
+                        "title": title,
+                        "directory": str(game_dir),
+                        "files": ["content", "meta", "code"],  # The main subdirectories
+                        "size": total_size
+                    }
+
+            # Final progress update for scanning phase
+            if progress_callback:
+                try:
+                    progress_callback(total_dirs, total_dirs, "Wii U scan complete")
+                except Exception as e:
+                    logger.error(f"Error with final scan progress callback: {e}")
+
+            logger.info(f"Found {len(game_entries)} Wii U games in {source_path}")
+
+        except Exception as e:
+            logger.error(f"Error scanning Wii U game directories: {e}", exc_info=True)
+
+    def _scan_file_extensions(self, source_path: Path, game_entries: dict, source: Source,
+                             progress_callback: Optional[callable] = None) -> None:
+        """
+        Scan for games based on file extensions
+
+        Args:
+            source_path: Path to scan
+            game_entries: Dictionary to populate with game entries
+            source: Source configuration
+            progress_callback: Optional callback for progress updates
+        """
+        # Get the list of files matching the specified extensions
+        if not source.file_extensions:
+            # Default to common game file extensions if none are specified
+            extensions = [".exe", ".lnk", ".url", ".desktop"]
+        else:
+            extensions = [f".{ext.lstrip('.')}" for ext in source.file_extensions]
+
+        logger.info(f"Scanning directory source: {source.path}")
+        logger.info(f"Using extensions: {extensions}")
+
+        # Build a glob pattern for each extension
+        for ext in extensions:
+            pattern = f"**/*{ext}"
+            try:
+                matched_files = list(source_path.glob(pattern))
+
+                # Process each matching file
+                for file_path in matched_files:
+                    # Determine if this is a multi-disc game in a subfolder
+                    rel_path = file_path.relative_to(source_path)
+                    parts = list(rel_path.parts)
+
+                    # If file is directly in the root directory, treat as a single game
+                    if len(parts) == 1:
+                        # Get the filename and stem for identifying the game
+                        filename = file_path.name
+                        file_stem = file_path.stem
+
+                        # Extract the game title using the name regex
+                        # Use default regex that strips extension if not specified
+                        name_regex = source.config.get("name_regex", "^(.+?)(\.[^.]+)?$")
+
+                        try:
+                            # Apply the regex to extract the game title
+                            match = re.match(name_regex, filename)
+                            if match and match.group(1):
+                                # Use the first captured group as the title
+                                title = match.group(1)
+                                logger.debug(f"Extracted title '{title}' from '{filename}' using regex: {name_regex}")
+                            else:
+                                # Fallback if regex doesn't match
+                                title = file_stem
+                                logger.debug(f"Regex didn't match, using fallback title: {title}")
+                        except Exception as e:
+                            # Fallback in case of regex error
+                            title = file_stem
+                            logger.error(f"Error applying name regex '{name_regex}' to '{filename}': {e}")
+
+                        game_key = file_stem  # Use stem for the dictionary key to avoid duplicates
+
+                        if game_key not in game_entries:
+                            logger.debug(f"Found single-file game: {title} (key: {game_key})")
+                            game_entries[game_key] = {
+                                "title": title,
+                                "directory": str(source_path),
+                                "files": [str(rel_path)],
+                                "size": file_path.stat().st_size
+                            }
+                        else:
+                            # This is unlikely but handle it just in case
+                            # A game with multiple files at the root with the same name but different extensions
+                            logger.debug(f"Adding additional file to single-game: {title} (key: {game_key}), file: {rel_path}")
+                            game_entries[game_key]["files"].append(str(rel_path))
+                            game_entries[game_key]["size"] += file_path.stat().st_size
+
+                    # If file is in a subfolder, treat all files in that subfolder as part of the same game
+                    else:
+                        folder_name = parts[0]  # The subfolder name
+                        game_key = folder_name  # Use folder name as key in dictionary
+                        game_subfolder = source_path / parts[0]  # Full path to the game's subfolder
+                        # For multi-disc games, we want the file path to be relative to the game subfolder
+                        rel_to_game_subfolder = "/".join(parts[1:])
+
+                        # Extract the game title from the folder name using regex
+                        # Use default regex that strips extension if not specified
+                        name_regex = source.config.get("name_regex", "^(.+?)(\.[^.]+)?$")
+
+                        try:
+                            # Apply the regex to extract the title from folder name
+                            match = re.match(name_regex, folder_name)
+                            if match and match.group(1):
+                                # Use the first captured group as the title
+                                title = match.group(1)
+                                logger.debug(f"Extracted title '{title}' from folder '{folder_name}' using regex: {name_regex}")
+                            else:
+                                # Fallback if regex doesn't match
+                                title = folder_name
+                                logger.debug(f"Regex didn't match folder name, using fallback title: {title}")
+                        except Exception as e:
+                            # Fallback in case of regex error
+                            title = folder_name
+                            logger.error(f"Error applying name regex '{name_regex}' to folder '{folder_name}': {e}")
+
+                        if game_key not in game_entries:
+                            logger.debug(f"Found multi-disc game: {title} (key: {game_key}), first file: {rel_to_game_subfolder}")
+                            game_entries[game_key] = {
+                                "title": title,
+                                "directory": str(game_subfolder),  # Use the game subfolder instead of source_path
+                                "files": [rel_to_game_subfolder],  # Store path relative to the game subfolder
+                                "size": file_path.stat().st_size
+                            }
+                        else:
+                            # Add this file to the multi-disc game entry
+                            logger.debug(f"Adding disc to multi-disc game: {game_key}, file: {rel_to_game_subfolder}")
+                            game_entries[game_key]["files"].append(rel_to_game_subfolder)
+                            game_entries[game_key]["size"] += file_path.stat().st_size
+
+            except Exception as e:
+                logger.error(f"Error searching for {pattern}: {e}")

@@ -169,12 +169,19 @@ class GameDetailsContent(Gtk.Box):
                 self.play_button.set_sensitive(False)
                 return
 
-            # Check if we have installation data (files) for this game
+            # Check if we have installation data for this game
             installation_data = self.controller.data_handler.get_installation_data(self.game)
             file_path = None
 
-            # If we have multiple files, show the file selection dialog
-            if installation_data and "files" in installation_data and len(installation_data["files"]) > 0:
+            # Check if this is a Wii U game
+            is_wiiu_game = installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]
+
+            # For Wii U games, we don't need file selection - just pass directory to the runner
+            if is_wiiu_game:
+                # We'll pass None for file_path, process_tracking will handle the directory
+                file_path = None
+            # For regular games, we handle file selection
+            elif installation_data and "files" in installation_data and len(installation_data["files"]) > 0:
                 files = installation_data["files"]
 
                 # If there's only one file, use it directly
@@ -368,9 +375,18 @@ class GameDetailsContent(Gtk.Box):
         compatible_runners = self._get_compatible_runners(game)
         has_compatible_runners = len(compatible_runners) > 0 and any(r.command for r in compatible_runners)
 
-        # Check for installation data (files)
+        # Check for installation data
         installation_data = self.controller.data_handler.get_installation_data(game)
-        has_installation_files = installation_data and "files" in installation_data and len(installation_data["files"]) > 0
+
+        # Check if this is a Wii U game (which doesn't use the files array)
+        is_wiiu_game = installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]
+
+        # For Wii U games, we check if the directory exists
+        if is_wiiu_game:
+            has_installation_files = installation_data and "directory" in installation_data
+        else:
+            # For regular games, check for files list
+            has_installation_files = installation_data and "files" in installation_data and len(installation_data["files"]) > 0
 
         # Update button state based on conditions
         if not has_installation_files:

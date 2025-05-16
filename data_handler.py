@@ -945,16 +945,32 @@ class DataHandler:
         installation_file = game_dir / "installation.yaml"
 
         try:
-            # Sort the files list to ensure discs appear in ascending order
-            # This uses a natural sort to ensure disc1, disc2, etc. are properly ordered
-            sorted_files = sorted(files, key=self._natural_sort_key)
+            # Check if this is a Wii U game based on platforms
+            is_wiiu_game = False
+            if game.platforms:
+                for platform in game.platforms:
+                    if platform == Platforms.NINTENDO_WIIU:
+                        is_wiiu_game = True
+                        break
 
-            # Create the installation data
-            installation_data = {
-                "directory": directory,
-                "files": sorted_files,
-                "size": total_size
-            }
+            # For Wii U games, we'll store the directory but not individual files
+            # since we only need the game root folder to launch it
+            if is_wiiu_game:
+                # Create the installation data for Wii U games
+                installation_data = {
+                    "directory": directory,
+                    "is_wiiu": True,  # Flag to identify this as a Wii U game
+                    "size": total_size
+                }
+                print(f"Saved Wii U game installation data for {game.title}")
+            else:
+                # For normal games, sort the files list and include them
+                sorted_files = sorted(files, key=self._natural_sort_key)
+                installation_data = {
+                    "directory": directory,
+                    "files": sorted_files,
+                    "size": total_size
+                }
 
             # Write to the file
             with open(installation_file, "w") as f:

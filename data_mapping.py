@@ -145,7 +145,7 @@ class Platforms(enum.Enum):
     PLAYSTATION_VITA = "Sony PlayStation Vita"
     PLAYSTATION4 = "Sony PlayStation 4"
     XBOX_SERIES = "Microsoft Xbox Series"
-    PSP = "Sony PlayStation Portable"
+    PSP = "Sony PSP"
     NEC_PCFX = "NEC PC-FX"
     PLAYSTATION2 = "Sony PlayStation 2"
     SEGA_SATURN = "Sega Saturn"
