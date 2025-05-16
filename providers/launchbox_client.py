@@ -116,6 +116,30 @@ class LaunchBoxDatabase:
             cursor.close()
             conn.close()
 
+    def _escape_fts5_query(self, query: str) -> str:
+        """Escape special characters in FTS5 query syntax.
+
+        FTS5 has special characters like !, *, ", etc.
+        This function escapes them to treat them as literal characters.
+
+        Args:
+            query: The raw search query string
+
+        Returns:
+            Escaped query string safe for FTS5 MATCH queries
+        """
+        # Replace any special characters that have meaning in FTS5
+        # Exclamation mark (!) is used for NOT operator
+        # Double quotes (") are used for phrase searches
+        # Asterisk (*) is used for prefix searches
+        # Replace with corresponding escape sequences or remove
+        special_chars = ['!', '"', '*', '(', ')', '^', ':', '&', '+', '-']
+
+        # For simplicity, we'll just add double quotes around the entire term
+        # which treats it as a literal phrase rather than trying to escape each character
+        escaped_query = f'"{query}"'
+        return escaped_query
+
     def search_games(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Search for games by name.
 
@@ -130,6 +154,9 @@ class LaunchBoxDatabase:
         cursor = conn.cursor()
 
         try:
+            # Escape special characters in the query for FTS5
+            escaped_query = self._escape_fts5_query(query)
+
             # Use FTS5 to search game names
             cursor.execute('''
             SELECT
@@ -144,7 +171,7 @@ class LaunchBoxDatabase:
             ORDER BY
                 rank
             LIMIT ?
-            ''', (query, limit))
+            ''', (escaped_query, limit))
 
             results = []
             for row in cursor.fetchall():
@@ -211,6 +238,10 @@ class LaunchBoxDatabase:
             # try searching for the title in the GameNames FTS table
             if not results:
                 logger.debug(f"No exact match found for '{title}', trying alternate names")
+
+                # For the FTS table, we need to escape any special characters
+                # but since we're doing a direct comparison instead of MATCH,
+                # we don't need the FTS5 escaping here
                 cursor.execute('''
                 SELECT
                     g.*
@@ -905,6 +936,13 @@ class LaunchBoxMetadata(MetadataProvider):
         if not self.database.database_exists():
             logger.error("Database not initialized. Run initialize-database first.")
             return None
+
+        # Log the original search parameters
+        logger.debug(f"Searching for title: '{title}' on platform: '{platform_str}'")
+
+        # Check if the title contains any special characters that might cause FTS5 issues
+        if any(char in title for char in ['!', '"', '*', '(', ')', '^', ':', '&', '+', '-']):
+            logger.debug(f"Title contains special characters that may affect FTS5 search")
 
         raw_results = self.database.search_games_by_title_and_platform(title, platform_str)
 
