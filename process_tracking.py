@@ -9,10 +9,14 @@ from typing import Optional, Callable
 from gi.repository import GLib
 from data import Game
 
+# Import Discord integration
+from discord_integration import discord_presence
+
 
 class ProcessTracker:
     """
     Manages game process launching, monitoring, and tracking play time.
+    Also handles Discord Rich Presence integration.
     """
     def __init__(self, data_handler):
         self.data_handler = data_handler
@@ -78,6 +82,25 @@ class ProcessTracker:
             # Start tracking the process to monitor play time
             self.monitor_game_process(process.pid, game, on_exit_callback)
 
+            # Try to update Discord Rich Presence, but don't let it fail the game launch
+            try:
+                # Get platform information if enabled
+                platform = None
+                from discord_integration import SHOW_PLATFORM_INFO
+                if SHOW_PLATFORM_INFO and hasattr(game, 'platforms') and game.platforms:
+                    # Use the first platform's human-readable name
+                    if game.platforms:
+                        # Get the enum value's human-readable name
+                        platform = game.platforms[0].value
+                    else:
+                        platform = None
+
+                # Update Discord presence
+                discord_presence.game_started(game.title, platform)
+            except Exception as e:
+                # Just log the error but don't let it affect game launch
+                print(f"Discord integration error (game will still launch): {e}")
+
             return True
         except Exception as e:
             print(f"Error launching game: {e}")
@@ -140,6 +163,15 @@ class ProcessTracker:
             # Remove the PID file since the process has exited
             self.data_handler.clear_game_pid(game)
 
+            # Clear Discord Rich Presence when game exits
+            try:
+                print(f"Game {game.title} exited - clearing Discord Rich Presence")
+                # Force disconnect from Discord to ensure status gets cleared
+                discord_presence.game_stopped()
+            except Exception as e:
+                # Just log the error but don't let it affect game tracking
+                print(f"Discord integration error on game exit: {e}")
+
             # Call the callback on the main thread if provided
             if on_exit_callback:
                 GLib.idle_add(on_exit_callback, game)
@@ -148,6 +180,10 @@ class ProcessTracker:
             print(f"Error monitoring game process: {e}")
             # Make sure to clean up the PID file in case of error
             self.data_handler.clear_game_pid(game)
+
+            # Update Discord Rich Presence in case of error
+            if self.app_state_manager and self.app_state_manager.get_discord_enabled():
+                discord_presence.game_stopped()
 
     def is_game_running(self, game: Game) -> bool:
         """
@@ -196,6 +232,16 @@ class ProcessTracker:
         except psutil.NoSuchProcess:
             # Process already terminated
             self.data_handler.clear_game_pid(game)
+
+            # Clear Discord Rich Presence when game is killed
+            try:
+                print(f"Game {game.title} was killed - clearing Discord Rich Presence")
+                # Force disconnect from Discord to ensure status gets cleared
+                discord_presence.game_stopped()
+            except Exception as e:
+                # Just log the error but don't let it affect game tracking
+                print(f"Discord integration error on game exit: {e}")
+
             return True
         except Exception as e:
             print(f"Error killing process for game {game.title}: {e}")
