@@ -20,6 +20,7 @@ from sources.xbox_client import XboxLibrary
 from sources.psn_client import PSNClient
 from sources.directory_scanner import DirectoryScanner
 from sources.scanner_base import SourceScanner
+from sources.epic_library_client import EpicLibraryClient
 from cover_fetch import CoverFetcher
 
 # Set up logger
@@ -250,5 +251,11 @@ class SourceHandler:
             if source_id:
                 token_dir = self.ensure_secure_token_storage(source_id)
             return PSNClient(self.data_handler, token_dir=str(token_dir) if token_dir else None)
+        elif source_type == SourceType.EPIC:
+            # For Epic Games, set up token directory if source_id is provided
+            token_dir = None
+            if source_id:
+                token_dir = self.ensure_secure_token_storage(source_id)
+            return EpicLibraryClient(self.data_handler, token_dir=token_dir)
         else:
             raise ValueError(f"Unsupported source type: {source_type}")

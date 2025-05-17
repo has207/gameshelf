@@ -14,6 +14,7 @@ class SourceTypeDialog(Gtk.Dialog):
     directory_row = Gtk.Template.Child()
     xbox_row = Gtk.Template.Child()
     playstation_row = Gtk.Template.Child()
+    epic_row = Gtk.Template.Child()
     cancel_button = Gtk.Template.Child()
     next_button = Gtk.Template.Child()
 
@@ -61,6 +62,8 @@ class SourceTypeDialog(Gtk.Dialog):
             return SourceType.XBOX
         elif row == self.playstation_row:
             return SourceType.PLAYSTATION
+        elif row == self.epic_row:
+            return SourceType.EPIC
         else:
             # Default to ROM_DIRECTORY if somehow none selected
             return SourceType.ROM_DIRECTORY

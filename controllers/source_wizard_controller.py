@@ -7,6 +7,7 @@ from controllers.source_type_dialog_controller import SourceTypeDialog
 from controllers.rom_directory_source_dialog_controller import RomDirectorySourceDialog
 from controllers.xbox_source_dialog_controller import XboxSourceDialog
 from controllers.psn_source_dialog_controller import PSNSourceDialog
+from controllers.epic_source_dialog_controller import EpicSourceDialog
 
 class SourceWizard:
     """
@@ -86,6 +87,13 @@ class SourceWizard:
             )
         elif source_type == SourceType.PLAYSTATION:
             PSNSourceDialog.show_dialog(
+                source=self.source,
+                source_handler=self.source_handler,
+                parent=self.parent,
+                callback=self._on_source_saved
+            )
+        elif source_type == SourceType.EPIC:
+            EpicSourceDialog.show_dialog(
                 source=self.source,
                 source_handler=self.source_handler,
                 parent=self.parent,

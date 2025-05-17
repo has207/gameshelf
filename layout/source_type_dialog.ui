@@ -188,6 +188,59 @@
                 </child>
               </object>
             </child>
+            
+            <!-- Epic Games Source Option -->
+            <child>
+              <object class="GtkListBoxRow" id="epic_row">
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="spacing">12</property>
+                    <property name="margin-start">12</property>
+                    <property name="margin-end">12</property>
+                    <property name="margin-top">12</property>
+                    <property name="margin-bottom">12</property>
+                    
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon-name">applications-games-symbolic</property>
+                        <property name="pixel-size">32</property>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">4</property>
+                        <property name="hexpand">True</property>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">Epic Games</property>
+                            <property name="xalign">0</property>
+                            <property name="hexpand">True</property>
+                            <attributes>
+                              <attribute name="weight" value="bold"/>
+                            </attributes>
+                          </object>
+                        </child>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">Import games from your Epic Games Store library</property>
+                            <property name="xalign">0</property>
+                            <property name="wrap">True</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
           </object>
         </child>
         

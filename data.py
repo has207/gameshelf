@@ -11,6 +11,7 @@ class SourceType(Enum):
     ROM_DIRECTORY = auto()  # Directory containing ROM files
     XBOX = auto()       # Xbox game library via API
     PLAYSTATION = auto()  # PlayStation Network game library via API
+    EPIC = auto()       # Epic Games Store library via API
 
     @classmethod
     def from_string(cls, value: str) -> 'SourceType':
