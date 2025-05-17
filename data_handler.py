@@ -193,12 +193,18 @@ class DataHandler:
                                 # Skip invalid platforms
                                 print(f"Warning: Skipping invalid platform '{platform_str}' for runner {runner_file.stem}")
 
+                    # Get discord_enabled value (default to True if not present for backward compatibility)
+                    # Log the value to debug if it's loading correctly
+                    discord_enabled = runner_data.get("discord_enabled", True)
+                    print(f"Loading runner {runner_file.stem} with discord_enabled={discord_enabled}")
+
                     runner = Runner(
                         title=runner_data.get("title", "Unknown Runner"),
                         image=runner_data.get("image", ""),
                         command=runner_data.get("command", ""),
                         id=runner_file.stem,
-                        platforms=platforms
+                        platforms=platforms,
+                        discord_enabled=discord_enabled
                     )
                     runners.append(runner)
             except Exception as e:
@@ -274,7 +280,8 @@ class DataHandler:
         runner_data = {
             "title": runner.title,
             "image": runner.image,
-            "command": runner.command
+            "command": runner.command,
+            "discord_enabled": runner.discord_enabled if hasattr(runner, 'discord_enabled') else True
         }
 
         # Save platform enum display values

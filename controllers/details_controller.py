@@ -223,12 +223,16 @@ class GameDetailsContent(Gtk.Box):
             runner: The runner to use
             file_path: Optional file path to launch
         """
-        # Launch the game with this runner
+        # Get the discord_enabled setting from the runner (default to True if not present)
+        discord_enabled = getattr(runner, 'discord_enabled', True)
+
+        # Launch the game with this runner, passing the discord_enabled setting
         launch_success = self.controller.process_tracker.launch_game(
             self.game,
             runner.command,
             file_path,
-            self._update_playtime_ui  # Callback when game exits
+            self._update_playtime_ui,  # Callback when game exits
+            discord_enabled  # Pass the Discord setting from the runner
         )
 
         if launch_success:

@@ -122,9 +122,7 @@ class DiscordPresence:
                 logger.debug(traceback.format_exc())
                 raise
 
-            # Set initial presence
-            self.update_presence("In the library", "Browsing games")
-
+            # Don't set any initial presence - we only show Discord presence when games are running
             return True
         except Exception as e:
             logger.error(f"Failed to connect to Discord: {e}")
@@ -210,16 +208,22 @@ class DiscordPresence:
             self.connected = False
             return False
 
-    def game_started(self, game_title: str, platform: str = None) -> None:
+    def game_started(self, game_title: str, platform: str = None, discord_enabled: bool = True) -> None:
         """
         Update presence when a game is started.
 
         Args:
             game_title: Title of the game
             platform: Game platform (optional)
+            discord_enabled: Whether Discord presence is enabled for this runner
         """
         # Add detailed logging
-        logger.info(f"Game started: '{game_title}', platform: '{platform}'")
+        logger.info(f"Game started: '{game_title}', platform: '{platform}', discord_enabled: {discord_enabled}")
+
+        # If Discord presence is disabled for this runner, don't update
+        if not discord_enabled:
+            logger.info(f"Discord presence disabled for this runner - skipping update")
+            return
 
         # Make sure game title isn't empty
         if not game_title:
@@ -331,6 +335,12 @@ class DiscordPresence:
             try:
                 refresh_count += 1
 
+                # Check if we have a current game - if not, we shouldn't be reconnecting or updating presence
+                if not self.current_game:
+                    logger.debug("No current game - skipping presence update")
+                    self._stop_event.wait(15)  # Still wait between checks
+                    continue
+
                 if not self.connected and self.current_game:
                     # Try to reconnect
                     logger.info("Connection lost - attempting to reconnect")
@@ -346,6 +356,11 @@ class DiscordPresence:
 
                 # Sleep for a while before checking again
                 self._stop_event.wait(15)  # Check every 15 seconds
+
+                # Double-check we still have a current game - it may have been cleared during the wait
+                if not self.current_game:
+                    logger.debug("Game no longer active - skipping presence update")
+                    continue
 
                 # Ensure presence is still active with the current game
                 if self.connected and self.current_game:

@@ -77,6 +77,14 @@
                         <signal name="changed" handler="on_entry_changed"/>
                       </object>
                     </child>
+                    <child>
+                      <object class="AdwSwitchRow" id="discord_switch">
+                        <property name="title">Discord Rich Presence</property>
+                        <property name="subtitle">Show game information in Discord when playing with this runner</property>
+                        <property name="active">true</property>
+                        <signal name="notify::active" handler="on_discord_toggled"/>
+                      </object>
+                    </child>
                   </object>
                 </child>
                 

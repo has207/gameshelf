@@ -113,6 +113,7 @@ class RunnerDialog(Adw.Window):
     dialog_title: Adw.WindowTitle = Gtk.Template.Child()
     title_entry: Adw.EntryRow = Gtk.Template.Child()
     command_entry: Adw.EntryRow = Gtk.Template.Child()
+    discord_switch: Adw.SwitchRow = Gtk.Template.Child()
     image_preview: Gtk.Picture = Gtk.Template.Child()
     select_image_button: Gtk.Button = Gtk.Template.Child()
     clear_image_container: Gtk.Box = Gtk.Template.Child()
@@ -133,6 +134,7 @@ class RunnerDialog(Adw.Window):
         self.original_image_path = None
         self.runner = None
         self.selected_platforms = []  # Track selected platforms
+        self.discord_enabled = True  # Default value for Discord presence
 
         # Configure UI based on mode (add or edit)
         if edit_mode:
@@ -234,6 +236,8 @@ class RunnerDialog(Adw.Window):
         self.runner = runner
         self.title_entry.set_text(runner.title)
         self.command_entry.set_text(runner.command or "")
+        self.discord_switch.set_active(runner.discord_enabled if hasattr(runner, 'discord_enabled') else True)
+        self.discord_enabled = runner.discord_enabled if hasattr(runner, 'discord_enabled') else True
         self.selected_image_path = None
         self.original_image_path = runner.image
 
@@ -257,6 +261,11 @@ class RunnerDialog(Adw.Window):
 
     @Gtk.Template.Callback()
     def on_entry_changed(self, entry, *args):
+        self.validate_form()
+
+    @Gtk.Template.Callback()
+    def on_discord_toggled(self, switch, *args):
+        self.discord_enabled = switch.get_active()
         self.validate_form()
 
     @Gtk.Template.Callback()
@@ -452,11 +461,12 @@ class RunnerDialog(Adw.Window):
         command = self.command_entry.get_text().strip()
         has_title = len(title) > 0
         has_command = len(command) > 0
+        current_discord_enabled = self.discord_switch.get_active()
 
         # Get currently selected platforms
         current_platforms = self._get_selected_platforms()
 
-        print(f"Runner dialog validate_form: title='{title}', command='{command}', platforms: {len(current_platforms)}")
+        print(f"Runner dialog validate_form: title='{title}', command='{command}', platforms: {len(current_platforms)}, discord: {current_discord_enabled}")
         print(f"Edit mode: {self.edit_mode}, Has title: {has_title}, Has command: {has_command}")
 
         if self.edit_mode and self.runner:
@@ -472,6 +482,12 @@ class RunnerDialog(Adw.Window):
             if command != (self.runner.command or ""):
                 has_changes = True
                 print(f"Command changed from '{self.runner.command}' to '{command}'")
+
+            # Check Discord enabled change
+            original_discord_enabled = getattr(self.runner, 'discord_enabled', True)
+            if current_discord_enabled != original_discord_enabled:
+                has_changes = True
+                print(f"Discord enabled changed from {original_discord_enabled} to {current_discord_enabled}")
 
             # Check image change
             if self.selected_image_path is not None:  # Only if image was explicitly changed
@@ -526,6 +542,7 @@ class RunnerDialog(Adw.Window):
         # Get the input values
         title = self.title_entry.get_text().strip()
         command = self.command_entry.get_text().strip()
+        discord_enabled = self.discord_switch.get_active()
 
         # Get selected platforms
         platforms = self._get_selected_platforms()
@@ -539,7 +556,8 @@ class RunnerDialog(Adw.Window):
             title=title,
             command=command,
             image=self.selected_image_path,
-            platforms=platforms
+            platforms=platforms,
+            discord_enabled=discord_enabled
         )
 
         # Save the runner through the controller
@@ -565,6 +583,7 @@ class RunnerDialog(Adw.Window):
         # Get the updated values
         title = self.title_entry.get_text().strip()
         command = self.command_entry.get_text().strip()
+        discord_enabled = self.discord_switch.get_active()
 
         # Get selected platforms
         platforms = self._get_selected_platforms()
@@ -573,6 +592,7 @@ class RunnerDialog(Adw.Window):
         self.runner.title = title
         self.runner.command = command
         self.runner.platforms = platforms
+        self.runner.discord_enabled = discord_enabled
 
         # Update image
         if self.selected_image_path is not None:  # Image was changed

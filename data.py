@@ -44,11 +44,12 @@ class Source:
 @dataclass
 class Runner:
     def __init__(self, id: str, title: str, image: Optional[str] = None, command: Optional[str] = None,
-                 platforms: Optional[List[Union[Platforms, str]]] = None):
+                 platforms: Optional[List[Union[Platforms, str]]] = None, discord_enabled: bool = True):
         self.id = id.lower()
         self.title = title
         self.image = image
         self.command = command
+        self.discord_enabled = discord_enabled
         self.platforms = []  # List of platforms this runner supports
 
         # Handle platforms list

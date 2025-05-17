@@ -20,8 +20,9 @@ class ProcessTracker:
     """
     def __init__(self, data_handler):
         self.data_handler = data_handler
+        self.current_game_discord_enabled = True  # Default value for Discord integration
 
-    def launch_game(self, game: Game, runner_command: str, file_path: Optional[str] = None, on_exit_callback: Optional[Callable] = None) -> bool:
+    def launch_game(self, game: Game, runner_command: str, file_path: Optional[str] = None, on_exit_callback: Optional[Callable] = None, discord_enabled: bool = True) -> bool:
         """
         Launch a game with the specified runner command and optional file path.
 
@@ -30,6 +31,7 @@ class ProcessTracker:
             runner_command: The command to run
             file_path: Optional path to the game file to launch
             on_exit_callback: Optional callback function to call when the game exits
+            discord_enabled: Whether to enable Discord rich presence for this runner
 
         Returns:
             True if the game was launched successfully, False otherwise
@@ -82,6 +84,9 @@ class ProcessTracker:
             # Start tracking the process to monitor play time
             self.monitor_game_process(process.pid, game, on_exit_callback)
 
+            # Store discord_enabled in a class variable for later use when game exits
+            self.current_game_discord_enabled = discord_enabled
+
             # Try to update Discord Rich Presence, but don't let it fail the game launch
             try:
                 # Get platform information if enabled
@@ -95,8 +100,14 @@ class ProcessTracker:
                     else:
                         platform = None
 
-                # Update Discord presence
-                discord_presence.game_started(game.title, platform)
+                # Log whether Discord integration is enabled for this launch
+                if discord_enabled:
+                    print(f"Discord integration enabled for this game launch")
+                    # Only update Discord presence if it's enabled for this runner
+                    discord_presence.game_started(game.title, platform, discord_enabled)
+                else:
+                    print(f"Discord integration disabled for this game launch")
+                    # Skip Discord integration entirely for this game
             except Exception as e:
                 # Just log the error but don't let it affect game launch
                 print(f"Discord integration error (game will still launch): {e}")
@@ -163,14 +174,17 @@ class ProcessTracker:
             # Remove the PID file since the process has exited
             self.data_handler.clear_game_pid(game)
 
-            # Clear Discord Rich Presence when game exits
-            try:
-                print(f"Game {game.title} exited - clearing Discord Rich Presence")
-                # Force disconnect from Discord to ensure status gets cleared
-                discord_presence.game_stopped()
-            except Exception as e:
-                # Just log the error but don't let it affect game tracking
-                print(f"Discord integration error on game exit: {e}")
+            # Only clear Discord Rich Presence if it was enabled for this game
+            if hasattr(self, 'current_game_discord_enabled') and self.current_game_discord_enabled:
+                try:
+                    print(f"Game {game.title} exited - clearing Discord Rich Presence")
+                    # Force disconnect from Discord to ensure status gets cleared
+                    discord_presence.game_stopped()
+                except Exception as e:
+                    # Just log the error but don't let it affect game tracking
+                    print(f"Discord integration error on game exit: {e}")
+            else:
+                print(f"Game {game.title} exited - Discord integration was disabled for this game")
 
             # Call the callback on the main thread if provided
             if on_exit_callback:
@@ -233,14 +247,17 @@ class ProcessTracker:
             # Process already terminated
             self.data_handler.clear_game_pid(game)
 
-            # Clear Discord Rich Presence when game is killed
-            try:
-                print(f"Game {game.title} was killed - clearing Discord Rich Presence")
-                # Force disconnect from Discord to ensure status gets cleared
-                discord_presence.game_stopped()
-            except Exception as e:
-                # Just log the error but don't let it affect game tracking
-                print(f"Discord integration error on game exit: {e}")
+            # Only clear Discord Rich Presence if it was enabled for this game
+            if hasattr(self, 'current_game_discord_enabled') and self.current_game_discord_enabled:
+                try:
+                    print(f"Game {game.title} was killed - clearing Discord Rich Presence")
+                    # Force disconnect from Discord to ensure status gets cleared
+                    discord_presence.game_stopped()
+                except Exception as e:
+                    # Just log the error but don't let it affect game tracking
+                    print(f"Discord integration error on game exit: {e}")
+            else:
+                print(f"Game {game.title} was killed - Discord integration was disabled for this game")
 
             return True
         except Exception as e:
