@@ -26,16 +26,27 @@ class SourceType(Enum):
 
 
 @dataclass
+class RomPath:
+    def __init__(self, path: str, file_extensions: Optional[List[str]] = None, name_regex: Optional[str] = None):
+        self.path = path
+        self.file_extensions = file_extensions or []
+        # Default regex that strips file extension
+        self.name_regex = name_regex or "^(.+?)(\.[^.]+)?$"
+
+@dataclass
 class Source:
-    def __init__(self, id: str, name: str, path: str, source_type: SourceType = SourceType.ROM_DIRECTORY,
-                 active: bool = True, file_extensions: Optional[List[str]] = None, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, id: str, name: str, source_type: SourceType,
+                 active: bool = True, config: Optional[Dict[str, Any]] = None,
+                 rom_paths: Optional[List[RomPath]] = None):
         self.id = id.lower()
         self.name = name
-        self.path = path
         self.source_type = source_type
         self.active = active
-        self.file_extensions = file_extensions or []
         self.config = config or {}
+
+        # ROM_DIRECTORY specific attributes
+        if source_type == SourceType.ROM_DIRECTORY:
+            self.rom_paths = rom_paths or []
 
     def get_source_path(self, data_dir: Path) -> Path:
         """Get the path to the source's configuration file"""

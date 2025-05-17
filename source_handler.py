@@ -13,7 +13,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from threading import Thread
 from gi.repository import GLib
 
-from data import Source, SourceType, Game
+from data import Source, SourceType, Game, RomPath
 from data_handler import DataHandler
 from data_mapping import Platforms, Genres, CompletionStatus
 from sources.xbox_client import XboxLibrary
@@ -68,25 +68,37 @@ class SourceHandler:
                             else:
                                 source_type = SourceType.ROM_DIRECTORY
 
-                            # Process file extensions
-                            file_extensions = source_data.get("file_extensions", [])
-                            if isinstance(file_extensions, str):
-                                file_extensions = [ext.strip() for ext in file_extensions.split(",") if ext.strip()]
-
+                            # Create source with basic properties
                             source = Source(
                                 id=source_dir.name,  # Use directory name as the ID
                                 name=source_data.get("name", source_dir.name),
-                                path=source_data.get("path", ""),
                                 source_type=source_type,
                                 active=source_data.get("active", True),
-                                file_extensions=file_extensions,
                                 config=source_data.get("config", {})
                             )
+
+                            # Handle ROM_DIRECTORY specific properties
+                            if source_type == SourceType.ROM_DIRECTORY and "rom_paths" in source_data:
+                                # Process multiple ROM paths
+                                rom_paths = []
+                                for path_data in source_data["rom_paths"]:
+                                    # Process file extensions for each path
+                                    file_extensions = path_data.get("file_extensions", [])
+                                    if isinstance(file_extensions, str):
+                                        file_extensions = [ext.strip() for ext in file_extensions.split(",") if ext.strip()]
+
+                                    rom_path = RomPath(
+                                        path=path_data.get("path", ""),
+                                        file_extensions=file_extensions,
+                                        name_regex=path_data.get("name_regex")
+                                    )
+                                    rom_paths.append(rom_path)
+                                source.rom_paths = rom_paths
+
                             sources.append(source)
                     except Exception as e:
                         logger.error(f"Error loading source {source_file}: {e}")
-
-        # No need to handle legacy format sources anymore since you mentioned you'll recreate them
+                        logger.error(traceback.format_exc())
 
         return sources
 
@@ -125,24 +137,37 @@ class SourceHandler:
             next_id = self.get_next_source_id()
             source.id = str(next_id)
 
-        # Check if the ID is numeric (new format) or string-based (old format)
+        # Create source directory path
         source_dir = self.sources_dir / source.id
 
         # Create source directory if it doesn't exist
         source_dir.mkdir(parents=True, exist_ok=True)
 
+        # Create base source data
         source_data = {
             "name": source.name,
-            "path": source.path,
             "type": str(source.source_type),
             "active": source.active
         }
 
-        if source.file_extensions:
-            source_data["file_extensions"] = source.file_extensions
-
+        # Add config if present
         if source.config:
             source_data["config"] = source.config
+
+        # Handle ROM_DIRECTORY specific properties
+        if source.source_type == SourceType.ROM_DIRECTORY and hasattr(source, "rom_paths"):
+            # Convert ROM paths to serializable format
+            rom_paths_data = []
+            for rom_path in source.rom_paths:
+                path_data = {
+                    "path": rom_path.path,
+                    "file_extensions": rom_path.file_extensions
+                }
+                if rom_path.name_regex:
+                    path_data["name_regex"] = rom_path.name_regex
+                rom_paths_data.append(path_data)
+
+            source_data["rom_paths"] = rom_paths_data
 
         try:
             source_file = source_dir / "source.yaml"
@@ -151,6 +176,7 @@ class SourceHandler:
             return True
         except Exception as e:
             logger.error(f"Error saving source {source.id}: {e}")
+            logger.error(traceback.format_exc())
             return False
 
     def remove_source(self, source: Source) -> bool:

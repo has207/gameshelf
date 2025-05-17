@@ -7,7 +7,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple, Union
 
-from data import Game, Runner, Source, SourceType
+from data import Game, Runner, Source, SourceType, RomPath
 from data_mapping import (
     CompletionStatus, InvalidCompletionStatusError,
     Platforms, InvalidPlatformError,
@@ -1109,19 +1109,34 @@ class DataHandler:
                             source_type = SourceType.ROM_DIRECTORY
 
                         # Process file extensions
-                        file_extensions = source_data.get("file_extensions", [])
-                        if isinstance(file_extensions, str):
-                            file_extensions = [ext.strip() for ext in file_extensions.split(",") if ext.strip()]
-
-                        return Source(
+                        # Create the base source
+                        source = Source(
                             id=source_id,
                             name=source_data.get("name", source_id),
-                            path=source_data.get("path", ""),
                             source_type=source_type,
                             active=source_data.get("active", True),
-                            file_extensions=file_extensions,
                             config=source_data.get("config", {})
                         )
+
+                        # Handle ROM paths for ROM_DIRECTORY sources
+                        if source_type == SourceType.ROM_DIRECTORY and "rom_paths" in source_data:
+                            rom_paths = []
+
+                            for path_data in source_data["rom_paths"]:
+                                # Process file extensions for each path
+                                file_extensions = path_data.get("file_extensions", [])
+                                if isinstance(file_extensions, str):
+                                    file_extensions = [ext.strip() for ext in file_extensions.split(",") if ext.strip()]
+
+                                rom_paths.append(RomPath(
+                                    path=path_data.get("path", ""),
+                                    file_extensions=file_extensions,
+                                    name_regex=path_data.get("name_regex")
+                                ))
+
+                            source.rom_paths = rom_paths
+
+                        return source
                 except Exception as e:
                     print(f"Error loading source {source_file}: {e}")
 

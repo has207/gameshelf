@@ -4,7 +4,8 @@ from typing import Optional
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Gio, GObject
 
-from data import Source
+from data import Source, SourceType
+from data_mapping import Platforms
 
 
 @Gtk.Template(filename="layout/source_item.ui")
@@ -36,7 +37,14 @@ class SourceItem(Gtk.Box):
         # Only set up UI elements if source is provided
         if source is not None:
             self.name_label.set_text(source.name)
-            self.path_label.set_text(source.path)
+
+            # Show platform information in the path label
+            if source.config and "platform" in source.config:
+                platform_value = source.config["platform"]
+                self.path_label.set_text(f"Platform: {platform_value}")
+            else:
+                self.path_label.set_text("")
+
             self.active_switch.set_active(source.active)
 
         # Connect signal handlers

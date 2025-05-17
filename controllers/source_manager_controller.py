@@ -96,7 +96,14 @@ class SourceManager(Gtk.Box):
 
             # Update UI with source data
             source_item.name_label.set_text(source.name)
-            source_item.path_label.set_text(source.path)
+
+            # Show platform information in the path label
+            if source.config and "platform" in source.config:
+                platform_value = source.config["platform"]
+                source_item.path_label.set_text(f"Platform: {platform_value}")
+            else:
+                source_item.path_label.set_text("")
+
             source_item.active_switch.set_active(source.active)
 
     def _on_add_source_clicked(self, button):
@@ -543,7 +550,7 @@ class SourceManager(Gtk.Box):
 
         # Add explanatory label
         label = Gtk.Label()
-        label.set_markup(f"<b>Scanning directory: {source.name}</b>")
+        label.set_markup(f"<b>Scanning source: {source.name}</b>")
         label.set_margin_bottom(10)
         content_area.append(label)
 

@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Any
 
-from data import Source, Game, SourceType
+from data import Source, Game, SourceType, RomPath
 from data_mapping import Platforms
 from sources.scanner_base import SourceScanner
 from providers.launchbox_client import LaunchBoxMetadata
@@ -41,15 +41,17 @@ class DirectoryScanner(SourceScanner):
         Returns:
             Tuple of (number of games added/updated, list of error messages)
         """
-        # Validate the path
-        if not source.path or not Path(source.path).exists():
-            return 0, [f"Source path does not exist: {source.path}"]
+        if source.source_type != SourceType.ROM_DIRECTORY:
+            return 0, ["Source is not a ROM directory source"]
 
-        source_path = Path(source.path)
+        # Check if we have paths to scan
+        if not hasattr(source, "rom_paths") or not source.rom_paths:
+            return 0, ["No paths configured for this source"]
+
         added_count = 0
         errors = []
 
-        # Extract platform from source config for ROM_DIRECTORY sources
+        # Extract platform from source config
         platform = None
         if source.config and "platform" in source.config:
             # Look up platform enum from string value
@@ -66,13 +68,29 @@ class DirectoryScanner(SourceScanner):
         # Dictionary to store game entries, keyed by parent folder or file name
         game_entries = {}
 
-        # Special handling for Wii U games based on folder structure
-        if platform and platform == Platforms.NINTENDO_WIIU:
-            logger.info(f"Scanning for Wii U games in directory: {source.path}")
-            self._scan_wiiu_games(source_path, game_entries, source, progress_callback)
-        else:
-            # Standard file extension based scanning for other platforms
-            self._scan_file_extensions(source_path, game_entries, source, progress_callback)
+        # Scan each path in the source
+        for path_index, rom_path in enumerate(source.rom_paths):
+            if not rom_path.path or not Path(rom_path.path).exists():
+                errors.append(f"Path does not exist: {rom_path.path}")
+                continue
+
+            source_path = Path(rom_path.path)
+
+            # Update progress for path
+            if progress_callback:
+                try:
+                    progress_callback(path_index, len(source.rom_paths),
+                                     f"Scanning path {path_index+1}/{len(source.rom_paths)}: {source_path}")
+                except Exception as e:
+                    logger.error(f"Error with progress callback: {e}")
+
+            # Special handling for Wii U games based on folder structure
+            if platform and platform == Platforms.NINTENDO_WIIU:
+                logger.info(f"Scanning for Wii U games in directory: {rom_path.path}")
+                self._scan_wiiu_games(source_path, game_entries, rom_path, progress_callback)
+            else:
+                # Standard file extension based scanning for other platforms
+                self._scan_file_extensions(source_path, game_entries, rom_path, progress_callback)
 
         # Initial progress update for processing
         total_games = len(game_entries)
@@ -256,7 +274,7 @@ class DirectoryScanner(SourceScanner):
 
         return added_count, errors
 
-    def _scan_wiiu_games(self, source_path: Path, game_entries: dict, source: Source,
+    def _scan_wiiu_games(self, source_path: Path, game_entries: dict, rom_path: RomPath,
                          progress_callback: Optional[callable] = None) -> None:
         """
         Scan for Wii U games by looking for folders with content/meta/code structure
@@ -264,7 +282,7 @@ class DirectoryScanner(SourceScanner):
         Args:
             source_path: Path to scan
             game_entries: Dictionary to populate with game entries
-            source: Source configuration
+            rom_path: Rom path configuration
             progress_callback: Optional callback for progress updates
         """
         try:
@@ -295,7 +313,7 @@ class DirectoryScanner(SourceScanner):
                     game_key = folder_name
 
                     # Extract title from folder name
-                    name_regex = source.config.get("name_regex", "^(.+?)$")
+                    name_regex = rom_path.name_regex or "^(.+?)$"
 
                     try:
                         # Apply regex to extract title from folder name
@@ -340,7 +358,7 @@ class DirectoryScanner(SourceScanner):
         except Exception as e:
             logger.error(f"Error scanning Wii U game directories: {e}", exc_info=True)
 
-    def _scan_file_extensions(self, source_path: Path, game_entries: dict, source: Source,
+    def _scan_file_extensions(self, source_path: Path, game_entries: dict, rom_path: RomPath,
                              progress_callback: Optional[callable] = None) -> None:
         """
         Scan for games based on file extensions
@@ -348,17 +366,17 @@ class DirectoryScanner(SourceScanner):
         Args:
             source_path: Path to scan
             game_entries: Dictionary to populate with game entries
-            source: Source configuration
+            rom_path: Rom path configuration
             progress_callback: Optional callback for progress updates
         """
         # Get the list of files matching the specified extensions
-        if not source.file_extensions:
+        if not rom_path.file_extensions:
             # Default to common game file extensions if none are specified
             extensions = [".exe", ".lnk", ".url", ".desktop"]
         else:
-            extensions = [f".{ext.lstrip('.')}" for ext in source.file_extensions]
+            extensions = [f".{ext.lstrip('.')}" for ext in rom_path.file_extensions]
 
-        logger.info(f"Scanning directory source: {source.path}")
+        logger.info(f"Scanning directory source: {rom_path.path}")
         logger.info(f"Using extensions: {extensions}")
 
         # Get all files first to match extensions in a case-insensitive way
@@ -391,7 +409,7 @@ class DirectoryScanner(SourceScanner):
 
                     # Extract the game title using the name regex
                     # Use default regex that strips extension if not specified
-                    name_regex = source.config.get("name_regex", "^(.+?)(\.[^.]+)?$")
+                    name_regex = rom_path.name_regex or "^(.+?)(\.[^.]+)?$"
 
                     try:
                         # Apply the regex to extract the game title
@@ -436,7 +454,7 @@ class DirectoryScanner(SourceScanner):
 
                     # Extract the game title from the folder name using regex
                     # Use default regex that strips extension if not specified
-                    name_regex = source.config.get("name_regex", "^(.+?)(\.[^.]+)?$")
+                    name_regex = rom_path.name_regex or "^(.+?)(\.[^.]+)?$"
 
                     try:
                         # Apply the regex to extract the title from folder name

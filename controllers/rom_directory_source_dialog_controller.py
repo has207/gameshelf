@@ -4,8 +4,9 @@ import os
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Gio, GObject
 
-from data import Source, SourceType
+from data import Source, SourceType, RomPath
 from data_mapping import Platforms
+from controllers.rom_path_item_controller import RomPathItem
 
 
 @Gtk.Template(filename="layout/rom_directory_source_dialog.ui")
@@ -13,12 +14,10 @@ class RomDirectorySourceDialog(Gtk.Dialog):
     __gtype_name__ = "RomDirectorySourceDialog"
 
     name_entry = Gtk.Template.Child()
-    path_entry = Gtk.Template.Child()
     platform_dropdown = Gtk.Template.Child()
-    extensions_entry = Gtk.Template.Child()
-    name_regex_entry = Gtk.Template.Child()
     active_switch = Gtk.Template.Child()
-    browse_button = Gtk.Template.Child()
+    paths_container = Gtk.Template.Child()
+    add_path_button = Gtk.Template.Child()
     cancel_button = Gtk.Template.Child()
     save_button = Gtk.Template.Child()
 
@@ -29,11 +28,14 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         self.source_handler = source_handler
         self.editing = source is not None
 
+        # Track whether we need to disable extensions for Wii U games
+        self.is_wiiu = False
+
         # Set up platform dropdown
         self._setup_platform_dropdown()
 
         # Connect signal handlers
-        self.browse_button.connect("clicked", self._on_browse_clicked)
+        self.add_path_button.connect("clicked", self._on_add_path_clicked)
         self.cancel_button.connect("clicked", self._on_cancel_clicked)
         self.save_button.connect("clicked", self._on_save_clicked)
 
@@ -44,21 +46,9 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         if self.editing:
             self.set_title("Edit ROM Directory Source")
             self.name_entry.set_text(source.name)
-            self.path_entry.set_text(source.path)
-
-            # Set extensions
-            if source.file_extensions:
-                self.extensions_entry.set_text(", ".join(source.file_extensions))
 
             # Set active state
             self.active_switch.set_active(source.active)
-
-            # Set name regex if it exists in the source config
-            if source.config and "name_regex" in source.config:
-                self.name_regex_entry.set_text(source.config["name_regex"])
-            else:
-                # Default regex that strips file extension
-                self.name_regex_entry.set_text("^(.+?)(\.[^.]+)?$")
 
             # Set platform if it exists in the source config
             if source.config and "platform" in source.config:
@@ -66,20 +56,28 @@ class RomDirectorySourceDialog(Gtk.Dialog):
                 self._select_platform_by_value(platform_value)
                 # Update extensions field state based on platform
                 self._update_extensions_field_state()
+
+            # Add existing paths
+            if hasattr(source, "rom_paths") and source.rom_paths:
+                for rom_path in source.rom_paths:
+                    self._add_path_item(rom_path)
+            else:
+                # Add a default path row
+                self._add_path_item()
         else:
             self.set_title("Add ROM Directory Source")
 
             # Default values
             self.name_entry.set_text("ROMs")
 
-            # Default regex that strips file extension
-            self.name_regex_entry.set_text("^(.+?)(\.[^.]+)?$")
-
             # Select first platform by default
             self.platform_dropdown.set_selected(0)
 
             # Update extensions field state based on initial platform
             self._update_extensions_field_state()
+
+            # Add a default path row
+            self._add_path_item()
 
     def _setup_platform_dropdown(self):
         """Set up the platform dropdown with all available platforms"""
@@ -114,7 +112,7 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         self._update_extensions_field_state()
 
     def _update_extensions_field_state(self):
-        """Update the state of the extensions field based on the selected platform"""
+        """Update the state of extension fields for all path items based on the selected platform"""
         selected_index = self.platform_dropdown.get_selected()
         if selected_index < 0:
             return
@@ -122,39 +120,29 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         platform = self.platform_mapping[selected_index]
 
         # For Wii U, disable extensions field since we'll detect games based on folder structure
-        if platform == Platforms.NINTENDO_WIIU:
-            # Clear and disable extensions field for Wii U
-            self.extensions_entry.set_text("")
-            self.extensions_entry.set_sensitive(False)
-            # Add a tooltip explaining why it's disabled
-            self.extensions_entry.set_tooltip_text(
-                "File extensions not needed for Wii U games. " +
-                "Games are detected by folders containing 'content', 'meta', and 'code' subdirectories."
-            )
-        else:
-            # Enable extensions field for other platforms
-            self.extensions_entry.set_sensitive(True)
-            self.extensions_entry.set_tooltip_text("")
+        self.is_wiiu = (platform == Platforms.NINTENDO_WIIU)
 
-    def _on_browse_clicked(self, button):
-        """Handle browse button click"""
-        dialog = Gtk.FileDialog.new()
-        dialog.set_title("Select ROM Folder")
+        # Update all path items in the container
+        for child in self.paths_container:
+            if isinstance(child, RomPathItem):
+                child.set_extensions_sensitive(not self.is_wiiu)
 
-        # Configure for folder selection
-        dialog.set_initial_folder(Gio.File.new_for_path(os.path.expanduser("~")))
+    def _add_path_item(self, rom_path=None):
+        """Add a new path item to the container"""
+        path_item = RomPathItem(rom_path, not self.is_wiiu)
+        path_item.connect("remove-requested", self._on_path_remove_requested)
+        self.paths_container.append(path_item)
+        return path_item
 
-        # Show the dialog
-        dialog.select_folder(self, None, self._on_folder_selected)
+    def _on_add_path_clicked(self, button):
+        """Handle add path button click"""
+        self._add_path_item()
 
-    def _on_folder_selected(self, dialog, result):
-        """Handle folder selection"""
-        try:
-            folder = dialog.select_folder_finish(result)
-            if folder:
-                self.path_entry.set_text(folder.get_path())
-        except Exception as e:
-            print(f"Error selecting folder: {e}")
+    def _on_path_remove_requested(self, path_item, sender):
+        """Handle path item removal request"""
+        # Don't remove the last path
+        if len(list(self.paths_container)) > 1:
+            self.paths_container.remove(path_item)
 
     def _on_cancel_clicked(self, button):
         """Handle cancel button click"""
@@ -165,18 +153,9 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         """Handle save button click"""
         # Validate form
         name = self.name_entry.get_text().strip()
-        path = self.path_entry.get_text().strip()
 
         if not name:
             self._show_error("Name is required")
-            return
-
-        if not path:
-            self._show_error("Path is required")
-            return
-
-        if not os.path.isdir(path):
-            self._show_error("Path must be a valid directory")
             return
 
         # Get selected platform
@@ -187,18 +166,32 @@ class RomDirectorySourceDialog(Gtk.Dialog):
 
         platform = self.platform_mapping[selected_index]
 
-        # Process extensions (only if not Wii U)
-        extensions = []
-        if platform != Platforms.NINTENDO_WIIU:
-            extensions_text = self.extensions_entry.get_text().strip()
-            if extensions_text:
-                extensions = [ext.strip() for ext in extensions_text.split(",") if ext.strip()]
+        # Collect all path data and validate
+        rom_paths = []
+        path_errors = []
 
-        # Get name regex
-        name_regex = self.name_regex_entry.get_text().strip()
-        if not name_regex:
-            # Default regex that strips file extension
-            name_regex = "^(.+?)(\.[^.]+)?$"
+        for child in self.paths_container:
+            if isinstance(child, RomPathItem):
+                path_data = child.get_path_data()
+
+                # Validate path
+                if not path_data.path:
+                    path_errors.append("Path is required")
+                    continue
+
+                if not os.path.isdir(path_data.path):
+                    path_errors.append(f"Path '{path_data.path}' must be a valid directory")
+                    continue
+
+                rom_paths.append(path_data)
+
+        if path_errors:
+            self._show_error("\n".join(path_errors))
+            return
+
+        if not rom_paths:
+            self._show_error("At least one valid path is required")
+            return
 
         # Get active state
         active = self.active_switch.get_active()
@@ -207,27 +200,23 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         if self.editing:
             # Update existing source
             self.source.name = name
-            self.source.path = path
-            self.source.file_extensions = extensions
             self.source.active = active
+            self.source.rom_paths = rom_paths
 
-            # Update config with platform and name regex
+            # Update config with platform
             if not self.source.config:
                 self.source.config = {}
             self.source.config["platform"] = platform.value
-            self.source.config["name_regex"] = name_regex
         else:
             # Create new source with ROM_DIRECTORY type
             self.source = Source(
                 id="",  # Will be auto-generated by the handler
                 name=name,
-                path=path,
                 source_type=SourceType.ROM_DIRECTORY,
                 active=active,
-                file_extensions=extensions,
+                rom_paths=rom_paths,
                 config={
-                    "platform": platform.value,
-                    "name_regex": name_regex
+                    "platform": platform.value
                 }
             )
 
