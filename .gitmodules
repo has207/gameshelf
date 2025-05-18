@@ -1,9 +1,9 @@
-[submodule "modules/legendary"]
-	path = modules/legendary
-	url = https://github.com/derrod/legendary
 [submodule "modules/gogdl"]
 	path = modules/gogdl
 	url = https://github.com/Heroic-Games-Launcher/heroic-gogdl
 [submodule "modules/nile"]
 	path = modules/nile
 	url = https://github.com/imLinguin/nile
+[submodule "modules/legendary"]
+	path = modules/legendary
+	url = https://github.com/Heroic-Games-Launcher/legendary
