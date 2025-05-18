@@ -31,7 +31,7 @@ class RomPath:
         self.path = path
         self.file_extensions = file_extensions or []
         # Default regex that strips file extension
-        self.name_regex = name_regex or "^(.+?)(\.[^.]+)?$"
+        self.name_regex = name_regex or r"^(.+?)(\.[^.]+)?$"
 
 @dataclass
 class Source:
