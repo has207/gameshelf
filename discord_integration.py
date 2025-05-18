@@ -4,6 +4,7 @@ import os
 import time
 import threading
 import logging
+import gc
 from typing import Optional
 
 # Use the local pypresence module from 3rd_party
@@ -297,7 +298,17 @@ class DiscordPresence:
         try:
             if self.client and self.connected:
                 try:
-                    # First try to clear the presence
+                    # First send an empty update to more reliably clear the display
+                    logger.info("Sending empty update to Discord")
+                    try:
+                        # Set empty state and details to clear the display
+                        self.client.update(state=None, details=None)
+                        # Small delay to allow Discord to process
+                        time.sleep(0.2)
+                    except Exception as e:
+                        logger.warning(f"Error sending empty update: {e}")
+
+                    # Then try to clear the presence
                     logger.info("Clearing Discord presence")
                     self.client.clear()
                     logger.info("Cleared Discord rich presence")
@@ -320,6 +331,9 @@ class DiscordPresence:
             # Reset state even if there was an error
             self.client = None
             self.connected = False
+
+        # Force garbage collection to clean up any resources
+        gc.collect()
 
         logger.info("Discord integration fully reset")
 
