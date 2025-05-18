@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Union, List, Dict, Any
 from enum import Enum, auto
+import yaml
+import psutil
 
 from data_mapping import CompletionStatus, Platforms, AgeRatings, Features, Genres, Regions
 
@@ -262,6 +264,41 @@ class Game:
         return None
 
     def is_running(self, data_dir: Path) -> bool:
-        """Check if the game is currently running by looking for a pid.yaml file"""
+        """
+        Check if the game is currently running by verifying the process in pid.yaml is active.
+        If the pid file exists but the process is not running, clean up the stale pid file.
+        """
         pid_file = Path(self.get_pid_path(data_dir))
-        return pid_file.exists()
+
+        if not pid_file.exists():
+            return False
+
+        try:
+            # Read PID from file
+            with open(pid_file, "r") as f:
+                pid_data = yaml.safe_load(f)
+                if pid_data and isinstance(pid_data, dict) and "pid" in pid_data:
+                    pid = pid_data.get("pid")
+
+                    # Check if process with this PID exists
+                    if pid and psutil.pid_exists(pid):
+                        try:
+                            # Additional check to make sure process is running, not zombie
+                            process = psutil.Process(pid)
+                            if process.status() != psutil.STATUS_ZOMBIE:
+                                return True
+                        except psutil.NoSuchProcess:
+                            pass
+
+            # PID doesn't exist or process is zombie/dead, clean up the stale file
+            pid_file.unlink()
+            return False
+
+        except Exception as e:
+            print(f"Error checking if game is running: {e}")
+            # In case of error, try to clean up
+            try:
+                pid_file.unlink()
+            except:
+                pass
+            return False
