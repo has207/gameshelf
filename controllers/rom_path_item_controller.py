@@ -1,10 +1,14 @@
 import gi
 import os
+import logging
 
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Gio, GObject
 
 from data import RomPath
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 @Gtk.Template(filename="layout/rom_path_item.ui")
@@ -97,7 +101,7 @@ class RomPathItem(Gtk.Box):
             if folder:
                 self.path_entry.set_text(folder.get_path())
         except Exception as e:
-            print(f"Error selecting folder: {e}")
+            logger.error(f"Error selecting folder: {e}")
 
     def _on_remove_clicked(self, button):
         """Handle remove button click"""

@@ -6,9 +6,13 @@ import os
 import json
 import sys
 import subprocess
+import logging
 from pathlib import Path
 from datetime import datetime
 import requests
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 from sources.xbox_client import XboxLibrary
 from sources.xbox_auth_code_wrapper import XboxAuthCodeWrapper
@@ -103,7 +107,7 @@ class XboxSourceDialog(Gtk.Dialog):
                     auth_wrapper = XboxAuthCodeWrapper(tokens_dir)
 
                     if auth_wrapper.complete_auth_with_code(auth_token):
-                        print("Successfully authenticated with Xbox")
+                        logger.info("Successfully authenticated with Xbox")
                         # Update the authentication status
                         self._update_auth_status()
                         return
@@ -111,7 +115,7 @@ class XboxSourceDialog(Gtk.Dialog):
                     else:
                         self.auth_status_label.set_text("Authentication: Failed to exchange code for tokens")
                 except Exception as e:
-                    print(f"Error processing Xbox authentication: {e}")
+                    logger.error(f"Error processing Xbox authentication: {e}")
                     self.auth_status_label.set_text(f"Authentication: Error - {str(e)}")
             else:
                 self.auth_token = "xbox_authenticated"  # Just a marker value
@@ -132,7 +136,7 @@ class XboxSourceDialog(Gtk.Dialog):
 
         # Check if the helper script exists
         if not auth_helper_path.exists():
-            print(f"Error: Authentication helper script not found at {auth_helper_path}")
+            logger.error(f"Authentication helper script not found at {auth_helper_path}")
             return None
 
         try:
@@ -149,7 +153,7 @@ class XboxSourceDialog(Gtk.Dialog):
                 self.SCOPE
             ]
 
-            print("Starting authentication process in separate process...")
+            logger.info("Starting authentication process in separate process...")
 
             # Run the process and wait for completion
             process = subprocess.Popen(
@@ -177,8 +181,8 @@ class XboxSourceDialog(Gtk.Dialog):
             exit_code = process.returncode
 
             if exit_code != 0:
-                print(f"Authentication process failed with exit code {exit_code}")
-                print(f"Error: {stderr}")
+                logger.error(f"Authentication process failed with exit code {exit_code}")
+                logger.error(f"Error: {stderr}")
                 return None
 
             # Parse the JSON output from the helper script
@@ -189,25 +193,25 @@ class XboxSourceDialog(Gtk.Dialog):
                     json_str = stdout[json_start:]
                     auth_result = json.loads(json_str)
                     if 'error' in auth_result:
-                        print(f"Authentication error: {auth_result['error']}")
+                        logger.error(f"Authentication error: {auth_result['error']}")
                         return None
                     elif 'code' in auth_result:
                         return auth_result['code']
                     else:
-                        print("Unexpected authentication result")
+                        logger.error("Unexpected authentication result")
                         return None
                 else:
-                    print("No JSON found in authentication output")
-                    print(f"Output: {stdout}")
+                    logger.error("No JSON found in authentication output")
+                    logger.debug(f"Output: {stdout}")
                     return None
             except json.JSONDecodeError as e:
-                print(f"Failed to parse authentication result: {e}")
-                print(f"Output: {stdout}")
-                print(f"Error: {stderr}")
+                logger.error(f"Failed to parse authentication result: {e}")
+                logger.debug(f"Output: {stdout}")
+                logger.error(f"Error: {stderr}")
                 return None
 
         except Exception as e:
-            print(f"Error running authentication: {e}")
+            logger.error(f"Error running authentication: {e}")
             return None
 
     def on_dialog_response(self, dialog, response_id):
@@ -280,7 +284,7 @@ class XboxSourceDialog(Gtk.Dialog):
         # Check if the tokens are valid
         is_authenticated = xbox.is_authenticated(try_refresh=True)
 
-        print(f"DEBUG: Xbox authentication check: {is_authenticated}")
+        logger.debug(f"Xbox authentication check: {is_authenticated}")
 
         # Update the UI if not in quiet mode
         if not quiet:

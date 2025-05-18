@@ -1,9 +1,13 @@
 import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, GObject
+import logging
 
 from sources.psn_client import PSNClient
 from data import SourceType, Source
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 @Gtk.Template(filename="layout/psn_source_dialog.ui")
 class PSNSourceDialog(Gtk.Dialog):
@@ -108,9 +112,9 @@ class PSNSourceDialog(Gtk.Dialog):
 
                 # Authenticate with the token (which saves it to the token directory)
                 if psn_client.authenticate(token):
-                    print("Successfully authenticated with PSN and saved token")
+                    logger.info("Successfully authenticated with PSN and saved token")
                 else:
-                    print("Failed to save PSN token")
+                    logger.error("Failed to save PSN token")
         else:
             self.verified = False
             self.status_label.set_text("Authentication: Failed - Invalid token")
@@ -191,7 +195,7 @@ class PSNSourceDialog(Gtk.Dialog):
         # Check if the tokens are valid
         is_authenticated = psn.is_authenticated()
 
-        print(f"DEBUG: PSN authentication check: {is_authenticated}")
+        logger.debug(f"PSN authentication check: {is_authenticated}")
 
         # Update the UI if not in quiet mode
         if not quiet:

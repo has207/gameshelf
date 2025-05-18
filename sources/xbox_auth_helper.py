@@ -19,7 +19,16 @@ import json
 import os
 import threading
 import time
+import logging
 from urllib.parse import urlparse, parse_qs
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr  # Log to stderr so we don't interfere with the JSON output
+)
+logger = logging.getLogger(__name__)
 
 # Important: This must be run in a separate process from any GTK 4 application
 # Use GTK 3.0 specifically for WebKit2 compatibility
@@ -59,7 +68,7 @@ class XboxAuthWebViewWindow(Gtk.Window):
                 if 'code' in query_params:
                     self.auth_code = query_params['code'][0]
                     # Send debug output to stderr instead of stdout
-                    print(f"Authorization code extracted!", file=sys.stderr)
+                    logger.info(f"Authorization code extracted!")
 
                     # Show success message
                     success_html = """
@@ -117,29 +126,25 @@ def authenticate_xbox(client_id, redirect_uri, scope):
 
 
 if __name__ == "__main__":
-    # Redirect all debug output to stderr
-    def debug_print(*args, **kwargs):
-        kwargs['file'] = sys.stderr
-        print(*args, **kwargs)
-
     # Get parameters from command line
     if len(sys.argv) < 4:
+        logger.error("Missing parameters: client_id, redirect_uri, scope")
         result = {"error": "Missing parameters: client_id, redirect_uri, scope"}
     else:
         client_id = sys.argv[1]
         redirect_uri = sys.argv[2]
         scope = sys.argv[3]
 
-        debug_print("Starting OAuth authentication flow...")
+        logger.info("Starting OAuth authentication flow...")
 
         # Run authentication
         auth_code = authenticate_xbox(client_id, redirect_uri, scope)
 
         if auth_code:
-            debug_print("Authentication successful!")
+            logger.info("Authentication successful!")
             result = {"code": auth_code}
         else:
-            debug_print("Authentication failed or was cancelled.")
+            logger.warning("Authentication failed or was cancelled.")
             result = {"error": "Authentication failed or was cancelled"}
 
     # Output the result as JSON to stdout (with no extra output)

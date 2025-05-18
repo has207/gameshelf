@@ -7,8 +7,12 @@ when we already have the auth code from the WebKit authentication UI.
 import os
 import json
 import requests
+import logging
 from datetime import datetime
 from pathlib import Path
+
+# Get a logger for this module
+logger = logging.getLogger(__name__)
 
 class EpicAuthCodeWrapper:
     """Wrapper to complete Epic Games authentication flow with an existing auth code"""
@@ -45,7 +49,7 @@ class EpicAuthCodeWrapper:
             # Exchange the code for tokens
             token_response = self._request_oauth_token(auth_code)
             if not token_response:
-                print("Failed to exchange code for token")
+                logger.error("Failed to exchange code for token")
                 return False
 
             # Save the tokens
@@ -58,7 +62,7 @@ class EpicAuthCodeWrapper:
             return True
 
         except Exception as e:
-            print(f"Error completing Epic authentication: {e}")
+            logger.error(f"Error completing Epic authentication: {e}")
             return False
 
     def _request_oauth_token(self, auth_code):
@@ -84,5 +88,5 @@ class EpicAuthCodeWrapper:
             return response.json()
 
         except Exception as e:
-            print(f"Failed to request OAuth token: {e}")
+            logger.error(f"Failed to request OAuth token: {e}")
             return None

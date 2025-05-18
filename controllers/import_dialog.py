@@ -1,7 +1,11 @@
 from gi.repository import Gtk, Gio, GLib
 import os
 import threading
+import logging
 from pathlib import Path
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 from importers.json_importer import JsonImporter
 
@@ -209,7 +213,7 @@ class ImportDialog(Gtk.Dialog):
                 if not self.cover_entry.get_text():
                     self.cover_entry.set_text(os.path.dirname(path))
         except Exception as e:
-            print(f"Error selecting JSON file: {e}")
+            logger.error(f"Error selecting JSON file: {e}")
 
     def on_cover_browse_clicked(self, button):
         """Handle cover directory browse button click"""
@@ -232,7 +236,7 @@ class ImportDialog(Gtk.Dialog):
                 path = folder.get_path()
                 self.cover_entry.set_text(path)
         except Exception as e:
-            print(f"Error selecting cover directory: {e}")
+            logger.error(f"Error selecting cover directory: {e}")
 
     def on_response(self, dialog, response_id):
         """Handle dialog response"""

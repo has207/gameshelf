@@ -1,10 +1,14 @@
 from typing import Dict, List, Optional
+import logging
 
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf, GLib
 from data_handler import DataHandler, Game, Runner
 from process_tracking import ProcessTracker
 from app_state_manager import AppStateManager
 from controllers.common import get_template_path
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 from controllers.details_controller import GameDetailsContent, DetailsController
 from controllers.game_dialog_controller import GameDialog
@@ -46,7 +50,7 @@ class GameShelfController:
 
     def get_runners(self) -> List[Runner]:
         runners = list(self.runners.values())
-        print(f"get_runners() returning {len(runners)} runners: {[r.id for r in runners]}")
+        logger.debug(f"get_runners() returning {len(runners)} runners: {[r.id for r in runners]}")
         return runners
 
     def get_runner(self, runner_id: str) -> Optional[Runner]:
@@ -96,20 +100,20 @@ class GameShelfController:
         self.games = self.data_handler.load_games()
         self.runners = {runner.id: runner for runner in self.data_handler.load_runners()}
 
-        print(f"Reloaded data: {len(self.games)} games, {len(self.runners)} runners")
+        logger.info(f"Reloaded data: {len(self.games)} games, {len(self.runners)} runners")
 
         # Get search text
         search_text = self.get_search_text()
 
         # Refresh the sidebar if requested
         if refresh_sidebar and self.sidebar_controller:
-            print("Refreshing sidebar filters")
+            logger.debug("Refreshing sidebar filters")
             self.sidebar_controller.refresh_filters()
 
         # Refresh games grid if requested
         if refresh_grid and hasattr(self, 'game_grid_controller') and self.game_grid_controller:
             # Let the grid controller handle the filtering using the sidebar controller
-            print("Refreshing game grid with current filters")
+            logger.debug("Refreshing game grid with current filters")
             self.game_grid_controller.populate_games(search_text=search_text)
 
     def get_game_pixbuf(self, game: Game, width: int = 200, height: int = 260) -> Optional[GdkPixbuf.Pixbuf]:
@@ -144,7 +148,7 @@ class GameShelfController:
     def toggle_show_hidden(self) -> None:
         """Toggle between showing hidden or non-hidden games"""
         self.show_hidden = not self.show_hidden
-        print(f"Toggled show_hidden to: {self.show_hidden}")
+        logger.debug(f"Toggled show_hidden to: {self.show_hidden}")
 
         # Save state to settings
         self.settings_manager.set_show_hidden(self.show_hidden)
@@ -200,16 +204,16 @@ class GameShelfWindow(Adw.ApplicationWindow):
         self.current_selected_game = None
 
         # Debug to see if the UI template is loaded correctly
-        print("Sidebar Container:", self.sidebar_container)
-        print("Games Grid:", self.games_grid)
-        print("Details Panel:", self.details_panel)
+        logger.debug(f"Sidebar Container: {self.sidebar_container}")
+        logger.debug(f"Games Grid: {self.games_grid}")
+        logger.debug(f"Details Panel: {self.details_panel}")
 
         # Initialize sub-controllers
         self._init_controllers()
 
     def _init_controllers(self):
         """Initialize all the sub-controllers and connect them to UI elements"""
-        print("Initializing controllers...")
+        logger.info("Initializing controllers...")
 
         # Initialize controllers in correct dependency order
         self.controller.title_bar_controller = TitleBarController(self.controller)
@@ -218,9 +222,9 @@ class GameShelfWindow(Adw.ApplicationWindow):
         self.controller.details_controller = DetailsController(self.controller)
 
         # Debug info
-        print(f"Controller initialized: {self.controller}")
-        print(f"Grid controller: {self.controller.game_grid_controller}")
-        print(f"Sidebar controller: {self.controller.sidebar_controller}")
+        logger.debug(f"Controller initialized: {self.controller}")
+        logger.debug(f"Grid controller: {self.controller.game_grid_controller}")
+        logger.debug(f"Sidebar controller: {self.controller.sidebar_controller}")
 
         # Initialize visibility button with saved state
         if hasattr(self, 'visibility_toggle') and self.visibility_toggle is not None:
@@ -239,12 +243,12 @@ class GameShelfWindow(Adw.ApplicationWindow):
         # Setup components in correct order
         # 1. First title bar (needed for search)
         if hasattr(self, 'search_entry') and self.search_entry is not None:
-            print("Setting up search entry")
+            logger.debug("Setting up search entry")
             self.controller.title_bar_controller.setup_search(self.search_entry)
 
         # 2. Then grid view
         if hasattr(self, 'games_grid') and self.games_grid is not None:
-            print("Setting up games grid")
+            logger.debug("Setting up games grid")
             self.controller.game_grid_controller.bind_gridview(self.games_grid)
 
             # Clear old sidebar index selection to avoid interference with new filter system
@@ -252,12 +256,12 @@ class GameShelfWindow(Adw.ApplicationWindow):
 
         # 3. Then details panel
         if hasattr(self, 'details_content') and hasattr(self, 'details_panel'):
-            print("Setting up details panel")
+            logger.debug("Setting up details panel")
             self.controller.details_controller.setup_details_panel(self.details_content, self.details_panel)
 
         # 4. Set up the sidebar (needed before applying filters)
         if hasattr(self, 'sidebar_container') and self.sidebar_container is not None:
-            print("Setting up sidebar")
+            logger.debug("Setting up sidebar")
             self.controller.sidebar_controller.setup_sidebar(self.sidebar_container)
 
         # 5. Apply saved filters after sidebar is set up
@@ -267,7 +271,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
 
             # We'll let the sidebar controller apply the filters since it has all the filter categories
             if hasattr(self.controller, 'sidebar_controller') and self.controller.sidebar_controller:
-                print("Applying saved filters from settings")
+                logger.debug("Applying saved filters from settings")
 
                 # Set active filters in the sidebar controller
                 self.controller.sidebar_controller.active_filters = active_filters
@@ -398,11 +402,11 @@ class GameShelfWindow(Adw.ApplicationWindow):
 
             if not added:
                 # If we couldn't add the toast, print the message
-                print(f"Notification: {message}")
+                logger.info(f"Notification: {message}")
         except Exception as e:
             # If anything goes wrong, fall back to printing
-            print(f"Notification: {message}")
-            print(f"Error showing toast: {e}")
+            logger.info(f"Notification: {message}")
+            logger.error(f"Error showing toast: {e}")
 
     def _on_source_removed(self, source_manager):
         """Handle a source being removed"""

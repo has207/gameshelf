@@ -1,6 +1,10 @@
 import threading
+import logging
 
 from gi.repository import Gtk, Adw, Gio, GObject, GLib
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 from controllers.common import get_template_path
 from providers.opencritic_client import OpenCriticClient
@@ -130,7 +134,7 @@ class MetadataSearchDialog(Adw.Window):
             # Update the UI in the main thread
             GLib.idle_add(self._update_search_results, results)
         except Exception as e:
-            print(f"Error searching for '{query}': {e}")
+            logger.error(f"Error searching for '{query}': {e}")
             GLib.idle_add(self._show_search_error, str(e))
 
     def _update_search_results(self, results):
@@ -212,7 +216,7 @@ class MetadataSearchDialog(Adw.Window):
         result_name = getattr(row, 'result_name', "")
 
         if result_id is not None:
-            print(f"Selected result: {result_name} (ID: {result_id})")
+            logger.info(f"Selected result: {result_name} (ID: {result_id})")
 
             # Show the preview dialog
             self._show_game_details(result_id, result_name)
@@ -284,7 +288,7 @@ class MetadataSearchDialog(Adw.Window):
             success = self.launchbox_metadata.initialize_database()
             GLib.idle_add(self._on_launchbox_init_complete, success)
         except Exception as e:
-            print(f"Error initializing LaunchBox database: {e}")
+            logger.error(f"Error initializing LaunchBox database: {e}")
             GLib.idle_add(self._on_launchbox_init_complete, False, str(e))
 
     def _on_launchbox_init_complete(self, success, error_message=None):

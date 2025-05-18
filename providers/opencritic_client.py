@@ -8,10 +8,14 @@ A Python client for accessing the OpenCritic API. Ported from the Playnite OpenC
 import requests
 import datetime
 import json
+import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
 from providers.metadata_provider import MetadataProvider, Game, Genre, SearchResultItem, Company, Platform, Image, ImageCollection
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -62,7 +66,7 @@ class OpenCriticClient(MetadataProvider):
 
         response = self.session.get(url, params=params)
         if not response.ok:
-            print(f"Error searching for '{query}': {response.status_code} {response.reason}")
+            logger.error(f"Error searching for '{query}': {response.status_code} {response.reason}")
             return []
 
         data = response.json()
@@ -92,7 +96,7 @@ class OpenCriticClient(MetadataProvider):
 
         response = self.session.get(url)
         if not response.ok:
-            print(f"Error fetching game {game_id}: {response.status_code} {response.reason}")
+            logger.error(f"Error fetching game {game_id}: {response.status_code} {response.reason}")
             return None
 
         data = response.json()
@@ -209,91 +213,91 @@ class OpenCriticClient(MetadataProvider):
 
 def display_game_details(game: Game):
     """Display game details in a readable format"""
-    print("\nGame Details:")
-    print(f"Title: {game.name}")
+    logger.info("\nGame Details:")
+    logger.info(f"Title: {game.name}")
 
     if game.description:
         max_len = 200
         description = game.description[:max_len] + "..." if len(game.description) > max_len else game.description
-        print(f"Description: {description}")
+        logger.info(f"Description: {description}")
 
-    print(f"URL: {game.url}")
-    print(f"Critic Score: {game.top_critic_score:.1f}")
-    print(f"User Score: {game.median_score:.1f}")
+    logger.info(f"URL: {game.url}")
+    logger.info(f"Critic Score: {game.top_critic_score:.1f}")
+    logger.info(f"User Score: {game.median_score:.1f}")
 
     if game.first_release_date:
-        print(f"Release Date: {game.first_release_date.strftime('%Y-%m-%d')}")
+        logger.info(f"Release Date: {game.first_release_date.strftime('%Y-%m-%d')}")
 
     if game.genres:
-        print(f"Genres: {', '.join(g.name for g in game.genres)}")
+        logger.info(f"Genres: {', '.join(g.name for g in game.genres)}")
 
     # Display developers
     developers = [c.name for c in game.companies if c.type.upper() == "DEVELOPER"]
     if developers:
-        print(f"Developers: {', '.join(developers)}")
+        logger.info(f"Developers: {', '.join(developers)}")
 
     # Display publishers
     publishers = [c.name for c in game.companies if c.type.upper() == "PUBLISHER"]
     if publishers:
-        print(f"Publishers: {', '.join(publishers)}")
+        logger.info(f"Publishers: {', '.join(publishers)}")
 
     # Display platforms
     if game.platforms:
-        print(f"Platforms: {', '.join(p.name for p in game.platforms)}")
+        logger.info(f"Platforms: {', '.join(p.name for p in game.platforms)}")
 
     # Display image information
     if game.images:
         if game.images.box and game.images.box.url:
-            print(f"Cover Image: {game.images.box.url}")
+            logger.info(f"Cover Image: {game.images.box.url}")
 
         if game.images.screenshots:
-            print(f"Screenshots: {len(game.images.screenshots)} available")
+            logger.info(f"Screenshots: {len(game.images.screenshots)} available")
             for i, screenshot in enumerate(game.images.screenshots[:3]):
                 if screenshot.url:
-                    print(f"- {screenshot.url}")
+                    logger.info(f"- {screenshot.url}")
 
 
 def main():
     """Main entry point for the OpenCritic API client"""
-    print("OpenCritic API Client")
-    print("=====================")
+    logger.info("OpenCritic API Client")
+    logger.info("=====================")
 
     client = OpenCriticClient()
 
     while True:
         query = input("\nEnter game name to search (or 'exit' to quit): ")
         if not query or query.lower() == "exit":
-            print("Exiting...")
+            logger.info("Exiting...")
             break
 
-        print(f"Searching for: {query}")
+        logger.info(f"Searching for: {query}")
         results = client.search(query)
 
         if not results:
-            print("No results found.")
+            logger.info("No results found.")
             continue
 
-        print(f"Found {len(results)} results:")
+        logger.info(f"Found {len(results)} results:")
         for i, result in enumerate(results, 1):
-            print(f"{i}. {result.name} (ID: {result.id})")
+            logger.info(f"{i}. {result.name} (ID: {result.id})")
 
         selection = input("Enter number to view details (or 0 to search again): ")
         try:
             selection = int(selection)
             if selection < 1 or selection > len(results):
-                print("Invalid selection or search again requested.")
+                logger.info("Invalid selection or search again requested.")
                 continue
         except ValueError:
-            print("Invalid selection. Please enter a number.")
+            logger.warning("Invalid selection. Please enter a number.")
             continue
 
         selected_game = results[selection - 1]
-        print(f"Fetching details for {selected_game.name}...")
+        logger.info(f"Fetching details for {selected_game.name}...")
 
         details = client.get_details(selected_game.id)
 
         if not details:
-            print("Failed to retrieve game details.")
+            logger.error("Failed to retrieve game details.")
             continue
 
         display_game_details(details)

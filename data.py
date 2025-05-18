@@ -4,8 +4,12 @@ from typing import Optional, Union, List, Dict, Any
 from enum import Enum, auto
 import yaml
 import psutil
+import logging
 
 from data_mapping import CompletionStatus, Platforms, AgeRatings, Features, Genres, Regions
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class SourceType(Enum):
@@ -75,14 +79,14 @@ class Runner:
                         self.platforms.append(Platforms.from_string(platform))
                     except Exception as e:
                         # Improved error reporting for debugging
-                        print(f"Error with runner '{title}' - invalid platform '{platform}': {e}")
+                        logger.warning(f"Error with runner '{title}' - invalid platform '{platform}': {e}")
                         # Skip invalid platform strings
                         pass
                 elif isinstance(platform, Platforms):
                     self.platforms.append(platform)
                 else:
                     # Handle unexpected types with clear error message
-                    print(f"Error with runner '{title}' - platform type '{type(platform).__name__}' is not supported. Expected string or Platforms enum.")
+                    logger.warning(f"Error with runner '{title}' - platform type '{type(platform).__name__}' is not supported. Expected string or Platforms enum.")
                     # Skip invalid platform types
 
 
@@ -116,7 +120,7 @@ class Game:
             try:
                 self.completion_status = CompletionStatus.from_string(completion_status)
             except Exception as e:
-                print(f"Error with game '{title}' - invalid completion status value '{completion_status}': {e}")
+                logger.warning(f"Error with game '{title}' - invalid completion status value '{completion_status}': {e}")
                 self.completion_status = CompletionStatus.NOT_PLAYED
         else:
             self.completion_status = completion_status
@@ -130,14 +134,14 @@ class Game:
                         self.platforms.append(Platforms.from_string(platform))
                     except Exception as e:
                         # Improved error reporting for debugging
-                        print(f"Error with game '{title}' - invalid platform '{platform}': {e}")
+                        logger.warning(f"Error with game '{title}' - invalid platform '{platform}': {e}")
                         # Skip invalid platform strings
                         pass
                 elif isinstance(platform, Platforms):
                     self.platforms.append(platform)
                 else:
                     # Handle unexpected types with clear error message
-                    print(f"Error with game '{title}' - platform type '{type(platform).__name__}' is not supported. Expected string or Platforms enum.")
+                    logger.warning(f"Error with game '{title}' - platform type '{type(platform).__name__}' is not supported. Expected string or Platforms enum.")
                     # Skip invalid platform types
 
         # Handle age_ratings list
@@ -149,14 +153,14 @@ class Game:
                         self.age_ratings.append(AgeRatings.from_string(rating))
                     except Exception as e:
                         # Improved error reporting for debugging
-                        print(f"Error with game '{title}' - invalid age rating '{rating}': {e}")
+                        logger.warning(f"Error with game '{title}' - invalid age rating '{rating}': {e}")
                         # Skip invalid age rating strings
                         pass
                 elif isinstance(rating, AgeRatings):
                     self.age_ratings.append(rating)
                 else:
                     # Handle unexpected types with clear error message
-                    print(f"Error with game '{title}' - age rating type '{type(rating).__name__}' is not supported. Expected string or AgeRatings enum.")
+                    logger.warning(f"Error with game '{title}' - age rating type '{type(rating).__name__}' is not supported. Expected string or AgeRatings enum.")
                     # Skip invalid age rating types
 
         # Handle features list
@@ -168,14 +172,14 @@ class Game:
                         self.features.append(Features.from_string(feature))
                     except Exception as e:
                         # Improved error reporting for debugging
-                        print(f"Error with game '{title}' - invalid feature '{feature}': {e}")
+                        logger.warning(f"Error with game '{title}' - invalid feature '{feature}': {e}")
                         # Skip invalid feature strings
                         pass
                 elif isinstance(feature, Features):
                     self.features.append(feature)
                 else:
                     # Handle unexpected types with clear error message
-                    print(f"Error with game '{title}' - feature type '{type(feature).__name__}' is not supported. Expected string or Features enum.")
+                    logger.warning(f"Error with game '{title}' - feature type '{type(feature).__name__}' is not supported. Expected string or Features enum.")
                     # Skip invalid feature types
 
         # Handle genres list
@@ -187,14 +191,14 @@ class Game:
                         self.genres.append(Genres.from_string(genre))
                     except Exception as e:
                         # Improved error reporting for debugging
-                        print(f"Error with game '{title}' - invalid genre '{genre}': {e}")
+                        logger.warning(f"Error with game '{title}' - invalid genre '{genre}': {e}")
                         # Skip invalid genre strings
                         pass
                 elif isinstance(genre, Genres):
                     self.genres.append(genre)
                 else:
                     # Handle unexpected types with clear error message
-                    print(f"Error with game '{title}' - genre type '{type(genre).__name__}' is not supported. Expected string or Genres enum.")
+                    logger.warning(f"Error with game '{title}' - genre type '{type(genre).__name__}' is not supported. Expected string or Genres enum.")
                     # Skip invalid genre types
 
         # Handle regions list
@@ -206,14 +210,14 @@ class Game:
                         self.regions.append(Regions.from_string(region))
                     except Exception as e:
                         # Improved error reporting for debugging
-                        print(f"Error with game '{title}' - invalid region '{region}': {e}")
+                        logger.warning(f"Error with game '{title}' - invalid region '{region}': {e}")
                         # Skip invalid region strings
                         pass
                 elif isinstance(region, Regions):
                     self.regions.append(region)
                 else:
                     # Handle unexpected types with clear error message
-                    print(f"Error with game '{title}' - region type '{type(region).__name__}' is not supported. Expected string or Regions enum.")
+                    logger.warning(f"Error with game '{title}' - region type '{type(region).__name__}' is not supported. Expected string or Regions enum.")
                     # Skip invalid region types
 
     def _get_game_dir_path(self, data_dir: Path) -> Path:
@@ -295,7 +299,7 @@ class Game:
             return False
 
         except Exception as e:
-            print(f"Error checking if game is running: {e}")
+            logger.error(f"Error checking if game is running: {e}")
             # In case of error, try to clean up
             try:
                 pid_file.unlink()

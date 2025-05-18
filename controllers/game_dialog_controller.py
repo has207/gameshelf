@@ -1,6 +1,10 @@
 from typing import List, Optional, Dict, Type, Set
+import logging
 
 from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk, GLib
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 from data import Game, Runner
 from data_mapping import (
@@ -224,7 +228,7 @@ class GameDialog(Adw.Window):
                     self.image_preview.set_paintable(icon_paintable)
                     self.selected_image_path = None
             except Exception as e:
-                print(f"Error loading preview image: {e}")
+                logger.error(f"Error loading preview image: {e}")
                 # Set default icon for invalid image
                 icon_paintable = self.controller.data_handler.get_default_icon_paintable("image-missing", 128)
                 self.image_preview.set_paintable(icon_paintable)
@@ -477,7 +481,7 @@ class GameDialog(Adw.Window):
                     # Update play count with new value
                     self.controller.data_handler.update_play_count(self.game, play_count)
         except (ValueError, TypeError) as e:
-            print(f"Error updating play count: {e}")
+            logger.error(f"Error updating play count: {e}")
 
         try:
             play_time_text = self.play_time_entry.get_text().strip()
@@ -487,7 +491,7 @@ class GameDialog(Adw.Window):
                     # Update play time with new value
                     self.controller.data_handler.update_play_time(self.game, play_time)
         except (ValueError, TypeError) as e:
-            print(f"Error updating play time: {e}")
+            logger.error(f"Error updating play time: {e}")
 
         # Copy the image if a new one was selected
         if self.selected_image_path is not None:  # Image was changed
@@ -759,7 +763,7 @@ class GameDialog(Adw.Window):
                 if pixbuf:
                     self.image_preview.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
             except Exception as e:
-                print(f"Error loading preview image: {e}")
+                logger.error(f"Error loading preview image: {e}")
 
         # Make sure the action button is enabled
         self.validate_form()

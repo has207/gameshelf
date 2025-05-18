@@ -438,7 +438,7 @@ class EpicLibraryClient:
             filtered_assets.append(asset)
 
         if show_progress:
-            print(f"Found {len(filtered_assets)} potential games to process")
+            logger.info(f"Found {len(filtered_assets)} potential games to process")
 
         # Step 3: Process assets to generate game entries
         logger.info(f"Processing {len(filtered_assets)} assets...")
@@ -452,7 +452,7 @@ class EpicLibraryClient:
                 # Show progress
                 processed += 1
                 if show_progress and processed % 20 == 0:
-                    print(f"Processing games... {processed}/{total_assets}", end="\r")
+                    logger.info(f"Processing games... {processed}/{total_assets}")
 
                 app_name = game_asset.get("appName", "")
                 namespace = game_asset.get("namespace", "")
@@ -524,7 +524,7 @@ class EpicLibraryClient:
         # Optimized mode - fetch catalog data in batches
         elif optimize_catalog:
             if show_progress:
-                print(f"Processing {len(filtered_assets)} games in optimized batch mode")
+                logger.info(f"Processing {len(filtered_assets)} games in optimized batch mode")
 
             # Create a more efficient mapping of assets by namespace and ID for lookup
             assets_by_id = {}
@@ -556,7 +556,7 @@ class EpicLibraryClient:
                 batch_items = all_catalog_item_ids[start_idx:end_idx]
 
                 if show_progress:
-                    print(f"  Processing batch {batch_index + 1}/{total_batches} ({len(batch_items)} items)")
+                    logger.info(f"  Processing batch {batch_index + 1}/{total_batches} ({len(batch_items)} items)")
 
                 # Process each namespace in this batch
                 by_namespace = {}
@@ -668,7 +668,7 @@ class EpicLibraryClient:
                         logger.error(f"Error processing batch for namespace {namespace}: {e}")
 
             if show_progress:
-                print(f"Processed {len(owned_games)} games using optimized batch processing")
+                logger.info(f"Processed {len(owned_games)} games using optimized batch processing")
 
         # Standard mode - fetch detailed catalog data one by one
         else:
@@ -676,7 +676,7 @@ class EpicLibraryClient:
                 # Show progress
                 processed += 1
                 if show_progress and processed % 10 == 0:
-                    print(f"Processing games... {processed}/{total_assets}", end="\r")
+                    logger.info(f"Processing games... {processed}/{total_assets}")
 
                 # Get catalog details for this asset
                 try:
@@ -761,7 +761,7 @@ class EpicLibraryClient:
                     continue
 
         if show_progress:
-            print(f"Processing games... {total_assets}/{total_assets} - Complete!")
+            logger.info(f"Processing games... {total_assets}/{total_assets} - Complete!")
 
         logger.info(f"Found {len(owned_games)} games in Epic account")
         return owned_games

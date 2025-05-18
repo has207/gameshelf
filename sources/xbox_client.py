@@ -66,7 +66,7 @@ class XboxLibrary(SourceScanner):
 
         # Check if the helper script exists
         if not auth_helper_path.exists():
-            print(f"Error: Authentication helper script not found at {auth_helper_path}")
+            logger.error(f"Authentication helper script not found at {auth_helper_path}")
             return False
 
         try:
@@ -83,7 +83,7 @@ class XboxLibrary(SourceScanner):
                 self.SCOPE
             ]
 
-            print("Starting authentication process in separate process...")
+            logger.info("Starting authentication process in separate process...")
 
             # Use Popen instead of run so we can detach the process
             # This prevents the main app from waiting and becoming unresponsive
@@ -104,8 +104,8 @@ class XboxLibrary(SourceScanner):
                 exit_code = process.returncode
 
                 if exit_code != 0:
-                    print(f"Authentication process failed with exit code {exit_code}")
-                    print(f"Error: {stderr}")
+                    logger.error(f"Authentication process failed with exit code {exit_code}")
+                    logger.error(f"Error: {stderr}")
                     return False
 
                 # Parse the JSON output from the helper script
@@ -116,26 +116,26 @@ class XboxLibrary(SourceScanner):
                         json_str = stdout[json_start:]
                         auth_result = json.loads(json_str)
                         if 'error' in auth_result:
-                            print(f"Authentication error: {auth_result['error']}")
+                            logger.error(f"Authentication error: {auth_result['error']}")
                             return False
                         elif 'code' in auth_result:
                             auth_code = auth_result['code']
                         else:
-                            print("Unexpected authentication result")
+                            logger.error("Unexpected authentication result")
                             return False
                     else:
-                        print("No JSON found in authentication output")
-                        print(f"Output: {stdout}")
+                        logger.error("No JSON found in authentication output")
+                        logger.debug(f"Output: {stdout}")
                         return False
                 except json.JSONDecodeError as e:
-                    print(f"Failed to parse authentication result: {e}")
-                    print(f"Output: {stdout}")
-                    print(f"Error: {stderr}")
+                    logger.error(f"Failed to parse authentication result: {e}")
+                    logger.debug(f"Output: {stdout}")
+                    logger.debug(f"Error: {stderr}")
                     return False
 
             except subprocess.TimeoutExpired:
                 # Process took too long, the user probably closed the window
-                print("Authentication timeout - process took too long")
+                logger.warning("Authentication timeout - process took too long")
                 process.terminate()
                 try:
                     process.wait(timeout=5)  # Give it 5 seconds to terminate gracefully
@@ -144,25 +144,25 @@ class XboxLibrary(SourceScanner):
                 return False
 
         except Exception as e:
-            print(f"Error running authentication: {e}")
+            logger.error(f"Error running authentication: {e}")
             return False
 
         try:
             # Check if we got an authorization code
             if not auth_code:
-                print("Authentication failed or was cancelled.")
+                logger.error("Authentication failed or was cancelled.")
                 return False
         except UnboundLocalError:
             # Handle case where auth_code was never set
-            print("Authentication process did not complete properly")
+            logger.error("Authentication process did not complete properly")
             return False
 
         # Exchange the code for tokens
         try:
-            print("Getting OAuth tokens...")
+            logger.info("Getting OAuth tokens...")
             # Get OAuth tokens
             token_response = self._request_oauth_token(auth_code)
-            print("OAuth tokens received successfully")
+            logger.info("OAuth tokens received successfully")
 
             # Store the Live tokens
             live_login_data = {
@@ -174,13 +174,13 @@ class XboxLibrary(SourceScanner):
                 "TokenType": token_response["token_type"]
             }
 
-            print("Getting Xbox XSTS tokens...")
+            logger.info("Getting Xbox XSTS tokens...")
             # Get Xbox XSTS tokens
             xsts_tokens = self._authenticate_with_xbox(live_login_data["AccessToken"])
-            print("XSTS tokens received successfully")
+            logger.info("XSTS tokens received successfully")
 
             # Save tokens to files
-            print("Saving tokens to files...")
+            logger.info("Saving tokens to files...")
 
             with open(self.live_tokens_path, 'w') as f:
                 json.dump(live_login_data, f, indent=4)
@@ -192,11 +192,11 @@ class XboxLibrary(SourceScanner):
             os.chmod(self.live_tokens_path, 0o600)
             os.chmod(self.xsts_tokens_path, 0o600)
 
-            print("Tokens saved successfully")
+            logger.info("Tokens saved successfully")
             return True
 
         except Exception as e:
-            print(f"Error during authentication: {e}")
+            logger.error(f"Error during authentication: {e}")
             return False
 
     def is_authenticated(self, try_refresh=True):
@@ -243,13 +243,13 @@ class XboxLibrary(SourceScanner):
 
             # If tokens have expired and refresh is requested
             if try_refresh and response.status_code in [401, 403]:
-                print("Authentication expired. Refreshing tokens...")
+                logger.info("Authentication expired. Refreshing tokens...")
                 return self._refresh_tokens()
 
             return False
 
         except Exception as e:
-            print(f"Error checking authentication: {e}")
+            logger.error(f"Error checking authentication: {e}")
             if try_refresh:
                 return self._refresh_tokens()
             return False
@@ -276,7 +276,7 @@ class XboxLibrary(SourceScanner):
             'Accept-Language': 'en-US'
         }
 
-        print("Fetching Xbox title history...")
+        logger.info("Fetching Xbox title history...")
 
         # Make the request to get the title history
         response = requests.get(
@@ -289,12 +289,12 @@ class XboxLibrary(SourceScanner):
 
         # Get the titles
         titles = data.get('titles', [])
-        print(f"Retrieved {len(titles)} titles from Xbox")
+        logger.info(f"Retrieved {len(titles)} titles from Xbox")
 
         # Get playtime for all titles
         if titles:
             try:
-                print("Fetching playtime data...")
+                logger.info("Fetching playtime data...")
                 # Extract title IDs
                 title_ids = [title.get('titleId') for title in titles if title.get('titleId')]
 
@@ -308,9 +308,9 @@ class XboxLibrary(SourceScanner):
                     if title_id in playtime_dict:
                         title['minutesPlayed'] = playtime_dict[title_id]
 
-                print(f"Added playtime data for {len(playtime_stats)} titles")
+                logger.info(f"Added playtime data for {len(playtime_stats)} titles")
             except Exception as e:
-                print(f"Error fetching playtime data: {e}")
+                logger.error(f"Error fetching playtime data: {e}")
 
         # Save library to file for convenience
         library_file = os.path.join(self.data_dir, "game_library.json")
@@ -383,7 +383,7 @@ class XboxLibrary(SourceScanner):
         """Refresh authentication tokens (internal method)"""
         # Check if we have live tokens
         if not os.path.exists(self.live_tokens_path):
-            print("No refresh token available. Need manual re-authentication.")
+            logger.warning("No refresh token available. Need manual re-authentication.")
             return False
 
         try:
@@ -393,7 +393,7 @@ class XboxLibrary(SourceScanner):
 
             # Ensure we have a refresh token
             if 'RefreshToken' not in live_tokens:
-                print("No refresh token found. Need manual re-authentication.")
+                logger.warning("No refresh token found. Need manual re-authentication.")
                 return False
 
             # Use refresh token to get new access token
@@ -409,7 +409,7 @@ class XboxLibrary(SourceScanner):
             }
 
             # Request new tokens
-            print("Requesting new OAuth tokens...")
+            logger.info("Requesting new OAuth tokens...")
             response = requests.post(
                 'https://login.live.com/oauth20_token.srf',
                 data=request_data,
@@ -417,7 +417,7 @@ class XboxLibrary(SourceScanner):
             )
 
             if response.status_code != 200:
-                print(f"Token refresh failed: {response.status_code}")
+                logger.error(f"Token refresh failed: {response.status_code}")
                 return False
 
             # Extract new tokens
@@ -434,7 +434,7 @@ class XboxLibrary(SourceScanner):
             }
 
             # Get new Xbox XSTS tokens
-            print("Authenticating with Xbox Live...")
+            logger.info("Authenticating with Xbox Live...")
             xsts_tokens = self._authenticate_with_xbox(live_login_data["AccessToken"])
 
             # Save updated tokens
@@ -448,11 +448,11 @@ class XboxLibrary(SourceScanner):
             os.chmod(self.live_tokens_path, 0o600)
             os.chmod(self.xsts_tokens_path, 0o600)
 
-            print("Token refresh successful!")
+            logger.info("Token refresh successful!")
             return True
 
         except Exception as e:
-            print(f"Error refreshing tokens: {e}")
+            logger.error(f"Error refreshing tokens: {e}")
             return False
 
     def _get_user_stats_minutes_played(self, title_ids):
@@ -850,76 +850,85 @@ class XboxConsoleApp:
 
     def run(self):
         """Run the Xbox client as a standalone application"""
-        print("Xbox Authentication and Library Demo")
-        print("===================================")
+        logger.info("Xbox Authentication and Library Demo")
+        logger.info("===================================")
 
         # For the command-line app, we need to make sure the helper exists
         # and it uses GTK 3.0 for WebKit compatibility
         helper_path = Path(__file__).parent / "xbox_auth_helper.py"
         if not helper_path.exists():
-            print(f"Error: Authentication helper script not found at {helper_path}")
-            print("Please ensure the helper script is properly installed.")
+            logger.error(f"Authentication helper script not found at {helper_path}")
+            logger.error("Authentication helper script not found.")
+            logger.error("Please ensure the helper script is properly installed.")
             sys.exit(1)
 
         # Check if authenticated
         auth_status = self.xbox.is_authenticated()
-        print(f"Authentication status: {'✓ Authenticated' if auth_status else '✗ Not authenticated'}")
+        logger.info(f"Authentication status: {'✓ Authenticated' if auth_status else '✗ Not authenticated'}")
+        logger.info(f"Authentication status: {auth_status}")
 
         # Authenticate if needed or requested
         if not auth_status or input("Re-authenticate anyway? (y/n): ").lower() == 'y':
-            print("\nStarting authentication...")
+            logger.info("\nStarting authentication...")
+            logger.info("Starting authentication process from console app")
             if not self.xbox.authenticate():
-                print("\n✗ Authentication failed.")
+                logger.error("\n✗ Authentication failed.")
+                logger.error("Authentication failed in console app")
                 sys.exit(1)
-            print("\n✓ Authentication successful!")
-            print(f"Tokens saved to {self.xbox.data_dir}")
+            logger.info("\n✓ Authentication successful!")
+            logger.info("Authentication successful from console app")
+            logger.info(f"Tokens saved to {self.xbox.data_dir}")
 
         # Fetch and display game library
         try:
-            print("\nFetching game library...")
+            logger.info("\nFetching game library...")
+            logger.info("Fetching game library from console app")
             titles = self.xbox.get_game_library()
 
             # Group and display games by platform
             game_groups = self.xbox.group_games_by_platform(titles)
 
-            print(f"\nFound {game_groups['total']} games in your Xbox library:")
+            logger.info(f"\nFound {game_groups['total']} games in your Xbox library:")
+            logger.info(f"Found {game_groups['total']} games in Xbox library")
 
             # Display PC games
             if game_groups['pc']:
-                print(f"\n=== PC Games ({len(game_groups['pc'])}) ===")
+                logger.info(f"\n=== PC Games ({len(game_groups['pc'])}) ===")
                 for i, game in enumerate(sorted(game_groups['pc'], key=lambda g: g.get('name', '')), 1):
                     if i > 5:
                         break
                     minutes = game.get('minutesPlayed')
                     playtime = f" - {minutes} minutes played" if minutes else ""
-                    print(f"{i}. {game.get('name', 'Unknown')}{playtime}")
+                    logger.info(f"{i}. {game.get('name', 'Unknown')}{playtime}")
 
             # Display console games
             if game_groups['console']:
-                print(f"\n=== Console Games ({len(game_groups['console'])}) ===")
+                logger.info(f"\n=== Console Games ({len(game_groups['console'])}) ===")
                 for i, game in enumerate(sorted(game_groups['console'], key=lambda g: g.get('name', '')), 1):
                     if i > 5:
                         break
                     devices = ", ".join(game.get('devices', []))
                     minutes = game.get('minutesPlayed')
                     playtime = f" - {minutes} minutes played" if minutes else ""
-                    print(f"{i}. {game.get('name', 'Unknown')} ({devices}){playtime}")
+                    logger.info(f"{i}. {game.get('name', 'Unknown')} ({devices}){playtime}")
 
             # Display cross-platform games
             if game_groups['cross_platform']:
-                print(f"\n=== Cross-Platform Games ({len(game_groups['cross_platform'])}) ===")
+                logger.info(f"\n=== Cross-Platform Games ({len(game_groups['cross_platform'])}) ===")
                 for i, game in enumerate(sorted(game_groups['cross_platform'], key=lambda g: g.get('name', '')), 1):
                     if i > 5:
                         break
                     minutes = game.get('minutesPlayed')
                     playtime = f" - {minutes} minutes played" if minutes else ""
-                    print(f"{i}. {game.get('name', 'Unknown')}{playtime}")
+                    logger.info(f"{i}. {game.get('name', 'Unknown')}{playtime}")
 
-            print(f"\nTotal: {game_groups['total']} games found")
-            print(f"\nComplete game library saved to: {os.path.join(self.xbox.data_dir, 'game_library.json')}")
+            logger.info(f"\nTotal: {game_groups['total']} games found")
+            logger.info(f"\nComplete game library saved to: {os.path.join(self.xbox.data_dir, 'game_library.json')}")
+            logger.info(f"Complete game library saved to: {os.path.join(self.xbox.data_dir, 'game_library.json')}")
 
         except Exception as e:
-            print(f"\nError: {e}")
+            logger.error(f"\nError: {e}")
+            logger.error(f"Error in console app: {e}")
 
 
 if __name__ == "__main__":

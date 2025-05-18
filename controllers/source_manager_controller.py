@@ -52,25 +52,25 @@ class SourceManager(Gtk.Box):
 
     def load_sources(self):
         """Load sources from the source handler and populate the list view"""
-        print("DEBUG: load_sources called")
+        logger.debug("load_sources called")
 
         # Clear the list store
         self.list_store.remove_all()
-        print("DEBUG: list store cleared")
+        logger.debug("list store cleared")
 
         # Add sources to the list store
         sources = self.source_handler.load_sources()
-        print(f"DEBUG: Loaded {len(sources)} sources from disk")
+        logger.debug(f"Loaded {len(sources)} sources from disk")
 
         for source in sources:
-            print(f"DEBUG: Adding source to list: {source.name} (ID: {source.id})")
+            logger.debug(f"Adding source to list: {source.name} (ID: {source.id})")
             self.list_store.append(SourceListModel(source))
 
-        print(f"DEBUG: List store now has {self.list_store.get_n_items()} items")
+        logger.debug(f"List store now has {self.list_store.get_n_items()} items")
 
         # Refresh the UI
         self.source_list_view.queue_draw()
-        print("DEBUG: Queued source list view for redraw")
+        logger.debug("Queued source list view for redraw")
 
     @Gtk.Template.Callback()
     def setup_source_item(self, factory, list_item):

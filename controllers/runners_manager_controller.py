@@ -1,11 +1,15 @@
 from pathlib import Path
 from typing import Optional
+import logging
 
 from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk
 from data import Runner
 from data_mapping import Platforms
 
 from controllers.common import get_template_path, show_error_dialog, show_confirmation_dialog, show_image_chooser_dialog
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 @Gtk.Template(filename=get_template_path("runners_manager.ui"))
@@ -207,7 +211,7 @@ class RunnerDialog(Adw.Window):
                     platform = getattr(Platforms, platform_name)
                     selected_platforms.append(platform)
                 except (AttributeError, TypeError):
-                    print(f"Error: Platform {platform_name} not found in Platforms enum")
+                    logger.error(f"Platform {platform_name} not found in Platforms enum")
 
         return selected_platforms
 
@@ -290,7 +294,7 @@ class RunnerDialog(Adw.Window):
                     self.image_preview.set_paintable(icon_paintable)
                     self.selected_image_path = None
             except Exception as e:
-                print(f"Error loading preview image: {e}")
+                logger.error(f"Error loading preview image: {e}")
                 # Set default icon for invalid image
                 icon_paintable = self.controller.data_handler.get_default_icon_paintable("image-missing", 96)
                 self.image_preview.set_paintable(icon_paintable)
@@ -399,7 +403,7 @@ class RunnerDialog(Adw.Window):
                     "The runner file could not be removed."
                 )
         except Exception as e:
-            print(f"Error removing runner: {e}")
+            logger.error(f"Error removing runner: {e}")
             # Show error dialog
             show_error_dialog(
                 self,
@@ -434,7 +438,7 @@ class RunnerDialog(Adw.Window):
             self.command_entry.set_tooltip_text("Required field")
 
         except Exception as e:
-            print(f"Error adding required field indicators: {e}")
+            logger.error(f"Error adding required field indicators: {e}")
 
     def _update_required_field_indicators(self, title_empty=False, command_empty=False):
         """Update tooltips for required fields based on their state
@@ -466,8 +470,8 @@ class RunnerDialog(Adw.Window):
         # Get currently selected platforms
         current_platforms = self._get_selected_platforms()
 
-        print(f"Runner dialog validate_form: title='{title}', command='{command}', platforms: {len(current_platforms)}, discord: {current_discord_enabled}")
-        print(f"Edit mode: {self.edit_mode}, Has title: {has_title}, Has command: {has_command}")
+        logger.debug(f"Runner dialog validate_form: title='{title}', command='{command}', platforms: {len(current_platforms)}, discord: {current_discord_enabled}")
+        logger.debug(f"Edit mode: {self.edit_mode}, Has title: {has_title}, Has command: {has_command}")
 
         if self.edit_mode and self.runner:
             # In edit mode, check if any changes were made
@@ -476,51 +480,51 @@ class RunnerDialog(Adw.Window):
             # Check title change
             if title != self.runner.title:
                 has_changes = True
-                print(f"Title changed from '{self.runner.title}' to '{title}'")
+                logger.debug(f"Title changed from '{self.runner.title}' to '{title}'")
 
             # Check command change
             if command != (self.runner.command or ""):
                 has_changes = True
-                print(f"Command changed from '{self.runner.command}' to '{command}'")
+                logger.debug(f"Command changed from '{self.runner.command}' to '{command}'")
 
             # Check Discord enabled change
             original_discord_enabled = getattr(self.runner, 'discord_enabled', True)
             if current_discord_enabled != original_discord_enabled:
                 has_changes = True
-                print(f"Discord enabled changed from {original_discord_enabled} to {current_discord_enabled}")
+                logger.debug(f"Discord enabled changed from {original_discord_enabled} to {current_discord_enabled}")
 
             # Check image change
             if self.selected_image_path is not None:  # Only if image was explicitly changed
                 has_changes = True
-                print(f"Image changed to '{self.selected_image_path}'")
+                logger.debug(f"Image changed to '{self.selected_image_path}'")
 
             # Check platforms change - get currently selected platforms
             current_platforms = self._get_selected_platforms()
 
             if len(current_platforms) != len(self.runner.platforms):
                 has_changes = True
-                print(f"Number of platforms changed from {len(self.runner.platforms)} to {len(current_platforms)}")
+                logger.debug(f"Number of platforms changed from {len(self.runner.platforms)} to {len(current_platforms)}")
             else:
                 # Check if the platforms are different
                 for platform in current_platforms:
                     if platform not in self.runner.platforms:
                         has_changes = True
-                        print(f"Platform {platform.value} added")
+                        logger.debug(f"Platform {platform.value} added")
                         break
 
                 for platform in self.runner.platforms:
                     if platform not in current_platforms:
                         has_changes = True
-                        print(f"Platform {platform.value} removed")
+                        logger.debug(f"Platform {platform.value} removed")
                         break
 
             # Update button sensitivity - requires title, command, and changes
             self.action_button.set_sensitive(has_title and has_command and has_changes)
-            print(f"Edit mode button sensitivity: {has_title and has_command and has_changes}")
+            logger.debug(f"Edit mode button sensitivity: {has_title and has_command and has_changes}")
         else:
             # In add mode, require both title and command
             self.action_button.set_sensitive(has_title and has_command)
-            print(f"Add mode button sensitivity: {has_title and has_command}")
+            logger.debug(f"Add mode button sensitivity: {has_title and has_command}")
 
             # Update UI to clearly indicate required fields
             self._update_required_field_indicators(title_empty=not has_title, command_empty=not has_command)

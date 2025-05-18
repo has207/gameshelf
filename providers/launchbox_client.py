@@ -663,7 +663,7 @@ class MetadataDownloader:
                         sys.stdout.write(f"\rDownloading: {percent}% ({downloaded} / {total_size} bytes)")
                         sys.stdout.flush()
 
-            print()  # New line after progress
+            logger.info("Progress complete")  # Progress reporting complete
             logger.info(f"Download complete: {zip_path}")
             return zip_path
 
@@ -828,7 +828,7 @@ class LaunchBoxMetadata(MetadataProvider):
                     sys.stdout.write(f"\rProcessed {game_count} games")
                     sys.stdout.flush()
 
-            print()  # New line after progress
+            logger.info("Progress complete")  # Progress reporting complete
 
             # Insert game names (including base names and alternate names)
             logger.info("Adding game names to FTS index...")
@@ -866,7 +866,7 @@ class LaunchBoxMetadata(MetadataProvider):
                     sys.stdout.write(f"\rAdded {image_count} images")
                     sys.stdout.flush()
 
-            print()  # New line after progress
+            logger.info("Progress complete")  # Progress reporting complete
 
             # Commit the transaction
             conn.execute('COMMIT')
@@ -884,7 +884,7 @@ class LaunchBoxMetadata(MetadataProvider):
             conn.execute('ROLLBACK')
             logger.error(f"Error populating database: {e}")
             import traceback
-            traceback.print_exc()
+            logger.error(traceback.format_exc())
             return False
 
     def search(self, query: str) -> List[SearchResultItem]:
@@ -1094,11 +1094,11 @@ class LaunchBoxMetadata(MetadataProvider):
 def display_game_search_results(results: List[Dict[str, Any]]):
     """Display search results in a user-friendly format."""
     if not results:
-        print("No games found matching your search.")
+        logger.info("No games found matching your search.")
         return
 
-    print(f"\nFound {len(results)} games:")
-    print("-" * 80)
+    logger.info(f"Found {len(results)} games:")
+    logger.info("-" * 80)
 
     for i, game in enumerate(results, 1):
         title = game.get('Name', 'Unknown')
@@ -1106,11 +1106,11 @@ def display_game_search_results(results: List[Dict[str, Any]]):
         year = game.get('ReleaseYear', 'Unknown Year')
         matched_name = game.get('MatchedName', title)
 
-        print(f"{i}. {title} ({platform}, {year})")
+        logger.info(f"{i}. {title} ({platform}, {year})")
         if matched_name != title:
-            print(f"   Matched: {matched_name}")
+            logger.info(f"   Matched: {matched_name}")
 
-    print("-" * 80)
+    logger.info("-" * 80)
 
 
 class LaunchBoxImage(Image):
@@ -1143,54 +1143,54 @@ def get_launchbox_image_url(filename: str) -> str:
 def display_game_details(game: Dict[str, Any]):
     """Display detailed game information in a user-friendly format."""
     if not game:
-        print("Game not found.")
+        logger.info("Game not found.")
         return
 
-    print("\n" + "=" * 80)
-    print(f"Game: {game.get('Name', 'Unknown')}")
-    print("=" * 80)
+    logger.info("\n" + "=" * 80)
+    logger.info(f"Game: {game.get('Name', 'Unknown')}")
+    logger.info("=" * 80)
 
     # Basic info
-    print(f"Platform: {game.get('Platform', 'Unknown')}")
+    logger.info(f"Platform: {game.get('Platform', 'Unknown')}")
 
     if game.get('ReleaseDate'):
-        print(f"Release Date: {game['ReleaseDate'].strftime('%Y-%m-%d')}")
+        logger.info(f"Release Date: {game['ReleaseDate'].strftime('%Y-%m-%d')}")
     elif game.get('ReleaseYear'):
-        print(f"Release Year: {game['ReleaseYear']}")
+        logger.info(f"Release Year: {game['ReleaseYear']}")
 
     if game.get('Developer'):
-        print(f"Developer: {game['Developer']}")
+        logger.info(f"Developer: {game['Developer']}")
 
     if game.get('Publisher'):
-        print(f"Publisher: {game['Publisher']}")
+        logger.info(f"Publisher: {game['Publisher']}")
 
     if game.get('Genres'):
-        print(f"Genres: {game['Genres']}")
+        logger.info(f"Genres: {game['Genres']}")
 
     if game.get('ESRB'):
-        print(f"ESRB Rating: {game['ESRB']}")
+        logger.info(f"ESRB Rating: {game['ESRB']}")
 
     if game.get('CommunityRating'):
-        print(f"Community Rating: {game['CommunityRating']}/5 ({game.get('CommunityRatingCount', 0)} votes)")
+        logger.info(f"Community Rating: {game['CommunityRating']}/5 ({game.get('CommunityRatingCount', 0)} votes)")
 
     if game.get('MaxPlayers'):
-        print(f"Max Players: {game['MaxPlayers']}")
+        logger.info(f"Max Players: {game['MaxPlayers']}")
         if game.get('Cooperative'):
-            print("Cooperative: Yes")
+            logger.info("Cooperative: Yes")
 
     # Links
     if game.get('WikipediaURL'):
-        print(f"Wikipedia: {game['WikipediaURL']}")
+        logger.info(f"Wikipedia: {game['WikipediaURL']}")
 
     if game.get('VideoURL'):
-        print(f"Video: {game['VideoURL']}")
+        logger.info(f"Video: {game['VideoURL']}")
 
     # Overview
     if game.get('Overview'):
-        print("\nOverview:")
-        print("-" * 80)
-        print(game['Overview'])
-        print("-" * 80)
+        logger.info("\nOverview:")
+        logger.info("-" * 80)
+        logger.info(game['Overview'])
+        logger.info("-" * 80)
 
     # Images
     if game.get('Images'):
@@ -1214,11 +1214,11 @@ def display_game_details(game: Dict[str, Any]):
                 'crc32': img.get('CRC32', 0)
             })
 
-        print("\nImages:")
-        print("-" * 80)
+        logger.info("\nImages:")
+        logger.info("-" * 80)
 
         for img_type, images in sorted(images_by_type.items()):
-            print(f"\n{img_type} ({len(images)} images):")
+            logger.info(f"\n{img_type} ({len(images)} images):")
 
             # Group by region for cleaner display
             by_region = {}
@@ -1230,65 +1230,65 @@ def display_game_details(game: Dict[str, Any]):
 
             # Display images grouped by region
             for region, region_images in sorted(by_region.items()):
-                print(f"  Region: {region}")
+                logger.info(f"  Region: {region}")
                 for i, img in enumerate(region_images, 1):
-                    print(f"    {i}. {img['url']} (CRC32: {img['crc32']})")
+                    logger.info(f"    {i}. {img['url']} (CRC32: {img['crc32']})")
 
-        print("-" * 80)
+        logger.info("-" * 80)
 
 
 def analyze_xml_structure(xml_path):
     """Analyze the structure of the LaunchBox metadata XML file for debugging."""
-    print("\nAnalyzing XML structure...")
+    logger.info("\nAnalyzing XML structure...")
 
     try:
         tree = ET.parse(xml_path)
         root = tree.getroot()
 
         # Count root-level elements
-        print("Root-level elements:")
+        logger.info("Root-level elements:")
         for child_tag in set(child.tag for child in root):
             count = len(root.findall(f'./{child_tag}'))
-            print(f"- {child_tag}: {count}")
+            logger.info(f"- {child_tag}: {count}")
 
         # Check for games
         games = root.findall('./Game')
         if games:
-            print(f"\nFound {len(games)} Game elements")
+            logger.info(f"\nFound {len(games)} Game elements")
             sample_game = games[0]
-            print("Sample Game element structure:")
+            logger.info("Sample Game element structure:")
             for child in sample_game:
                 if child.tag == 'Images':
-                    print(f"- {child.tag}: {len(child)} images")
+                    logger.info(f"- {child.tag}: {len(child)} images")
                 else:
-                    print(f"- {child.tag}: {child.text if child.text else '[empty]'}")
+                    logger.info(f"- {child.tag}: {child.text if child.text else '[empty]'}")
 
         # Check for images
         images_elements = root.findall('./Images')
         if images_elements:
-            print(f"\nFound {len(images_elements)} Images elements")
+            logger.info(f"\nFound {len(images_elements)} Images elements")
             sample_images = images_elements[0]
-            print("Sample Images element structure:")
+            logger.info("Sample Images element structure:")
             game_id = sample_images.find('./GameID')
-            print(f"- GameID: {game_id.text if game_id is not None and game_id.text else '[missing]'}")
+            logger.info(f"- GameID: {game_id.text if game_id is not None and game_id.text else '[missing]'}")
 
             image_count = len(sample_images.findall('./Image'))
-            print(f"- Contains {image_count} Image elements")
+            logger.info(f"- Contains {image_count} Image elements")
 
             if image_count > 0:
                 sample_image = sample_images.find('./Image')
-                print("  Sample Image element structure:")
+                logger.info("  Sample Image element structure:")
                 for child in sample_image:
-                    print(f"  - {child.tag}: {child.text if child.text else '[empty]'}")
+                    logger.info(f"  - {child.tag}: {child.text if child.text else '[empty]'}")
 
         # Check for GameImage elements (which is what LaunchBox metadata actually uses)
         game_images = root.findall('./GameImage')
         if game_images:
-            print(f"\nFound {len(game_images)} GameImage elements")
+            logger.info(f"\nFound {len(game_images)} GameImage elements")
             sample_image = game_images[0]
-            print("Sample GameImage element structure:")
+            logger.info("Sample GameImage element structure:")
             for child in sample_image:
-                print(f"- {child.tag}: {child.text if child.text else '[empty]'}")
+                logger.info(f"- {child.tag}: {child.text if child.text else '[empty]'}")
 
             # Count images by type
             image_types = {}
@@ -1302,12 +1302,12 @@ def analyze_xml_structure(xml_path):
                 if i >= 10000:  # Sample just the first 10k images to be fast
                     break
 
-            print("\nImage types (from sample):")
+            logger.info("\nImage types (from sample):")
             for img_type, count in sorted(image_types.items(), key=lambda x: x[1], reverse=True):
-                print(f"- {img_type}: {count}")
+                logger.info(f"- {img_type}: {count}")
 
     except Exception as e:
-        print(f"Error analyzing XML: {e}")
+        logger.error(f"Error analyzing XML: {e}")
 
 
 def main():
@@ -1362,8 +1362,8 @@ def main():
             display_game_details(game)
 
         elif args.command == 'interactive':
-            print("LaunchBox Metadata Interactive Mode")
-            print("----------------------------------")
+            logger.info("LaunchBox Metadata Interactive Mode")
+            logger.info("----------------------------------")
 
             query = args.query
             while True:
@@ -1388,10 +1388,10 @@ def main():
                                 game = metadata.get_details(results[idx]['DatabaseID'])
                                 display_game_details(game)
                             else:
-                                print("Invalid selection. Please try again.")
+                                logger.info("Invalid selection. Please try again.")
                                 continue
                         except ValueError:
-                            print("Invalid input. Please enter a number.")
+                            logger.info("Invalid input. Please enter a number.")
                             continue
 
                         input("\nPress Enter to continue...")
@@ -1401,7 +1401,7 @@ def main():
 
         elif args.command == 'debug-database':
             if not metadata.database.database_exists():
-                print("Database does not exist. Run initialize-database first.")
+                logger.info("Database does not exist. Run initialize-database first.")
                 return
 
             conn = metadata.database.get_connection()
@@ -1417,37 +1417,37 @@ def main():
             cursor.execute('SELECT COUNT(*) FROM GameImages')
             images_count = cursor.fetchone()[0]
 
-            print(f"Database statistics:")
-            print(f"- Games: {games_count}")
-            print(f"- Game Names (FTS index): {game_names_count}")
-            print(f"- Game Images: {images_count}")
+            logger.info(f"Database statistics:")
+            logger.info(f"- Games: {games_count}")
+            logger.info(f"- Game Names (FTS index): {game_names_count}")
+            logger.info(f"- Game Images: {images_count}")
 
             if images_count > 0:
                 cursor.execute('SELECT DISTINCT Type FROM GameImages')
                 image_types = [row[0] for row in cursor.fetchall()]
 
-                print("\nImage types in database:")
+                logger.info("\nImage types in database:")
                 for img_type in sorted(image_types):
                     cursor.execute('SELECT COUNT(*) FROM GameImages WHERE Type = ?', (img_type,))
                     type_count = cursor.fetchone()[0]
-                    print(f"- {img_type}: {type_count}")
+                    logger.info(f"- {img_type}: {type_count}")
             else:
-                print("\nNo images found in database.")
-                print("This could be because:")
-                print("1. The LaunchBox XML doesn't contain image information")
-                print("2. There was an issue parsing the image data")
-                print("3. The database schema doesn't match the XML structure")
-                print("\nTry using the analyze-xml command on the extracted XML file to debug.")
+                logger.info("\nNo images found in database.")
+                logger.info("This could be because:")
+                logger.info("1. The LaunchBox XML doesn't contain image information")
+                logger.info("2. There was an issue parsing the image data")
+                logger.info("3. The database schema doesn't match the XML structure")
+                logger.info("\nTry using the analyze-xml command on the extracted XML file to debug.")
 
         else:
             parser.print_help()
-            print("\nAvailable commands:")
-            print("  initialize-database  Initialize or update the LaunchBox metadata database")
-            print("  search               Search for games by name")
-            print("  details              Get detailed information about a specific game")
-            print("  interactive          Interactive search mode")
-            print("  analyze-xml          Analyze the structure of a LaunchBox metadata XML file")
-            print("  debug-database       Show database statistics and diagnostics")
+            logger.info("\nAvailable commands:")
+            logger.info("  initialize-database  Initialize or update the LaunchBox metadata database")
+            logger.info("  search               Search for games by name")
+            logger.info("  details              Get detailed information about a specific game")
+            logger.info("  interactive          Interactive search mode")
+            logger.info("  analyze-xml          Analyze the structure of a LaunchBox metadata XML file")
+            logger.info("  debug-database       Show database statistics and diagnostics")
 
     finally:
         metadata.close()

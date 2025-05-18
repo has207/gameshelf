@@ -1,7 +1,11 @@
 import threading
 import tempfile
 import requests
+import logging
 from io import BytesIO
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 from gi.repository import Gtk, Adw, GObject, GdkPixbuf, Gdk, GLib
 
@@ -97,7 +101,7 @@ class MetadataPreviewDialog(Adw.Window):
             else:
                 GLib.idle_add(self._show_loading_error, "Failed to retrieve game details")
         except Exception as e:
-            print(f"Error loading game details for ID {self.game_id}: {e}")
+            logger.error(f"Error loading game details for ID {self.game_id}: {e}")
             GLib.idle_add(self._show_loading_error, str(e))
 
     def _download_image(self, image_url):
@@ -112,7 +116,7 @@ class MetadataPreviewDialog(Adw.Window):
                 return tmp_file.name
             return None
         except Exception as e:
-            print(f"Error downloading image from {image_url}: {e}")
+            logger.error(f"Error downloading image from {image_url}: {e}")
             return None
 
     def _update_game_details(self, game, image_path):
@@ -182,7 +186,7 @@ class MetadataPreviewDialog(Adw.Window):
                 if pixbuf:
                     self.game_image.set_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
             except Exception as e:
-                print(f"Error loading game image: {e}")
+                logger.error(f"Error loading game image: {e}")
 
         # Enable the accept button
         self.accept_button.set_sensitive(True)

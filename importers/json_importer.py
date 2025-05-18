@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -14,6 +15,9 @@ from data_mapping import (
     Genres, InvalidGenreError,
     Regions, InvalidRegionError
 )
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class JsonImporter:
@@ -115,7 +119,7 @@ class JsonImporter:
         # Apply limit if specified
         if limit is not None and limit > 0:
             games_data = games_data[:limit]
-            print(f"Limiting import to {limit} games")
+            logger.info(f"Limiting import to {limit} games")
 
         total_games = len(games_data)
 
@@ -130,7 +134,7 @@ class JsonImporter:
 
                 # Check if the game is a duplicate based on multiple attributes
                 if self._is_duplicate_game(game_data):
-                    print(f"Skipping duplicate game: {game_title}")
+                    logger.info(f"Skipping duplicate game: {game_title}")
                     skipped_count += 1
                     # Still report progress
                     if progress_callback:
@@ -165,7 +169,7 @@ class JsonImporter:
         # Extract required fields
         title = game_data.get("Name")
         if not title:
-            print("Skipping game with no title")
+            logger.warning("Skipping game with no title")
             return False
 
         # We already checked for duplicates before calling this method, so no need to check again
@@ -178,7 +182,7 @@ class JsonImporter:
                 if date_str:
                     created_timestamp = self._parse_date_to_timestamp(date_str)
             except Exception as e:
-                print(f"Failed to parse Added date for '{title}': {str(e)}")
+                logger.warning(f"Failed to parse Added date for '{title}': {str(e)}")
 
         # Extract description if available
         description = None
@@ -193,13 +197,13 @@ class JsonImporter:
                 try:
                     completion_status = CompletionStatus.from_string(game_data["CompletionStatus"])
                 except InvalidCompletionStatusError:
-                    print(f"Warning: Invalid completion status '{game_data['CompletionStatus']}' for game '{title}', using default")
+                    logger.warning(f"Invalid completion status '{game_data['CompletionStatus']}' for game '{title}', using default")
             elif isinstance(game_data["CompletionStatus"], dict) and "Value" in game_data["CompletionStatus"]:
                 # Dictionary with "Value" key containing the string
                 try:
                     completion_status = CompletionStatus.from_string(game_data["CompletionStatus"]["Value"])
                 except InvalidCompletionStatusError:
-                    print(f"Warning: Invalid completion status '{game_data['CompletionStatus']['Value']}' for game '{title}', using default")
+                    logger.warning(f"Invalid completion status '{game_data['CompletionStatus']['Value']}' for game '{title}', using default")
 
         # Extract platforms using string values directly from the Platform field
         platforms = []
@@ -210,7 +214,7 @@ class JsonImporter:
                     platforms.append(platform)
                 except InvalidPlatformError:
                     # Skip invalid platforms
-                    print(f"Warning: Skipping invalid platform '{platform_str}' for game '{title}'")
+                    logger.warning(f"Skipping invalid platform '{platform_str}' for game '{title}'")
 
         # Extract age ratings using string values directly from the AgeRating field
         age_ratings = []
@@ -221,7 +225,7 @@ class JsonImporter:
                     age_ratings.append(rating)
                 except InvalidAgeRatingError:
                     # Skip invalid age ratings
-                    print(f"Warning: Skipping invalid age rating '{rating_str}' for game '{title}'")
+                    logger.warning(f"Skipping invalid age rating '{rating_str}' for game '{title}'")
 
         # Extract features using string values directly from the Feature field
         features = []
@@ -232,7 +236,7 @@ class JsonImporter:
                     features.append(feature)
                 except InvalidFeatureError:
                     # Skip invalid features
-                    print(f"Warning: Skipping invalid feature '{feature_str}' for game '{title}'")
+                    logger.warning(f"Skipping invalid feature '{feature_str}' for game '{title}'")
 
         # Extract genres using string values directly from the Genre field
         genres = []
@@ -243,7 +247,7 @@ class JsonImporter:
                     genres.append(genre)
                 except InvalidGenreError:
                     # Skip invalid genres
-                    print(f"Warning: Skipping invalid genre '{genre_str}' for game '{title}'")
+                    logger.warning(f"Skipping invalid genre '{genre_str}' for game '{title}'")
 
         # Extract regions using string values directly from the Region field
         regions = []
@@ -254,7 +258,7 @@ class JsonImporter:
                     regions.append(region)
                 except InvalidRegionError:
                     # Skip invalid regions
-                    print(f"Warning: Skipping invalid region '{region_str}' for game '{title}'")
+                    logger.warning(f"Skipping invalid region '{region_str}' for game '{title}'")
 
         # Extract source if available
         source = None
@@ -291,7 +295,7 @@ class JsonImporter:
                         playtime_seconds = int(float(playtime_values[0]))
                         game.play_time = playtime_seconds
             except (ValueError, TypeError) as e:
-                print(f"Invalid playtime value for game '{title}': {e}")
+                logger.warning(f"Invalid playtime value for game '{title}': {e}")
 
         # Process play count if available
         if "PlayCount" in game_data:
@@ -304,11 +308,11 @@ class JsonImporter:
                     # Direct numeric value
                     game.play_count = int(game_data["PlayCount"])
             except (ValueError, TypeError) as e:
-                print(f"Invalid play count value for game '{title}': {e}")
+                logger.warning(f"Invalid play count value for game '{title}': {e}")
 
         # Save the game first to get an ID assigned, preserving the original creation time
         if not self.data_handler.save_game(game, preserve_created_time=True):
-            print(f"Failed to save game '{title}'")
+            logger.error(f"Failed to save game '{title}'")
             return False
 
         # Get the game's yaml file path to update its modification time later
@@ -323,7 +327,7 @@ class JsonImporter:
             if os.path.exists(full_cover_path):
                 self.data_handler.save_game_image(full_cover_path, game.id)
             else:
-                print(f"Cover image not found for game '{title}': {full_cover_path}")
+                logger.warning(f"Cover image not found for game '{title}': {full_cover_path}")
 
         # Process recent activity (last played time)
         last_played_timestamp = None
@@ -339,7 +343,7 @@ class JsonImporter:
                         if game.play_count == 0:
                             game.play_count = 1
                     except Exception as e:
-                        print(f"Failed to parse last played date for '{title}': {str(e)}")
+                        logger.warning(f"Failed to parse last played date for '{title}': {str(e)}")
 
         # Update play count to make sure it reflects correctly
         if game.play_count > 0:
@@ -390,7 +394,7 @@ class JsonImporter:
                 if date_str:
                     modified_timestamp = self._parse_date_to_timestamp(date_str)
             except Exception as e:
-                print(f"Failed to parse Modified date for '{title}': {str(e)}")
+                logger.warning(f"Failed to parse Modified date for '{title}': {str(e)}")
 
         # Update file timestamps if we have the data
         if modified_timestamp and game_yaml_path.exists():
@@ -398,7 +402,7 @@ class JsonImporter:
                 # Update the game.yaml file mtime to match the Modified date
                 os.utime(game_yaml_path, (modified_timestamp, modified_timestamp))
             except Exception as e:
-                print(f"Failed to update modified timestamp for '{title}': {str(e)}")
+                logger.warning(f"Failed to update modified timestamp for '{title}': {str(e)}")
 
         return True
 

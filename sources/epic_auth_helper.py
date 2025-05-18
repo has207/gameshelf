@@ -19,7 +19,16 @@ import json
 import os
 import threading
 import time
+import logging
 from urllib.parse import urlparse, parse_qs
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr  # Log to stderr so we don't interfere with the JSON output
+)
+logger = logging.getLogger(__name__)
 
 # Important: This must be run in a separate process from any GTK 4 application
 # Use GTK 3.0 specifically for WebKit2 compatibility
@@ -62,18 +71,18 @@ class EpicAuthWebViewWindow(Gtk.Window):
             if load_event == WebKit2.LoadEvent.FINISHED:
                 # Get the current URL
                 url = webview.get_uri()
-                print(f"Page loaded: {url}", file=sys.stderr)
+                logger.info(f"Page loaded: {url}")
 
                 # If we see the Epic account page, redirect to authorization
                 if "/account/personal" in url and not self.has_redirected:
-                    print("Detected successful login, redirecting to authorization", file=sys.stderr)
+                    logger.info("Detected successful login, redirecting to authorization")
                     self.has_redirected = True
                     # Add a small delay before redirecting
                     GLib.timeout_add(500, lambda: self.webview.load_uri(self.redirect_pattern))
 
                 # If we're on a page that might have the auth code
                 elif "/id/api/redirect" in url:
-                    print("Authorization page loaded, extracting content", file=sys.stderr)
+                    logger.info("Authorization page loaded, extracting content")
 
                     # Extract content via JavaScript
                     script = """
@@ -91,7 +100,7 @@ class EpicAuthWebViewWindow(Gtk.Window):
 
                     self.webview.evaluate_javascript(script, -1, None, None, None, self._handle_page_content)
         except Exception as e:
-            print(f"Error in load_changed handler: {e}", file=sys.stderr)
+            logger.error(f"Error in load_changed handler: {e}")
 
     def on_decide_policy(self, webview, decision, decision_type):
         """Handle navigation events to capture the authorization code"""
@@ -100,11 +109,11 @@ class EpicAuthWebViewWindow(Gtk.Window):
             request = nav_action.get_request()
             url = request.get_uri()
 
-            print(f"Navigation to: {url}", file=sys.stderr)
+            logger.info(f"Navigation to: {url}")
 
             # Look for the authorization code in the URL
             if "code=" in url or "authorizationCode=" in url:
-                print("Found authorization code in URL", file=sys.stderr)
+                logger.info("Found authorization code in URL")
 
                 # Parse URL to extract authorization code
                 parsed_url = urlparse(url)
@@ -112,13 +121,13 @@ class EpicAuthWebViewWindow(Gtk.Window):
 
                 if 'code' in query_params:
                     self.auth_code = query_params['code'][0]
-                    print("Authorization code extracted from URL parameters!", file=sys.stderr)
+                    logger.info("Authorization code extracted from URL parameters!")
                     self._show_success_and_close()
                     return True
 
                 elif 'authorizationCode' in query_params:
                     self.auth_code = query_params['authorizationCode'][0]
-                    print("Authorization code extracted from URL parameters!", file=sys.stderr)
+                    logger.info("Authorization code extracted from URL parameters!")
                     self._show_success_and_close()
                     return True
 
@@ -131,7 +140,7 @@ class EpicAuthWebViewWindow(Gtk.Window):
             js_value = webview.evaluate_javascript_finish(result)
             if js_value and js_value.is_string():
                 content = js_value.to_string()
-                print(f"Page content extracted, length: {len(content)}", file=sys.stderr)
+                logger.info(f"Page content extracted, length: {len(content)}")
 
                 # First try: Look for JSON data that contains authorizationCode
                 if "{" in content and "}" in content:
@@ -144,29 +153,29 @@ class EpicAuthWebViewWindow(Gtk.Window):
                         response_data = json.loads(json_content)
                         if "authorizationCode" in response_data:
                             self.auth_code = response_data["authorizationCode"]
-                            print("Authorization code extracted from JSON!", file=sys.stderr)
+                            logger.info("Authorization code extracted from JSON!")
                             self._show_success_and_close()
                             return
                     except json.JSONDecodeError:
-                        print("Failed to parse JSON, trying regex", file=sys.stderr)
+                        logger.warning("Failed to parse JSON, trying regex")
 
                 # Second try: Use regex to find the authorization code
                 import re
                 auth_code_match = re.search(r'"authorizationCode"\s*:\s*"([^"]+)"', content)
                 if auth_code_match:
                     self.auth_code = auth_code_match.group(1)
-                    print("Authorization code extracted with regex!", file=sys.stderr)
+                    logger.info("Authorization code extracted with regex!")
                     self._show_success_and_close()
                     return
 
                 # If we reach here, we couldn't extract the code
-                print("Could not extract authorization code from content", file=sys.stderr)
+                logger.warning("Could not extract authorization code from content")
 
         except Exception as e:
-            print(f"Failed to parse page content: {e}", file=sys.stderr)
+            logger.error(f"Failed to parse page content: {e}")
             if 'content' in locals():
                 content_preview = content[:100] + "..." if len(content) > 100 else content
-                print(f"Content preview: {content_preview}", file=sys.stderr)
+                logger.debug(f"Content preview: {content_preview}")
 
     def _show_success_and_close(self):
         """Show success message and close the window"""
@@ -207,21 +216,16 @@ def authenticate_epic():
 
 
 if __name__ == "__main__":
-    # Redirect all debug output to stderr
-    def debug_print(*args, **kwargs):
-        kwargs['file'] = sys.stderr
-        print(*args, **kwargs)
-
-    debug_print("Starting Epic OAuth authentication flow...")
+    logger.info("Starting Epic OAuth authentication flow...")
 
     # Run authentication
     auth_code = authenticate_epic()
 
     if auth_code:
-        debug_print("Authentication successful!")
+        logger.info("Authentication successful!")
         result = {"code": auth_code}
     else:
-        debug_print("Authentication failed or was cancelled.")
+        logger.warning("Authentication failed or was cancelled.")
         result = {"error": "Authentication failed or was cancelled"}
 
     # Output the result as JSON to stdout

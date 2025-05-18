@@ -1,9 +1,13 @@
 import gi
 from typing import Callable, Dict, List, Optional, Set, Any, Tuple
+import logging
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf, Gdk, GObject, GLib
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 from controllers.common import get_template_path
 from data_mapping import CompletionStatus
@@ -78,7 +82,7 @@ class FilterCategoryRow(Gtk.Box):
         # Connect button click to toggle expanded state
         self.expand_button.connect("clicked", self._on_expand_button_clicked)
 
-        print(f"Created category row for {category_item.name} with expanded={category_item.expanded}")
+        logger.debug(f"Created category row for {category_item.name} with expanded={category_item.expanded}")
 
     def is_expanded(self) -> bool:
         return self.category_item.expanded

@@ -1,8 +1,12 @@
 from typing import List, Optional, Dict, Set
 import threading
 import time
+import logging
 
 from gi.repository import Gtk, Gio, Gdk, GObject, GLib
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 from controllers.sidebar_controller import SidebarItem
 from controllers.common import get_template_path
@@ -410,7 +414,7 @@ class GameGridController:
                 # Update UI in main thread if box is still visible
                 GLib.idle_add(self._update_image_ui, box, paintable, game.id)
         except Exception as e:
-            print(f"Error loading image for game {game.id}: {e}")
+            logger.error(f"Error loading image for game {game.id}: {e}")
 
     def _update_image_ui(self, box, paintable, game_id):
         """Update the UI with loaded image (called in main thread)"""
@@ -554,30 +558,30 @@ class GameGridController:
         # Get all games if filtered_games is not provided
         if filtered_games is None:
             games = self.main_controller.get_games()
-            print(f"Populating games grid with {len(games)} total games...")
+            logger.debug(f"Populating games grid with {len(games)} total games...")
 
             # Apply filters from sidebar controller if available
             if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
                 games = self.main_controller.sidebar_controller.apply_filters_to_games(games)
         else:
             games = filtered_games
-            print(f"Populating games grid with {len(games)} pre-filtered games...")
+            logger.debug(f"Populating games grid with {len(games)} pre-filtered games...")
 
         # Apply search filter if search text is provided
         if search_text:
             games = [g for g in games if search_text.lower() in g.title.lower()]
-            print(f"After search filter '{search_text}': {len(games)} games")
+            logger.debug(f"After search filter '{search_text}': {len(games)} games")
 
         # Show only hidden or non-hidden games based on show_hidden setting
         if hasattr(self.main_controller, 'show_hidden'):
             if self.main_controller.show_hidden:
                 # When show_hidden is True, only show hidden games
                 games = [g for g in games if g.hidden]
-                print(f"After hidden filter (showing only hidden games): {len(games)} games")
+                logger.debug(f"After hidden filter (showing only hidden games): {len(games)} games")
             else:
                 # When show_hidden is False, only show non-hidden games
                 games = [g for g in games if not g.hidden]
-                print(f"After hidden filter (showing only non-hidden games): {len(games)} games")
+                logger.debug(f"After hidden filter (showing only non-hidden games): {len(games)} games")
 
         # Sort the games if sort parameters are set
         if hasattr(self.main_controller, 'sort_field') and hasattr(self.main_controller, 'sort_ascending'):
@@ -591,7 +595,7 @@ class GameGridController:
         for game in games:
             self.games_model.append(GameObject(game))
 
-        print(f"Grid populated with {self.games_model.get_n_items()} games")
+        logger.debug(f"Grid populated with {self.games_model.get_n_items()} games")
 
     def sort_games(self, games: List[Game], sort_field: str, ascending: bool) -> List[Game]:
         """
@@ -953,7 +957,7 @@ class GameGridController:
 
                     # Restore filters if they would have results, otherwise leave them cleared
                     if would_have_results:
-                        print("Restoring filters after deletion - games still match filters")
+                        logger.debug("Restoring filters after deletion - games still match filters")
                         self.main_controller.sidebar_controller.active_filters = original_filters
                         self.main_controller.sidebar_controller._update_selection_state()
                         # Re-apply filters with proper source filters
@@ -966,10 +970,10 @@ class GameGridController:
                                 search_text = self.main_controller.get_search_text()
 
                             # Directly populate with the filters - use new approach
-                            print(f"Re-applying original filters")
+                            logger.debug(f"Re-applying original filters")
                             self.populate_games(search_text=search_text)
                     else:
-                        print("Filters would result in empty view after deletion, showing all games")
+                        logger.debug("Filters would result in empty view after deletion, showing all games")
                         # Completely reset active filters
                         self.main_controller.sidebar_controller.active_filters = {}
 

@@ -3,6 +3,7 @@ import yaml
 import time
 import shutil
 import enum
+import logging
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple, Union
@@ -20,6 +21,9 @@ from data_mapping import (
 import gi
 gi.require_version('GdkPixbuf', '2.0')
 from gi.repository import GdkPixbuf
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class DataHandler:
@@ -64,7 +68,7 @@ class DataHandler:
                         else:
                             completion_status = CompletionStatus.NOT_PLAYED
                     except InvalidCompletionStatusError as e:
-                        print(f"Error loading game {game_id} - invalid completion status '{completion_status_str}': {e}")
+                        logger.error(f"Error loading game {game_id} - invalid completion status '{completion_status_str}': {e}")
                         completion_status = CompletionStatus.NOT_PLAYED
 
                     # Extract platforms list if available
@@ -76,7 +80,7 @@ class DataHandler:
                                 platforms.append(platform)
                             except InvalidPlatformError:
                                 # Skip invalid platforms
-                                print(f"Warning: Skipping invalid platform '{platform_str}' for game {game_id}")
+                                logger.warning(f"Skipping invalid platform '{platform_str}' for game {game_id}")
 
                     # Extract age ratings list if available
                     age_ratings = []
@@ -87,7 +91,7 @@ class DataHandler:
                                 age_ratings.append(rating)
                             except InvalidAgeRatingError:
                                 # Skip invalid age ratings
-                                print(f"Warning: Skipping invalid age rating '{rating_str}' for game {game_id}")
+                                logger.warning(f"Skipping invalid age rating '{rating_str}' for game {game_id}")
 
                     # Extract features list if available
                     features = []
@@ -98,7 +102,7 @@ class DataHandler:
                                 features.append(feature)
                             except InvalidFeatureError:
                                 # Skip invalid features
-                                print(f"Warning: Skipping invalid feature '{feature_str}' for game {game_id}")
+                                logger.warning(f"Skipping invalid feature '{feature_str}' for game {game_id}")
 
                     # Extract genres list if available
                     genres = []
@@ -109,7 +113,7 @@ class DataHandler:
                                 genres.append(genre)
                             except InvalidGenreError:
                                 # Skip invalid genres
-                                print(f"Warning: Skipping invalid genre '{genre_str}' for game {game_id}")
+                                logger.warning(f"Skipping invalid genre '{genre_str}' for game {game_id}")
 
                     # Extract regions list if available
                     regions = []
@@ -120,7 +124,7 @@ class DataHandler:
                                 regions.append(region)
                             except InvalidRegionError:
                                 # Skip invalid regions
-                                print(f"Warning: Skipping invalid region '{region_str}' for game {game_id}")
+                                logger.warning(f"Skipping invalid region '{region_str}' for game {game_id}")
 
                     game = Game(
                         title=game_data.get("title", "Unknown Game"),
@@ -145,7 +149,7 @@ class DataHandler:
                                 if play_data and isinstance(play_data, dict):
                                     game.play_count = play_data.get("count", 0)
                         except Exception as pc_err:
-                            print(f"Error loading play count for {game_id}: {pc_err}")
+                            logger.error(f"Error loading play count for {game_id}: {pc_err}")
 
                     # Load play time if exists
                     play_time_file = game_file.parent / "playtime.yaml"
@@ -156,7 +160,7 @@ class DataHandler:
                                 if play_time_data and isinstance(play_time_data, dict):
                                     game.play_time = play_time_data.get("seconds", 0)
                         except Exception as pt_err:
-                            print(f"Error loading play time for {game_id}: {pt_err}")
+                            logger.error(f"Error loading play time for {game_id}: {pt_err}")
 
                     # Load description if exists
                     description_file = game_file.parent / "description.yaml"
@@ -167,12 +171,12 @@ class DataHandler:
                                 if desc_data and isinstance(desc_data, dict):
                                     game.description = desc_data.get("text")
                         except Exception as desc_err:
-                            print(f"Error loading description for {game_id}: {desc_err}")
+                            logger.error(f"Error loading description for {game_id}: {desc_err}")
 
 
                     games.append(game)
             except Exception as e:
-                print(f"Error loading game {game_file}: {e}")
+                logger.error(f"Error loading game {game_file}: {e}")
         return games
 
     def load_runners(self) -> List[Runner]:
@@ -191,12 +195,12 @@ class DataHandler:
                                 platforms.append(platform)
                             except InvalidPlatformError:
                                 # Skip invalid platforms
-                                print(f"Warning: Skipping invalid platform '{platform_str}' for runner {runner_file.stem}")
+                                logger.warning(f"Skipping invalid platform '{platform_str}' for runner {runner_file.stem}")
 
                     # Get discord_enabled value (default to True if not present for backward compatibility)
                     # Log the value to debug if it's loading correctly
                     discord_enabled = runner_data.get("discord_enabled", True)
-                    print(f"Loading runner {runner_file.stem} with discord_enabled={discord_enabled}")
+                    logger.debug(f"Loading runner {runner_file.stem} with discord_enabled={discord_enabled}")
 
                     runner = Runner(
                         title=runner_data.get("title", "Unknown Runner"),
@@ -208,7 +212,7 @@ class DataHandler:
                     )
                     runners.append(runner)
             except Exception as e:
-                print(f"Error loading runner {runner_file}: {e}")
+                logger.error(f"Error loading runner {runner_file}: {e}")
         return runners
 
     def save_game(self, game: Game, preserve_created_time: bool = False) -> bool:
@@ -270,7 +274,7 @@ class DataHandler:
                 yaml.dump(game_data, f)
             return True
         except Exception as e:
-            print(f"Error saving game {game.id}: {e}")
+            logger.error(f"Error saving game {game.id}: {e}")
             return False
 
     def save_runner(self, runner: Runner) -> bool:
@@ -293,7 +297,7 @@ class DataHandler:
                 yaml.dump(runner_data, f)
             return True
         except Exception as e:
-            print(f"Error saving runner {runner.id}: {e}")
+            logger.error(f"Error saving runner {runner.id}: {e}")
             return False
 
     def save_game_image(self, source_path: str, game_id: str) -> bool:
@@ -322,7 +326,7 @@ class DataHandler:
             shutil.copy2(source_path, dest_path)
             return True
         except Exception as e:
-            print(f"Error copying image: {e}")
+            logger.error(f"Error copying image: {e}")
             return False
 
     def remove_game_image(self, game_id: str) -> bool:
@@ -343,7 +347,7 @@ class DataHandler:
                 cover_path.unlink()
             return True
         except Exception as e:
-            print(f"Error removing cover image for game {game_id}: {e}")
+            logger.error(f"Error removing cover image for game {game_id}: {e}")
             return False
 
     def create_game_with_image(self, title: str, image_path: Optional[str] = None) -> Game:
@@ -415,7 +419,7 @@ class DataHandler:
             return GdkPixbuf.Pixbuf.new_from_file_at_scale(
                 cover_path, width, height, True)
         except Exception as e:
-            print(f"Error loading image for {game.title}: {e}")
+            logger.error(f"Error loading image for {game.title}: {e}")
             return None
 
     def get_default_icon_paintable(self, icon_name: str, size: int = 128) -> 'Gdk.Paintable':
@@ -514,13 +518,13 @@ class DataHandler:
                         id_int = int(game_id)
                         highest_id = max(highest_id, id_int)
                 except Exception as inner_e:
-                    print(f"Error parsing game ID from {game_yaml}: {inner_e}")
+                    logger.error(f"Error parsing game ID from {game_yaml}: {inner_e}")
                     continue
 
             # Start from the next ID after the highest found, or 0 if no numeric IDs exist
             return highest_id + 1
         except Exception as e:
-            print(f"Error getting next game ID: {e}")
+            logger.error(f"Error getting next game ID: {e}")
             return 0
 
     def load_runner_image(self, runner: Runner, width: int = 64, height: int = 64) -> Optional[GdkPixbuf.Pixbuf]:
@@ -541,7 +545,7 @@ class DataHandler:
             return GdkPixbuf.Pixbuf.new_from_file_at_scale(
                 runner.image, width, height, True)
         except Exception as e:
-            print(f"Error loading image for {runner.title}: {e}")
+            logger.error(f"Error loading image for {runner.title}: {e}")
             return None
 
     def update_play_count(self, game: Game, count: int) -> bool:
@@ -578,13 +582,13 @@ class DataHandler:
             if count == 0 and game.completion_status in playable_states:
                 game.completion_status = CompletionStatus.NOT_PLAYED
                 status_updated = True
-                print(f"Resetting completion status for game {game.title} to NOT_PLAYED (play count = 0)")
+                logger.info(f"Resetting completion status for game {game.title} to NOT_PLAYED (play count = 0)")
 
             # If count > 0 and status is NOT_PLAYED, change to PLAYED
             elif count > 0 and game.completion_status == CompletionStatus.NOT_PLAYED:
                 game.completion_status = CompletionStatus.PLAYED
                 status_updated = True
-                print(f"Setting completion status for game {game.title} to PLAYED (play count = {count})")
+                logger.info(f"Setting completion status for game {game.title} to PLAYED (play count = {count})")
 
             # Update the play count in the game object
             game.play_count = count
@@ -599,11 +603,11 @@ class DataHandler:
             # If the completion status changed, update the game.yaml file
             if status_updated:
                 self.save_game(game, True)
-                print(f"Updated completion status for {game.title} based on play count changes")
+                logger.info(f"Updated completion status for {game.title} based on play count changes")
 
             return True
         except Exception as e:
-            print(f"Error updating play count for {game.id}: {e}")
+            logger.error(f"Error updating play count for {game.id}: {e}")
             return False
 
     def increment_play_count(self, game: Game) -> bool:
@@ -650,7 +654,7 @@ class DataHandler:
 
             return True
         except Exception as e:
-            print(f"Error updating play time for {game.id}: {e}")
+            logger.error(f"Error updating play time for {game.id}: {e}")
             return False
 
     def update_game_description(self, game: Game, description: str) -> bool:
@@ -680,7 +684,7 @@ class DataHandler:
 
             return True
         except Exception as e:
-            print(f"Error updating description for {game.id}: {e}")
+            logger.error(f"Error updating description for {game.id}: {e}")
             return False
 
     def update_completion_status(self, game: Game, status: CompletionStatus) -> bool:
@@ -701,7 +705,7 @@ class DataHandler:
             # Save the game to update the yaml file
             return self.save_game(game, True)
         except Exception as e:
-            print(f"Error updating completion status for {game.id}: {e}")
+            logger.error(f"Error updating completion status for {game.id}: {e}")
             return False
 
     def update_platforms(self, game: Game, platforms: List[Platforms]) -> bool:
@@ -722,7 +726,7 @@ class DataHandler:
             # Save the game to update the yaml file
             return self.save_game(game, True)
         except Exception as e:
-            print(f"Error updating platforms for {game.id}: {e}")
+            logger.error(f"Error updating platforms for {game.id}: {e}")
             return False
 
     def update_age_ratings(self, game: Game, age_ratings: List[AgeRatings]) -> bool:
@@ -743,7 +747,7 @@ class DataHandler:
             # Save the game to update the yaml file
             return self.save_game(game, True)
         except Exception as e:
-            print(f"Error updating age ratings for {game.id}: {e}")
+            logger.error(f"Error updating age ratings for {game.id}: {e}")
             return False
 
     def update_features(self, game: Game, features: List[Features]) -> bool:
@@ -764,7 +768,7 @@ class DataHandler:
             # Save the game to update the yaml file
             return self.save_game(game, True)
         except Exception as e:
-            print(f"Error updating features for {game.id}: {e}")
+            logger.error(f"Error updating features for {game.id}: {e}")
             return False
 
     def update_genres(self, game: Game, genres: List[Genres]) -> bool:
@@ -785,7 +789,7 @@ class DataHandler:
             # Save the game to update the yaml file
             return self.save_game(game, True)
         except Exception as e:
-            print(f"Error updating genres for {game.id}: {e}")
+            logger.error(f"Error updating genres for {game.id}: {e}")
             return False
 
     def update_regions(self, game: Game, regions: List[Regions]) -> bool:
@@ -806,7 +810,7 @@ class DataHandler:
             # Save the game to update the yaml file
             return self.save_game(game, True)
         except Exception as e:
-            print(f"Error updating regions for {game.id}: {e}")
+            logger.error(f"Error updating regions for {game.id}: {e}")
             return False
 
     def increment_play_time(self, game: Game, seconds_to_add: int) -> bool:
@@ -858,7 +862,7 @@ class DataHandler:
 
             return True
         except Exception as e:
-            print(f"Error setting last played time for {game.id}: {e}")
+            logger.error(f"Error setting last played time for {game.id}: {e}")
             return False
 
     def save_game_pid(self, game: Game, pid: int) -> bool:
@@ -885,7 +889,7 @@ class DataHandler:
 
             return True
         except Exception as e:
-            print(f"Error saving PID for {game.id}: {e}")
+            logger.error(f"Error saving PID for {game.id}: {e}")
             return False
 
     def get_game_pid(self, game: Game) -> Optional[int]:
@@ -909,7 +913,7 @@ class DataHandler:
                 if pid_data and isinstance(pid_data, dict):
                     return pid_data.get("pid")
         except Exception as e:
-            print(f"Error getting PID for {game.id}: {e}")
+            logger.error(f"Error getting PID for {game.id}: {e}")
 
         return None
 
@@ -932,7 +936,7 @@ class DataHandler:
             pid_file.unlink()
             return True
         except Exception as e:
-            print(f"Error clearing PID for {game.id}: {e}")
+            logger.error(f"Error clearing PID for {game.id}: {e}")
             return False
 
     def save_installation_data(self, game: Game, directory: str, files: List[str], total_size: int) -> bool:
@@ -969,7 +973,7 @@ class DataHandler:
                     "is_wiiu": True,  # Flag to identify this as a Wii U game
                     "size": total_size
                 }
-                print(f"Saved Wii U game installation data for {game.title}")
+                logger.info(f"Saved Wii U game installation data for {game.title}")
             else:
                 # For normal games, sort the files list and include them
                 sorted_files = sorted(files, key=self._natural_sort_key)
@@ -985,7 +989,7 @@ class DataHandler:
 
             return True
         except Exception as e:
-            print(f"Error saving installation data for {game.id}: {e}")
+            logger.error(f"Error saving installation data for {game.id}: {e}")
             return False
 
     def _natural_sort_key(self, s):
@@ -1017,7 +1021,7 @@ class DataHandler:
                 installation_data = yaml.safe_load(f)
                 return installation_data
         except Exception as e:
-            print(f"Error loading installation data for {game.id}: {e}")
+            logger.error(f"Error loading installation data for {game.id}: {e}")
 
         return None
 
@@ -1050,10 +1054,10 @@ class DataHandler:
 
                 return True
             else:
-                print(f"Game directory {game_dir} not found")
+                logger.warning(f"Game directory {game_dir} not found")
                 return False
         except Exception as e:
-            print(f"Error removing game {game.id}: {e}")
+            logger.error(f"Error removing game {game.id}: {e}")
             return False
 
     def remove_runner(self, runner: Runner) -> bool:
@@ -1073,10 +1077,10 @@ class DataHandler:
                 runner_file.unlink()
                 return True
             else:
-                print(f"Runner file {runner_file} not found")
+                logger.warning(f"Runner file {runner_file} not found")
                 return False
         except Exception as e:
-            print(f"Error removing runner {runner.id}: {e}")
+            logger.error(f"Error removing runner {runner.id}: {e}")
             return False
 
     def get_source_by_id(self, source_id: str) -> Optional[Source]:
@@ -1103,7 +1107,7 @@ class DataHandler:
                             try:
                                 source_type = SourceType.from_string(source_data["type"])
                             except ValueError:
-                                print(f"Invalid source type in {source_file}, defaulting to ROM_DIRECTORY")
+                                logger.warning(f"Invalid source type in {source_file}, defaulting to ROM_DIRECTORY")
                                 source_type = SourceType.ROM_DIRECTORY
                         else:
                             source_type = SourceType.ROM_DIRECTORY
@@ -1138,7 +1142,7 @@ class DataHandler:
 
                         return source
                 except Exception as e:
-                    print(f"Error loading source {source_file}: {e}")
+                    logger.error(f"Error loading source {source_file}: {e}")
 
         return None
 

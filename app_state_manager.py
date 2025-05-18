@@ -1,7 +1,11 @@
 import os
 from pathlib import Path
 import yaml
+import logging
 from typing import Dict, Optional, Any, List, Tuple
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class AppStateManager:
@@ -40,7 +44,7 @@ class AppStateManager:
 
                 return merged_settings
         except Exception as e:
-            print(f"Error loading settings: {e}")
+            logger.error(f"Error loading settings: {e}")
             return default_settings
 
     def _deep_merge_settings(self, defaults: Dict[str, Any], loaded: Dict[str, Any]) -> Dict[str, Any]:
@@ -125,7 +129,7 @@ class AppStateManager:
                 yaml.dump(self.settings, f)
             return True
         except Exception as e:
-            print(f"Error saving settings: {e}")
+            logger.error(f"Error saving settings: {e}")
             return False
 
     def get_window_size(self) -> Tuple[int, int]:

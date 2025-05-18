@@ -3,6 +3,7 @@ import subprocess
 import threading
 import time
 import psutil
+import logging
 from pathlib import Path
 from typing import Optional, Callable
 
@@ -11,6 +12,9 @@ from data import Game
 
 # Import Discord integration
 from discord_integration import discord_presence
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class ProcessTracker:
@@ -55,7 +59,7 @@ class ProcessTracker:
             # For Wii U games, we directly pass the game directory to the emulator
             if is_wiiu_game and "directory" in installation_data:
                 directory = installation_data["directory"]
-                print(f"Launching Wii U game: {game.title} with command: {runner_command} {directory}")
+                logger.info(f"Launching Wii U game: {game.title} with command: {runner_command} {directory}")
                 cmd.append(directory)
             # Regular games use the file path
             elif file_path:
@@ -67,10 +71,10 @@ class ProcessTracker:
                         directory = installation_data["directory"]
                         full_path = os.path.join(directory, file_path)
 
-                print(f"Launching game: {game.title} with command: {runner_command} {full_path}")
+                logger.info(f"Launching game: {game.title} with command: {runner_command} {full_path}")
                 cmd.append(full_path)
             else:
-                print(f"Launching game: {game.title} with command: {runner_command}")
+                logger.info(f"Launching game: {game.title} with command: {runner_command}")
 
             # Launch the game
             process = subprocess.Popen(cmd)
@@ -102,19 +106,19 @@ class ProcessTracker:
 
                 # Log whether Discord integration is enabled for this launch
                 if discord_enabled:
-                    print(f"Discord integration enabled for this game launch")
+                    logger.info(f"Discord integration enabled for this game launch")
                     # Only update Discord presence if it's enabled for this runner
                     discord_presence.game_started(game.title, platform, discord_enabled)
                 else:
-                    print(f"Discord integration disabled for this game launch")
+                    logger.info(f"Discord integration disabled for this game launch")
                     # Skip Discord integration entirely for this game
             except Exception as e:
                 # Just log the error but don't let it affect game launch
-                print(f"Discord integration error (game will still launch): {e}")
+                logger.error(f"Discord integration error (game will still launch): {e}")
 
             return True
         except Exception as e:
-            print(f"Error launching game: {e}")
+            logger.error(f"Error launching game: {e}")
             return False
 
     def monitor_game_process(self, pid: int, game: Game, on_exit_callback: Optional[Callable] = None):
@@ -155,7 +159,7 @@ class ProcessTracker:
                 process.wait()
             except psutil.NoSuchProcess:
                 # Process doesn't exist or already exited
-                print(f"Process {pid} for game {game.title} no longer exists or has already exited")
+                logger.warning(f"Process {pid} for game {game.title} no longer exists or has already exited")
                 # We'll continue to update the playtime anyway
 
             # Calculate play time
@@ -166,7 +170,7 @@ class ProcessTracker:
             if seconds_played < 1:
                 seconds_played = 1  # At least record 1 second for very short sessions
 
-            print(f"Game {game.title} played for {seconds_played} seconds")
+            logger.info(f"Game {game.title} played for {seconds_played} seconds")
 
             # Update the play time in the data handler
             self.data_handler.increment_play_time(game, seconds_played)
@@ -177,21 +181,21 @@ class ProcessTracker:
             # Only clear Discord Rich Presence if it was enabled for this game
             if hasattr(self, 'current_game_discord_enabled') and self.current_game_discord_enabled:
                 try:
-                    print(f"Game {game.title} exited - clearing Discord Rich Presence")
+                    logger.info(f"Game {game.title} exited - clearing Discord Rich Presence")
                     # Force disconnect from Discord to ensure status gets cleared
                     discord_presence.game_stopped()
                 except Exception as e:
                     # Just log the error but don't let it affect game tracking
-                    print(f"Discord integration error on game exit: {e}")
+                    logger.error(f"Discord integration error on game exit: {e}")
             else:
-                print(f"Game {game.title} exited - Discord integration was disabled for this game")
+                logger.info(f"Game {game.title} exited - Discord integration was disabled for this game")
 
             # Call the callback on the main thread if provided
             if on_exit_callback:
                 GLib.idle_add(on_exit_callback, game)
 
         except Exception as e:
-            print(f"Error monitoring game process: {e}")
+            logger.error(f"Error monitoring game process: {e}")
             # Make sure to clean up the PID file in case of error
             self.data_handler.clear_game_pid(game)
 
@@ -250,16 +254,16 @@ class ProcessTracker:
             # Only clear Discord Rich Presence if it was enabled for this game
             if hasattr(self, 'current_game_discord_enabled') and self.current_game_discord_enabled:
                 try:
-                    print(f"Game {game.title} was killed - clearing Discord Rich Presence")
+                    logger.info(f"Game {game.title} was killed - clearing Discord Rich Presence")
                     # Force disconnect from Discord to ensure status gets cleared
                     discord_presence.game_stopped()
                 except Exception as e:
                     # Just log the error but don't let it affect game tracking
-                    print(f"Discord integration error on game exit: {e}")
+                    logger.error(f"Discord integration error on game exit: {e}")
             else:
-                print(f"Game {game.title} was killed - Discord integration was disabled for this game")
+                logger.info(f"Game {game.title} was killed - Discord integration was disabled for this game")
 
             return True
         except Exception as e:
-            print(f"Error killing process for game {game.title}: {e}")
+            logger.error(f"Error killing process for game {game.title}: {e}")
             return False

@@ -1,7 +1,11 @@
 import os
+import logging
 from typing import Optional, Any, List, Dict, Callable
 from gi.repository import Gtk, Gio, GdkPixbuf, GObject
 from data import Game, Runner
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 def show_error_dialog(parent: Gtk.Window, title: str, message: str) -> None:

@@ -75,10 +75,10 @@ class GameShelfApp(Adw.Application):
             # Create main controller with handlers
             self.controller = GameShelfController(self.data_handler, self.settings_manager)
 
-            print("Application data initialization complete")
+            logging.info("Application data initialization complete")
         except Exception as e:
             # Log any initialization errors but continue with app startup
-            print(f"Error during app initialization: {e}")
+            logging.error(f"Error during app initialization: {e}")
 
             # Make sure we have at least minimal required objects
             if not hasattr(self, 'data_handler'):
@@ -92,19 +92,19 @@ class GameShelfApp(Adw.Application):
 
     def _initialize_main_window(self):
         """Initialize and show the main window after splash screen closes"""
-        print("Initializing main window...")
+        logging.info("Initializing main window...")
 
         try:
             # Make sure the controller exists before creating the window
             if not hasattr(self, 'controller') or self.controller is None:
-                print("Creating controller first...")
+                logging.info("Creating controller first...")
                 self.data_handler = DataHandler()
                 self.settings_manager = AppStateManager()
                 self.controller = GameShelfController(self.data_handler, self.settings_manager)
 
             # Create the window if not already created
             if not hasattr(self, 'win') or self.win is None:
-                print("Creating main window...")
+                logging.info("Creating main window...")
                 # Create the window
                 self.win = GameShelfWindow(self, self.controller)
 
@@ -116,15 +116,15 @@ class GameShelfApp(Adw.Application):
                     self.win.maximize()
 
             # Present the window
-            print("Presenting main window...")
+            logging.info("Presenting main window...")
             self.win.present()
             self._window_shown = True
-            print("Main window presented successfully")
+            logging.info("Main window presented successfully")
         except Exception as e:
-            print(f"Error initializing main window: {e}")
+            logging.error(f"Error initializing main window: {e}")
             # Try again with a fallback approach if there was an error
             try:
-                print("Using fallback window initialization...")
+                logging.warning("Using fallback window initialization...")
                 # Create a very basic window as a last resort
                 self.win = Adw.ApplicationWindow(application=self, title="GameShelf")
                 self.win.set_default_size(800, 600)
@@ -148,7 +148,7 @@ class GameShelfApp(Adw.Application):
                 self.win.present()
                 self._window_shown = True
             except Exception as e2:
-                print(f"Fatal error creating window: {e2}")
+                logging.critical(f"Fatal error creating window: {e2}")
                 # Emergency exit
                 sys.exit(1)
 
@@ -174,7 +174,7 @@ if __name__ == "__main__":
     # Set up signal handler for Ctrl+C (SIGINT)
     def signal_handler(sig, frame):
         """Handle interrupt signals gracefully"""
-        print("Kill signal received, exiting...\n")
+        logging.info("Kill signal received, exiting...\n")
         if hasattr(app, 'win') and app.win:
             app.on_shutdown(app)
         sys.exit(0)

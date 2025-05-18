@@ -1,7 +1,11 @@
 from typing import Optional
+import logging
 
 from gi.repository import Gtk
 from controllers.common import get_template_path
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 @Gtk.Template(filename=get_template_path("sort_menu.ui"))
@@ -134,7 +138,7 @@ class TitleBarController:
     def on_search_changed(self, search_entry):
         """Handle search entry text changes"""
         search_text = search_entry.get_text().strip().lower()
-        print(f"Search text changed to: {search_text}")
+        logger.debug(f"Search text changed to: {search_text}")
 
         # Save search text to settings
         self.main_controller.settings_manager.set_search_text(search_text)

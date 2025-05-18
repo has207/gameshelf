@@ -1,7 +1,11 @@
 from typing import Optional, Callable
 import os
 import gi
+import logging
 from gi.repository import Gtk, Adw, GLib
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 class SplashScreen(Adw.Window):
     """Splash screen window that displays while the application is initializing"""
@@ -43,7 +47,7 @@ class SplashScreen(Adw.Window):
 
                 content.set_child(image)
             except Exception as e:
-                print(f"Error loading splash image: {e}")
+                logger.error(f"Error loading splash image: {e}")
                 # Fallback label if image fails to load
                 label = Gtk.Label(label="Loading GameShelf...")
                 label.add_css_class("title-1")
@@ -64,21 +68,21 @@ class SplashScreen(Adw.Window):
 
     def _on_timeout_callback(self) -> bool:
         """Handle timeout, close splash screen and call the callback"""
-        print("Splash screen timeout triggered")
+        logger.debug("Splash screen timeout triggered")
 
         if hasattr(self, 'on_timeout_callback') and self.on_timeout_callback is not None:
             # Call the callback first, then close
-            print("Calling startup callback")
+            logger.debug("Calling startup callback")
             self.on_timeout_callback()
 
         # Close the splash window
-        print("Closing splash screen")
+        logger.debug("Closing splash screen")
         self.destroy()
         return False  # Don't repeat the timeout
 
     def _on_destroyed(self, window):
         """Handle window destroy event"""
-        print("Splash screen destroyed")
+        logger.debug("Splash screen destroyed")
         # Cancel the timeout if it's still pending
         if hasattr(self, 'timeout_id'):
             GLib.source_remove(self.timeout_id)

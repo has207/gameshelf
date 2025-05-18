@@ -1,7 +1,11 @@
 import gi
 import time
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Set
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
@@ -141,7 +145,7 @@ class SidebarController:
             self.active_filters = converted_filters
 
     def setup_sidebar(self, sidebar_container):
-        print(f"Setting up sidebar with container: {sidebar_container}")
+        logger.debug(f"Setting up sidebar with container: {sidebar_container}")
         self.sidebar_container = sidebar_container
 
         # Create a box container for all sidebar content
@@ -161,7 +165,7 @@ class SidebarController:
         # Populate the filter sections
         self.refresh_filters()
 
-        print("Sidebar initialization complete")
+        logger.debug("Sidebar initialization complete")
 
     def _create_all_games_row(self):
         """Create the 'All Games' row that shows all games"""
@@ -237,7 +241,7 @@ class SidebarController:
         if not has_active_filters:
             return
 
-        print("Clearing all active filters")
+        logger.debug("Clearing all active filters")
 
         # Clear active filters
         self.active_filters = {}
@@ -254,7 +258,7 @@ class SidebarController:
 
         # When clicking the "All Games/Clear Filters" row, we also clear search text
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
-            print("Showing all games - filters cleared")
+            logger.debug("Showing all games - filters cleared")
 
             # Clear search text in UI and settings
             window = self.main_controller.window
@@ -270,7 +274,7 @@ class SidebarController:
         """Add filter category sections to the sidebar"""
         # Get expanded states from settings
         expanded_categories = self.main_controller.settings_manager.get_sidebar_expanded_categories()
-        print(f"Loaded expanded categories from settings: {expanded_categories}")
+        logger.debug(f"Loaded expanded categories from settings: {expanded_categories}")
 
         # Create all categories - define them in alphabetical order
 
@@ -356,7 +360,7 @@ class SidebarController:
     def _on_category_toggled(self, category_item):
         """Handle category expansion toggling and save to settings"""
         category_id = category_item.category_id
-        print(f"Category {category_item.name} ({category_id}) toggled to {category_item.expanded}")
+        logger.debug(f"Category {category_item.name} ({category_id}) toggled to {category_item.expanded}")
 
         # Check if this category has active filters
         has_active_filters = (category_id in self.active_filters and
@@ -364,7 +368,7 @@ class SidebarController:
 
         # If trying to collapse a category with active filters, prevent it
         if has_active_filters and not category_item.expanded:
-            print(f"Preventing collapse of category {category_id} because it has active filters")
+            logger.debug(f"Preventing collapse of category {category_id} because it has active filters")
 
             # Find the category row and force it to stay expanded
             category_row = self._find_category_row(category_id)
@@ -387,7 +391,7 @@ class SidebarController:
 
         # Get current expanded states
         expanded_categories = self.main_controller.settings_manager.get_sidebar_expanded_categories()
-        print(f"Current expanded categories before update: {expanded_categories}")
+        logger.debug(f"Current expanded categories before update: {expanded_categories}")
 
         # Update the expanded state for this category
         expanded_categories[category_id] = category_item.expanded
@@ -396,11 +400,11 @@ class SidebarController:
         self.main_controller.settings_manager.set_sidebar_expanded_categories(expanded_categories)
         self.main_controller.settings_manager.save_settings()
 
-        print(f"Updated expanded categories: {expanded_categories}")
+        logger.debug(f"Updated expanded categories: {expanded_categories}")
 
     def refresh_filters(self):
         """Refresh all filter categories with current data"""
-        print("Refreshing all filter categories")
+        logger.debug("Refreshing all filter categories")
 
         # Get all games for analysis
         games = self.main_controller.get_games()
@@ -452,7 +456,7 @@ class SidebarController:
             child = child.get_next_sibling()
 
         if not category_row:
-            print("Completion status category row not found")
+            logger.warning("Completion status category row not found")
             return
 
         # Clear existing value rows
@@ -540,7 +544,7 @@ class SidebarController:
 
         # Toggle behavior: If this value is already selected, deselect it
         if value_id in self.active_filters.get(category_id, set()):
-            print(f"Toggling off filter {category_id}={value_id}")
+            logger.debug(f"Toggling off filter {category_id}={value_id}")
             # Remove this value from the filter set
             self.active_filters[category_id].remove(value_id)
 
@@ -553,7 +557,7 @@ class SidebarController:
                 self.active_filters[category_id].clear()
 
             # Add the new filter value
-            print(f"Adding filter {category_id}={value_id}")
+            logger.debug(f"Adding filter {category_id}={value_id}")
             if category_id not in self.active_filters:
                 self.active_filters[category_id] = set()
             self.active_filters[category_id].add(value_id)
@@ -561,7 +565,7 @@ class SidebarController:
             # Ensure the category is expanded when a filter is selected
             category_row = self._find_category_row(category_id)
             if category_row and not category_row.is_expanded():
-                print(f"Auto-expanding category {category_id} because a filter was selected")
+                logger.debug(f"Auto-expanding category {category_id} because a filter was selected")
                 category_row.set_expanded(True)
 
                 # Also update the stored expanded states
@@ -591,7 +595,7 @@ class SidebarController:
 
         # Update grid with filters from sidebar controller
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
-            print(f"Applying filters: {self.active_filters}")
+            logger.debug(f"Applying filters: {self.active_filters}")
             # Just pass the search text - the grid controller will get filters from this controller
             self.main_controller.game_grid_controller.populate_games(search_text=search_text)
 
@@ -663,7 +667,7 @@ class SidebarController:
         # Find the category row in the sidebar
         category_row = self._find_category_row("platforms")
         if not category_row:
-            print("Platforms category row not found")
+            logger.warning("Platforms category row not found")
             return
 
         # Clear existing value rows
@@ -735,7 +739,7 @@ class SidebarController:
         # Find the category row in the sidebar
         category_row = self._find_category_row("genres")
         if not category_row:
-            print("Genres category row not found")
+            logger.warning("Genres category row not found")
             return
 
         # Clear existing value rows
@@ -807,7 +811,7 @@ class SidebarController:
         # Find the category row in the sidebar
         category_row = self._find_category_row("age_ratings")
         if not category_row:
-            print("Age ratings category row not found")
+            logger.warning("Age ratings category row not found")
             return
 
         # Clear existing value rows
@@ -879,7 +883,7 @@ class SidebarController:
         # Find the category row in the sidebar
         category_row = self._find_category_row("features")
         if not category_row:
-            print("Features category row not found")
+            logger.warning("Features category row not found")
             return
 
         # Clear existing value rows
@@ -951,7 +955,7 @@ class SidebarController:
         # Find the category row in the sidebar
         category_row = self._find_category_row("regions")
         if not category_row:
-            print("Regions category row not found")
+            logger.warning("Regions category row not found")
             return
 
         # Clear existing value rows
@@ -1023,7 +1027,7 @@ class SidebarController:
         # Find the category row in the sidebar
         category_row = self._find_category_row("sources")
         if not category_row:
-            print("Sources category row not found")
+            logger.warning("Sources category row not found")
             return
 
         # Clear existing value rows
@@ -1050,7 +1054,7 @@ class SidebarController:
             source_counts[source] = source_counts.get(source, 0) + 1
 
         # Debug output
-        print(f"Source counts (show_hidden={show_hidden}): {source_counts}")
+        logger.debug(f"Source counts (show_hidden={show_hidden}): {source_counts}")
 
         # Add "No Source" option if there are games with no source or if it's already selected
         no_source_count = source_counts.get("", 0)
@@ -1060,7 +1064,7 @@ class SidebarController:
         )
 
         # The counts are now pre-filtered based on the hidden/visible setting
-        print(f"No Source count: {no_source_count}")
+        logger.debug(f"No Source count: {no_source_count}")
 
         if no_source_count > 0 or is_selected:
             no_source_item = ValueItem(
@@ -1111,17 +1115,17 @@ class SidebarController:
                 )
 
                 # Debug output
-                print(f"Processing source ID: '{source_id}', count: {source_counts.get(source_id, 0)}, selected: {is_selected}")
+                logger.debug(f"Processing source ID: '{source_id}', count: {source_counts.get(source_id, 0)}, selected: {is_selected}")
 
                 # Get actual game count considering hidden games
                 source_count = source_counts.get(source_id, 0)
 
                 # The counts are already filtered by the hidden/visible setting
-                print(f"Source '{source_id}' count: {source_count}")
+                logger.debug(f"Source '{source_id}' count: {source_count}")
 
                 # Skip sources with no games unless they're already selected
                 if source_count == 0 and not is_selected:
-                    print(f"Skipping source ID '{source_id}' with no games and not selected")
+                    logger.debug(f"Skipping source ID '{source_id}' with no games and not selected")
                     continue
 
                 # Get a more friendly name for the source if it's a numeric ID
@@ -1223,10 +1227,10 @@ class SidebarController:
         This method is kept with its original name for backward compatibility.
         """
         if not self.sidebar_container:
-            print("Can't refresh sidebar - not initialized")
+            logger.warning("Can't refresh sidebar - not initialized")
             return
 
-        print("Refreshing platform filters for runners...")
+        logger.debug("Refreshing platform filters for runners...")
 
         # Get current games
         games = self.main_controller.get_games()
@@ -1239,7 +1243,7 @@ class SidebarController:
 
         # If we have "runner" in active filters, clear it since we no longer use runner filtering
         if "runner" in self.active_filters:
-            print("Clearing obsolete runner filters")
+            logger.debug("Clearing obsolete runner filters")
             self.active_filters.pop("runner")
             self.main_controller.settings_manager.set_sidebar_active_filters(self.active_filters)
             self.main_controller.settings_manager.save_settings()
@@ -1284,27 +1288,27 @@ class SidebarController:
 
             elif category == "completion_status":
                 filtered_games = [g for g in filtered_games if g.completion_status.name in values]
-                print(f"After completion status filters ({len(values)} selected): {len(filtered_games)} games")
+                logger.debug(f"After completion status filters ({len(values)} selected): {len(filtered_games)} games")
 
             elif category == "platforms":
                 filtered_games = [g for g in filtered_games if g.platforms and any(platform.name in values for platform in g.platforms)]
-                print(f"After platform filters ({len(values)} selected): {len(filtered_games)} games")
+                logger.debug(f"After platform filters ({len(values)} selected): {len(filtered_games)} games")
 
             elif category == "genres":
                 filtered_games = [g for g in filtered_games if g.genres and any(genre.name in values for genre in g.genres)]
-                print(f"After genre filters ({len(values)} selected): {len(filtered_games)} games")
+                logger.debug(f"After genre filters ({len(values)} selected): {len(filtered_games)} games")
 
             elif category == "age_ratings":
                 filtered_games = [g for g in filtered_games if g.age_ratings and any(rating.name in values for rating in g.age_ratings)]
-                print(f"After age rating filters ({len(values)} selected): {len(filtered_games)} games")
+                logger.debug(f"After age rating filters ({len(values)} selected): {len(filtered_games)} games")
 
             elif category == "features":
                 filtered_games = [g for g in filtered_games if g.features and any(feature.name in values for feature in g.features)]
-                print(f"After feature filters ({len(values)} selected): {len(filtered_games)} games")
+                logger.debug(f"After feature filters ({len(values)} selected): {len(filtered_games)} games")
 
             elif category == "regions":
                 filtered_games = [g for g in filtered_games if g.regions and any(region.name in values for region in g.regions)]
-                print(f"After region filters ({len(values)} selected): {len(filtered_games)} games")
+                logger.debug(f"After region filters ({len(values)} selected): {len(filtered_games)} games")
 
             elif category == "sources":
                 # Special case for empty source filter (matches games with no source)
@@ -1318,6 +1322,6 @@ class SidebarController:
                 else:
                     # Normal source filtering
                     filtered_games = [g for g in filtered_games if g.source in values]
-                print(f"After source filters ({len(values)} selected): {len(filtered_games)} games")
+                logger.debug(f"After source filters ({len(values)} selected): {len(filtered_games)} games")
 
         return filtered_games
