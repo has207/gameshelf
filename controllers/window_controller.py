@@ -214,6 +214,11 @@ class GameShelfWindow(Adw.ApplicationWindow):
         # Connect to the close-request signal
         self.connect("close-request", self._on_close_request)
 
+        # Set the window reference in the process tracker for minimize to tray functionality
+        if hasattr(self.controller, 'process_tracker'):
+            self.controller.process_tracker.app_window = self
+            logger.debug("Set window reference in process tracker for minimize to tray on game launch")
+
         # Initialize sub-controllers
         self._init_controllers()
 

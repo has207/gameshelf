@@ -25,6 +25,8 @@ class ProcessTracker:
     def __init__(self, data_handler):
         self.data_handler = data_handler
         self.current_game_discord_enabled = True  # Default value for Discord integration
+        self.app_window = None  # Reference to main application window
+        self.minimize_to_tray_on_game_launch = True  # Whether to minimize to tray when launching games
 
     def launch_game(self, game: Game, runner_command: str, file_path: Optional[str] = None,
                 on_exit_callback: Optional[Callable] = None, discord_enabled: bool = True,
@@ -132,6 +134,27 @@ class ProcessTracker:
                 # Just log the error but don't let it affect game launch
                 logger.error(f"Discord integration error (game will still launch): {e}")
 
+            # Minimize the main window to tray if enabled
+            if self.minimize_to_tray_on_game_launch and self.app_window:
+                logger.info(f"Minimizing main window to tray while playing {game.title}")
+
+                # Show notification before minimizing
+                try:
+                    # Create notification toast
+                    from gi.repository import Adw
+                    toast = Adw.Toast.new(f"Playing {game.title} - GameShelf minimized to tray")
+                    toast.set_timeout(3)  # 3 seconds
+
+                    # Try to show the notification
+                    content = self.app_window.get_content()
+                    if content is not None and isinstance(content, Adw.ToastOverlay):
+                        content.add_toast(toast)
+                except Exception as e:
+                    logger.debug(f"Could not show notification toast: {e}")
+
+                # Schedule minimizing on the main thread to ensure it happens properly
+                GLib.idle_add(self.app_window.hide)
+
             return True
         except Exception as e:
             logger.error(f"Error launching game: {e}")
@@ -206,6 +229,34 @@ class ProcessTracker:
             else:
                 logger.info(f"Game {game.title} exited - Discord integration was disabled for this game")
 
+            # Restore the main window from tray if it was minimized
+            if self.minimize_to_tray_on_game_launch and self.app_window:
+                logger.info(f"Game {game.title} exited - restoring main window from tray")
+
+                # Show notification after game exits
+                def restore_window_with_notification():
+                    # Present the window first
+                    self.app_window.present()
+
+                    # Then show notification
+                    try:
+                        # Create notification toast
+                        from gi.repository import Adw
+                        toast = Adw.Toast.new(f"{game.title} has closed - Played for {seconds_played//60} min, {seconds_played%60} sec")
+                        toast.set_timeout(5)  # 5 seconds
+
+                        # Try to show the notification
+                        content = self.app_window.get_content()
+                        if content is not None and isinstance(content, Adw.ToastOverlay):
+                            content.add_toast(toast)
+                    except Exception as e:
+                        logger.debug(f"Could not show notification toast: {e}")
+
+                    return False  # Don't repeat the timeout
+
+                # Schedule window restore with notification on the main thread
+                GLib.idle_add(restore_window_with_notification)
+
             # Call the callback on the main thread if provided
             if on_exit_callback:
                 GLib.idle_add(on_exit_callback, game)
@@ -215,8 +266,36 @@ class ProcessTracker:
             # Make sure to clean up the PID file in case of error
             self.data_handler.clear_game_pid(game)
 
+            # Restore window even in case of error
+            if self.minimize_to_tray_on_game_launch and self.app_window:
+                logger.info(f"Error occurred, restoring main window from tray")
+
+                # Show error notification
+                def restore_window_with_error():
+                    # Present the window first
+                    self.app_window.present()
+
+                    # Then show notification
+                    try:
+                        # Create notification toast
+                        from gi.repository import Adw
+                        toast = Adw.Toast.new(f"Error monitoring game {game.title} - process tracking ended")
+                        toast.set_timeout(5)  # 5 seconds
+
+                        # Try to show the notification
+                        content = self.app_window.get_content()
+                        if content is not None and isinstance(content, Adw.ToastOverlay):
+                            content.add_toast(toast)
+                    except Exception as toast_error:
+                        logger.debug(f"Could not show notification toast: {toast_error}")
+
+                    return False  # Don't repeat the timeout
+
+                # Schedule window restore with notification on the main thread
+                GLib.idle_add(restore_window_with_error)
+
             # Update Discord Rich Presence in case of error
-            if self.app_state_manager and self.app_state_manager.get_discord_enabled():
+            if hasattr(self, 'app_state_manager') and self.app_state_manager and self.app_state_manager.get_discord_enabled():
                 discord_presence.game_stopped()
 
     def is_game_running(self, game: Game) -> bool:
