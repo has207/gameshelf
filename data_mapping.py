@@ -38,6 +38,11 @@ class InvalidTagError(Exception):
     pass
 
 
+class InvalidLauncherTypeError(Exception):
+    """Exception raised when an invalid launcher type is encountered."""
+    pass
+
+
 class CompletionStatus(enum.Enum):
     NOT_PLAYED = "Not Played"
     PLAN_TO_PLAY = "Plan to Play"
@@ -526,3 +531,42 @@ class Regions(enum.Enum):
                 # Skip invalid regions
                 pass
         return regions
+
+
+class LauncherType(enum.Enum):
+    """Types of game launchers for external games"""
+    EPIC = "Epic Games Store"
+    GOG = "GOG Galaxy"
+    STEAM = "Steam"
+    AMAZON = "Amazon Games"
+    NONE = "None"
+
+    @classmethod
+    def from_string(cls, launcher_str: Optional[str]) -> 'LauncherType':
+        """
+        Convert a string to the corresponding enum value
+
+        Args:
+            launcher_str: String representation of launcher type
+
+        Returns:
+            LauncherType enum value
+
+        Raises:
+            InvalidLauncherTypeError: If the string doesn't match any valid launcher type
+        """
+        if not launcher_str:
+            return cls.NONE
+
+        # Try direct match first
+        for launcher in cls:
+            if launcher.value == launcher_str or launcher.name == launcher_str:
+                return launcher
+
+        # Try case-insensitive match
+        for launcher in cls:
+            if launcher.value.lower() == launcher_str.lower() or launcher.name.lower() == launcher_str.lower():
+                return launcher
+
+        # Raise exception if no match found
+        raise InvalidLauncherTypeError(f"Invalid launcher type: {launcher_str}")

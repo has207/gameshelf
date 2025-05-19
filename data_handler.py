@@ -173,6 +173,13 @@ class DataHandler:
                         except Exception as desc_err:
                             logger.error(f"Error loading description for {game_id}: {desc_err}")
 
+                    # Load launcher data if exists
+                    launcher_data = self.get_launcher_data(game)
+                    if launcher_data:
+                        # Store launcher data in game object properties
+                        game.launcher_type = launcher_data.get("type")
+                        game.launcher_id = launcher_data.get("id")
+
 
                     games.append(game)
             except Exception as e:
@@ -208,7 +215,8 @@ class DataHandler:
                         command=runner_data.get("command", ""),
                         id=runner_file.stem,
                         platforms=platforms,
-                        discord_enabled=discord_enabled
+                        discord_enabled=discord_enabled,
+                        launcher_type=runner_data.get("launcher_type")
                     )
                     runners.append(runner)
             except Exception as e:
@@ -287,6 +295,10 @@ class DataHandler:
             "command": runner.command,
             "discord_enabled": runner.discord_enabled if hasattr(runner, 'discord_enabled') else True
         }
+
+        # Save launcher type if it exists
+        if hasattr(runner, 'launcher_type') and runner.launcher_type:
+            runner_data["launcher_type"] = runner.launcher_type
 
         # Save platform enum display values
         if runner.platforms:
@@ -813,6 +825,61 @@ class DataHandler:
             logger.error(f"Error updating regions for {game.id}: {e}")
             return False
 
+    def save_launcher_data(self, game: Game, launcher_type: str, launcher_id: str) -> bool:
+        """
+        Save launcher data for a game to a launcher.yaml file.
+
+        Args:
+            game: The game to save launcher data for
+            launcher_type: The type of launcher (e.g., 'EGS', 'PSN', 'XBOX')
+            launcher_id: The ID of the game in the launcher's namespace
+
+        Returns:
+            True if the launcher data was successfully saved, False otherwise
+        """
+        game_dir = self._get_game_dir_from_id(game.id)
+        launcher_file = self._get_game_dir_from_id(game.id) / "launcher.yaml"
+
+        try:
+            # Create the launcher data
+            launcher_data = {
+                "type": launcher_type,
+                "id": launcher_id
+            }
+
+            # Write to the file
+            with open(launcher_file, "w") as f:
+                yaml.dump(launcher_data, f)
+
+            return True
+        except Exception as e:
+            logger.error(f"Error saving launcher data for {game.id}: {e}")
+            return False
+
+    def get_launcher_data(self, game: Game) -> Optional[Dict[str, str]]:
+        """
+        Get launcher data for a game from the launcher.yaml file.
+
+        Args:
+            game: The game to get launcher data for
+
+        Returns:
+            Dictionary with launcher data if found, None otherwise
+        """
+        launcher_file = Path(game.get_launcher_path(self.data_dir))
+
+        if not launcher_file.exists():
+            return None
+
+        try:
+            with open(launcher_file, "r") as f:
+                launcher_data = yaml.safe_load(f)
+                return launcher_data
+        except Exception as e:
+            logger.error(f"Error loading launcher data for {game.id}: {e}")
+
+        return None
+
     def increment_play_time(self, game: Game, seconds_to_add: int) -> bool:
         """
         Add seconds to a game's play time.
@@ -845,8 +912,7 @@ class DataHandler:
         Returns:
             True if the last played time was successfully updated, False otherwise
         """
-        game_dir = self._get_game_dir_from_id(game.id)
-        play_count_file = game_dir / "play_count.yaml"
+        play_count_file = Path(game.get_play_count_path(self.data_dir))
 
         try:
             # Ensure the play count file exists
@@ -876,8 +942,7 @@ class DataHandler:
         Returns:
             True if the PID was successfully saved, False otherwise
         """
-        game_dir = self._get_game_dir_from_id(game.id)
-        pid_file = game_dir / "pid.yaml"
+        pid_file = Path(game.get_pid_path(self.data_dir))
 
         try:
             # Create the PID data
@@ -952,8 +1017,7 @@ class DataHandler:
         Returns:
             True if the installation data was successfully saved, False otherwise
         """
-        game_dir = self._get_game_dir_from_id(game.id)
-        installation_file = game_dir / "installation.yaml"
+        installation_file = Path(game.get_installation_path(self.data_dir))
 
         try:
             # Check if this is a Wii U game based on platforms

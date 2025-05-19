@@ -4,7 +4,7 @@ import logging
 
 from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk
 from data import Runner
-from data_mapping import Platforms
+from data_mapping import Platforms, LauncherType
 
 from controllers.common import get_template_path, show_error_dialog, show_confirmation_dialog, show_image_chooser_dialog
 
@@ -118,6 +118,8 @@ class RunnerDialog(Adw.Window):
     title_entry: Adw.EntryRow = Gtk.Template.Child()
     command_entry: Adw.EntryRow = Gtk.Template.Child()
     discord_switch: Adw.SwitchRow = Gtk.Template.Child()
+    launcher_type_combo: Adw.ComboRow = Gtk.Template.Child()
+    windows_platform_check: Gtk.CheckButton = Gtk.Template.Child()
     image_preview: Gtk.Picture = Gtk.Template.Child()
     select_image_button: Gtk.Button = Gtk.Template.Child()
     clear_image_container: Gtk.Box = Gtk.Template.Child()
@@ -139,6 +141,10 @@ class RunnerDialog(Adw.Window):
         self.runner = None
         self.selected_platforms = []  # Track selected platforms
         self.discord_enabled = True  # Default value for Discord presence
+        self.launcher_type = None  # Default value for launcher type
+
+        # Initialize the launcher type combo
+        self._init_launcher_type_combo()
 
         # Configure UI based on mode (add or edit)
         if edit_mode:
@@ -171,6 +177,28 @@ class RunnerDialog(Adw.Window):
         # Perform initial validation
         self.validate_form()
 
+    def _init_launcher_type_combo(self):
+        """Initialize the launcher type combo with available launcher types"""
+        # Create a string list model for the combo row
+        string_list = Gtk.StringList()
+
+        # Add all launcher types from the enum
+        for i, launcher_type in enumerate(LauncherType):
+            if launcher_type != LauncherType.NONE:  # Skip the NONE option
+                string_list.append(launcher_type.value)
+
+        # Add a "None" option at the beginning
+        string_list.append("None")
+
+        # Set the model for the combo row
+        self.launcher_type_combo.set_model(string_list)
+
+        # Set the "None" option as selected by default
+        self.launcher_type_combo.set_selected(len(LauncherType) - 1)  # -1 because we skipped NONE
+
+        # Listen to platform changes to show/hide launcher type combo
+        self.platform_changed_handlers = []
+
     def _init_platform_selection(self):
         """Initialize the platform selection flowbox with all available platforms"""
         # Get sorted list of all platforms for better user experience
@@ -195,6 +223,47 @@ class RunnerDialog(Adw.Window):
 
             # Add to flowbox
             self.platform_flowbox.append(flowbox_child)
+
+            # Connect to Windows platform checkbox toggle event
+            if platform == Platforms.PC_WINDOWS:
+                # Store a reference to the checkbox for Windows platform
+                self.windows_platform_check = checkbox
+                # Connect to toggled event to show/hide launcher type combo
+                handler_id = checkbox.connect("toggled", self._update_launcher_type_visibility)
+                self.platform_changed_handlers.append((checkbox, handler_id))
+
+    def _update_launcher_type_visibility(self, checkbox):
+        """Update visibility of launcher type combo based on Windows platform selection"""
+        # Show launcher type combo only if Windows platform is selected
+        has_windows = checkbox.get_active()
+        self.launcher_type_combo.set_visible(has_windows)
+
+        # If Windows is deselected, reset the launcher type to None
+        if not has_windows:
+            self.launcher_type_combo.set_selected(len(LauncherType) - 1)  # Select "None"
+            self.launcher_type = None
+
+        # Update validation
+        self.validate_form()
+
+    @Gtk.Template.Callback()
+    def on_launcher_type_changed(self, combo_row, gparam):
+        """Handle launcher type selection change"""
+        # Get the selected launcher type
+        selected_index = combo_row.get_selected()
+
+        # Check if "None" is selected
+        if selected_index == len(LauncherType) - 1:  # "None" is the last item
+            self.launcher_type = None
+        else:
+            # Find the matching enum value
+            for i, launcher_type in enumerate(LauncherType):
+                if launcher_type != LauncherType.NONE and i == selected_index:
+                    self.launcher_type = launcher_type.name
+                    break
+
+        # Update validation
+        self.validate_form()
 
     def _get_selected_platforms(self):
         """Get list of selected platforms from the flowbox"""
@@ -245,6 +314,19 @@ class RunnerDialog(Adw.Window):
         self.selected_image_path = None
         self.original_image_path = runner.image
 
+        # Set launcher type if present
+        if hasattr(runner, 'launcher_type') and runner.launcher_type:
+            self.launcher_type = runner.launcher_type
+            # Set the appropriate item in the combo box
+            for i, launcher_type in enumerate(LauncherType):
+                if launcher_type != LauncherType.NONE and launcher_type.name == runner.launcher_type:
+                    self.launcher_type_combo.set_selected(i)
+                    break
+        else:
+            self.launcher_type = None
+            # Set to "None" option
+            self.launcher_type_combo.set_selected(len(LauncherType) - 1)
+
         # Load the runner image
         pixbuf = self.controller.get_runner_pixbuf(runner, width=128, height=128)
         if pixbuf:
@@ -259,6 +341,16 @@ class RunnerDialog(Adw.Window):
         if runner.platforms:
             self._select_platforms(runner.platforms)
             self.selected_platforms = runner.platforms.copy()
+
+            # Check if Windows platform is selected to show/hide launcher type combo
+            has_windows = False
+            for platform in runner.platforms:
+                if platform == Platforms.PC_WINDOWS:
+                    has_windows = True
+                    break
+
+            # Update launcher type visibility
+            self.launcher_type_combo.set_visible(has_windows)
 
         # Enable the action button
         self.validate_form()
@@ -493,6 +585,12 @@ class RunnerDialog(Adw.Window):
                 has_changes = True
                 logger.debug(f"Discord enabled changed from {original_discord_enabled} to {current_discord_enabled}")
 
+            # Check launcher type change
+            original_launcher_type = getattr(self.runner, 'launcher_type', None)
+            if self.launcher_type != original_launcher_type:
+                has_changes = True
+                logger.debug(f"Launcher type changed from {original_launcher_type} to {self.launcher_type}")
+
             # Check image change
             if self.selected_image_path is not None:  # Only if image was explicitly changed
                 has_changes = True
@@ -561,7 +659,8 @@ class RunnerDialog(Adw.Window):
             command=command,
             image=self.selected_image_path,
             platforms=platforms,
-            discord_enabled=discord_enabled
+            discord_enabled=discord_enabled,
+            launcher_type=self.launcher_type
         )
 
         # Save the runner through the controller
@@ -597,6 +696,7 @@ class RunnerDialog(Adw.Window):
         self.runner.command = command
         self.runner.platforms = platforms
         self.runner.discord_enabled = discord_enabled
+        self.runner.launcher_type = self.launcher_type
 
         # Update image
         if self.selected_image_path is not None:  # Image was changed

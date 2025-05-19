@@ -17,7 +17,8 @@ from pypresence import Presence
 # Application client ID for Discord Developer Portal
 # You'll need to create a Discord application at https://discord.com/developers/applications
 # and use its client ID here - this ID is specific to your Discord application
-DISCORD_CLIENT_ID = "1372963900873642055"
+#DISCORD_CLIENT_ID = "1372963900873642055"
+DISCORD_CLIENT_ID = "852942976564723722"
 
 # Note: Discord chat member list will only ever show "Playing [Application Name]"
 # where [Application Name] is set in the Discord Developer Portal.
@@ -177,6 +178,7 @@ class DiscordPresence:
 
             # Now that we have uploaded an image asset, include it in the presence
             update_params = {
+                "instance": True,
                 "details": details,
                 "large_image": "gameshelf",  # The name of your uploaded asset
                 "large_text": "GameShelf"

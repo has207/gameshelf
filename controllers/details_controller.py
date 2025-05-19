@@ -6,7 +6,7 @@ from typing import Optional
 
 from gi.repository import Gtk, GLib, Gdk
 from data import Game, Runner
-from data_mapping import CompletionStatus, Platforms
+from data_mapping import CompletionStatus, Platforms, LauncherType
 from process_tracking import ProcessTracker
 
 from controllers.sidebar_controller import get_friendly_time, format_play_time
@@ -101,7 +101,7 @@ class GameDetailsContent(Gtk.Box):
 
     def _get_compatible_runners(self, game: Game) -> list:
         """
-        Find runners that are compatible with the game's platforms.
+        Find runners that are compatible with the game's platforms and launcher type.
 
         Args:
             game: The game to find compatible runners for
@@ -115,30 +115,95 @@ class GameDetailsContent(Gtk.Box):
         # Get all runners
         all_runners = self.controller.get_runners()
 
+        # Get launcher data for the game
+        launcher_data = self.controller.data_handler.get_launcher_data(game)
+        game_launcher_type = None
+
+        # If game has launcher data, extract the launcher type
+        if launcher_data and "type" in launcher_data:
+            game_launcher_type = launcher_data["type"]
+
         # Filter to runners that support at least one of the game's platforms
         compatible = []
+        generic_runners = []  # Runners with matching platforms but no launcher type
+
         for runner in all_runners:
             if not runner.platforms:
                 continue
 
+            # Track if this runner is platform-compatible
+            platform_compatible = False
+
             # Check if any of the game's platforms are supported by this runner
             for platform in game.platforms:
                 if platform in runner.platforms:
-                    compatible.append(runner)
+                    platform_compatible = True
                     break
 
-        return compatible
+            # If not platform compatible, skip this runner
+            if not platform_compatible:
+                continue
 
-    def _add_runner_to_flowbox(self, runner: Runner):
+            # For games with launcher type, check for matching runners
+            if game_launcher_type:
+                # Check if runner has launcher type that matches the game
+                if hasattr(runner, 'launcher_type') and runner.launcher_type:
+                    # If runner launcher type matches game launcher type, add to compatible list
+                    if runner.launcher_type == game_launcher_type:
+                        compatible.append(runner)
+                    else:
+                        # Runner has launcher type but doesn't match the game's launcher type
+                        # Skip this runner entirely for launcher-specific games
+                        continue
+                else:
+                    # Runner with matching platform but no launcher type
+                    generic_runners.append(runner)
+            else:
+                # For games without launcher type, add platform-compatible runners
+                # Prioritize runners without launcher type for non-launcher games
+                if not hasattr(runner, 'launcher_type') or not runner.launcher_type:
+                    compatible.append(runner)
+                else:
+                    # Add launcher-type runners at the end for non-launcher games
+                    generic_runners.append(runner)
+
+        # If we have matched launcher-type runners, return only those
+        if game_launcher_type and compatible:
+            return compatible
+
+        # Otherwise, return generic runners
+        return compatible + generic_runners
+
+    def _add_runner_to_flowbox(self, runner: Runner, launcher_type: Optional[str] = None):
         """
         Add a runner button to the compatible runners flowbox.
 
         Args:
             runner: The runner to add
+            launcher_type: Optional launcher type to display with the runner
         """
+        label_text = runner.title
+        tooltip_text = f"Run with {runner.title}"
+
+        # If launcher type is provided, add it to the button label
+        if launcher_type:
+            # Get the display name for the launcher type
+            launcher_display = launcher_type
+            try:
+                # Try to convert to a nicer display name if it's a LauncherType enum value
+                launcher_enum = getattr(LauncherType, launcher_type)
+                launcher_display = launcher_enum.value
+            except (AttributeError, ValueError):
+                # If not a valid enum value, use the raw string
+                pass
+
+            # Update label and tooltip
+            label_text = f"{runner.title} ({launcher_display})"
+            tooltip_text = f"Run with {runner.title} - configured for {launcher_display}"
+
         # Create a button for the runner
-        button = Gtk.Button(label=runner.title)
-        button.set_tooltip_text(f"Run with {runner.title}")
+        button = Gtk.Button(label=label_text)
+        button.set_tooltip_text(tooltip_text)
 
         # Set up click handler
         button.connect("clicked", self._on_runner_clicked, runner)
@@ -169,39 +234,46 @@ class GameDetailsContent(Gtk.Box):
                 self.play_button.set_sensitive(False)
                 return
 
-            # Check if we have installation data for this game
+            # Check if we have launcher data or installation data for this game
+            launcher_data = self.controller.data_handler.get_launcher_data(self.game)
             installation_data = self.controller.data_handler.get_installation_data(self.game)
             file_path = None
+            launcher_id = None
 
-            # Check if this is a Wii U game
-            is_wiiu_game = installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]
+            # Check if this is a game with launcher data
+            if launcher_data and "id" in launcher_data:
+                # Use launcher_id instead of file_path
+                launcher_id = launcher_data["id"]
+            else:
+                # Check if this is a Wii U game
+                is_wiiu_game = installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]
 
-            # For Wii U games, we don't need file selection - just pass directory to the runner
-            if is_wiiu_game:
-                # We'll pass None for file_path, process_tracking will handle the directory
-                file_path = None
-            # For regular games, we handle file selection
-            elif installation_data and "files" in installation_data and len(installation_data["files"]) > 0:
-                files = installation_data["files"]
+                # For Wii U games, we don't need file selection - just pass directory to the runner
+                if is_wiiu_game:
+                    # We'll pass None for file_path, process_tracking will handle the directory
+                    file_path = None
+                # For regular games, we handle file selection
+                elif installation_data and "files" in installation_data and len(installation_data["files"]) > 0:
+                    files = installation_data["files"]
 
-                # If there's only one file, use it directly
-                if len(files) == 1:
-                    file_path = files[0]
-                else:
-                    # Show file selection dialog
-                    from controllers.file_selection_dialog import FileSelectionDialog
-                    dialog = FileSelectionDialog(
-                        self.get_ancestor(Gtk.Window),
-                        installation_data.get("directory", ""),
-                        files
-                    )
-                    dialog.connect("file-selected", self._on_file_selected, runner)
-                    dialog.show()
-                    # Return and wait for the file selection callback
-                    return
+                    # If there's only one file, use it directly
+                    if len(files) == 1:
+                        file_path = files[0]
+                    else:
+                        # Show file selection dialog
+                        from controllers.file_selection_dialog import FileSelectionDialog
+                        dialog = FileSelectionDialog(
+                            self.get_ancestor(Gtk.Window),
+                            installation_data.get("directory", ""),
+                            files
+                        )
+                        dialog.connect("file-selected", self._on_file_selected, runner)
+                        dialog.show()
+                        # Return and wait for the file selection callback
+                        return
 
-            # Launch the game with this runner and selected file (if any)
-            self._launch_with_runner(runner, file_path)
+            # Launch the game with this runner and selected file or launcher ID
+            self._launch_with_runner(runner, file_path, launcher_id)
 
     def _on_file_selected(self, dialog, file_path, runner):
         """
@@ -212,27 +284,30 @@ class GameDetailsContent(Gtk.Box):
             file_path: The selected file path
             runner: The runner to use
         """
-        # Launch the game with this runner and selected file
-        self._launch_with_runner(runner, file_path)
+        # Launch the game with this runner and selected file (no launcher ID in this path)
+        self._launch_with_runner(runner, file_path, None)
 
-    def _launch_with_runner(self, runner: Runner, file_path: Optional[str] = None):
+    def _launch_with_runner(self, runner: Runner, file_path: Optional[str] = None, launcher_id: Optional[str] = None):
         """
-        Launch the game with the given runner and file path.
+        Launch the game with the given runner and file path or launcher ID.
 
         Args:
             runner: The runner to use
             file_path: Optional file path to launch
+            launcher_id: Optional launcher-specific ID for the game
         """
         # Get the discord_enabled setting from the runner (default to True if not present)
         discord_enabled = getattr(runner, 'discord_enabled', True)
 
         # Launch the game with this runner, passing the discord_enabled setting
+        # If launcher_id is provided, use that instead of file_path
         launch_success = self.controller.process_tracker.launch_game(
             self.game,
             runner.command,
             file_path,
             self._update_playtime_ui,  # Callback when game exits
-            discord_enabled  # Pass the Discord setting from the runner
+            discord_enabled,  # Pass the Discord setting from the runner
+            launcher_id  # Pass launcher ID if available
         )
 
         if launch_success:
@@ -379,8 +454,12 @@ class GameDetailsContent(Gtk.Box):
         compatible_runners = self._get_compatible_runners(game)
         has_compatible_runners = len(compatible_runners) > 0 and any(r.command for r in compatible_runners)
 
-        # Check for installation data
+        # Check for installation data or launcher data
         installation_data = self.controller.data_handler.get_installation_data(game)
+        launcher_data = self.controller.data_handler.get_launcher_data(game)
+
+        # Check if this game has launcher data
+        has_launcher_data = launcher_data and "id" in launcher_data
 
         # Check if this is a Wii U game (which doesn't use the files array)
         is_wiiu_game = installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]
@@ -388,6 +467,9 @@ class GameDetailsContent(Gtk.Box):
         # For Wii U games, we check if the directory exists
         if is_wiiu_game:
             has_installation_files = installation_data and "directory" in installation_data
+        # For launcher games, we only need the launcher ID
+        elif has_launcher_data:
+            has_installation_files = True
         else:
             # For regular games, check for files list
             has_installation_files = installation_data and "files" in installation_data and len(installation_data["files"]) > 0
@@ -468,7 +550,7 @@ class GameDetailsContent(Gtk.Box):
 
     def _update_compatible_runners(self):
         """
-        Update the compatible runners flowbox based on the current game's platforms.
+        Update the compatible runners flowbox based on the current game's platforms and launcher type.
         """
         if not self.game or not self.controller:
             return
@@ -491,9 +573,20 @@ class GameDetailsContent(Gtk.Box):
             self.compatible_runners_box.append(flowbox_child)
             return
 
-        # Add each compatible runner
+        # Add each compatible runner with additional info if it has launcher_type
+        launcher_data = self.controller.data_handler.get_launcher_data(self.game)
+        game_launcher_type = None
+        if launcher_data and "type" in launcher_data:
+            game_launcher_type = launcher_data["type"]
+
         for runner in self.compatible_runners:
-            self._add_runner_to_flowbox(runner)
+            # Add launcher type indicator to the button if present
+            if hasattr(runner, 'launcher_type') and runner.launcher_type:
+                # Add runner with launcher type indicator
+                self._add_runner_to_flowbox(runner, launcher_type=runner.launcher_type)
+            else:
+                # Add regular runner
+                self._add_runner_to_flowbox(runner)
 
     def set_game(self, game: Game):
         self.game = game
@@ -589,6 +682,13 @@ class GameDetailsContent(Gtk.Box):
                 self.regions_label.set_text(region_text)
             else:
                 self.regions_label.set_text("No regions available")
+
+            # Check if game has launcher data and display it
+            launcher_data = self.controller.data_handler.get_launcher_data(game)
+            if launcher_data and "type" in launcher_data:
+                # Store launcher info in the game object for easy access
+                game.launcher_type = launcher_data["type"]
+                game.launcher_id = launcher_data.get("id", "")
 
             # Set description if available with markup support
             if game.description:

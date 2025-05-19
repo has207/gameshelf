@@ -85,6 +85,19 @@
                         <signal name="notify::active" handler="on_discord_toggled"/>
                       </object>
                     </child>
+                    <child>
+                      <object class="AdwComboRow" id="launcher_type_combo">
+                        <property name="title">Launcher Type</property>
+                        <property name="subtitle">For matching with imported games from external launchers</property>
+                        <property name="visible" bind-source="windows_platform_check" bind-property="active" bind-flags="sync-create"/>
+                        <signal name="notify::selected" handler="on_launcher_type_changed"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkCheckButton" id="windows_platform_check">
+                        <property name="visible">false</property>
+                      </object>
+                    </child>
                   </object>
                 </child>
                 

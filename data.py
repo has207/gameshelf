@@ -62,12 +62,14 @@ class Source:
 @dataclass
 class Runner:
     def __init__(self, id: str, title: str, image: Optional[str] = None, command: Optional[str] = None,
-                 platforms: Optional[List[Union[Platforms, str]]] = None, discord_enabled: bool = True):
+                 platforms: Optional[List[Union[Platforms, str]]] = None, discord_enabled: bool = True,
+                 launcher_type: Optional[str] = None):
         self.id = id.lower()
         self.title = title
         self.image = image
         self.command = command
         self.discord_enabled = discord_enabled
+        self.launcher_type = launcher_type
         self.platforms = []  # List of platforms this runner supports
 
         # Handle platforms list
@@ -114,6 +116,8 @@ class Game:
         self.genres = []  # List of genres for the game
         self.regions = []  # List of regions for the game
         self.source = source  # Source ID where this game was imported from
+        self.launcher_type = None  # Type of external launcher (e.g., 'EGS', 'GOG', 'Steam', 'Amazon')
+        self.launcher_id = None  # ID of the game in the launcher's namespace
 
         # Handle string or enum for completion_status
         if isinstance(completion_status, str):
@@ -260,6 +264,9 @@ class Game:
         """Get the path to the game's installation file"""
         return str(self._get_game_dir_path(data_dir) / "installation.yaml")
 
+    def get_launcher_path(self, data_dir: Path) -> str:
+        """Get the path to the game's launcher data file"""
+        return str(self._get_game_dir_path(data_dir) / "launcher.yaml")
 
     def get_last_played_time(self, data_dir: Path) -> Optional[float]:
         play_count_file = Path(self.get_play_count_path(data_dir))

@@ -26,9 +26,11 @@ class ProcessTracker:
         self.data_handler = data_handler
         self.current_game_discord_enabled = True  # Default value for Discord integration
 
-    def launch_game(self, game: Game, runner_command: str, file_path: Optional[str] = None, on_exit_callback: Optional[Callable] = None, discord_enabled: bool = True) -> bool:
+    def launch_game(self, game: Game, runner_command: str, file_path: Optional[str] = None,
+                on_exit_callback: Optional[Callable] = None, discord_enabled: bool = True,
+                launcher_id: Optional[str] = None) -> bool:
         """
-        Launch a game with the specified runner command and optional file path.
+        Launch a game with the specified runner command and optional file path or launcher ID.
 
         Args:
             game: The game to launch
@@ -36,6 +38,7 @@ class ProcessTracker:
             file_path: Optional path to the game file to launch
             on_exit_callback: Optional callback function to call when the game exits
             discord_enabled: Whether to enable Discord rich presence for this runner
+            launcher_id: Optional launcher-specific ID for the game
 
         Returns:
             True if the game was launched successfully, False otherwise
@@ -56,8 +59,21 @@ class ProcessTracker:
             if installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]:
                 is_wiiu_game = True
 
-            # For Wii U games, we directly pass the game directory to the emulator
-            if is_wiiu_game and "directory" in installation_data:
+            # If launcher_id is provided, use that instead of file_path
+            if launcher_id is not None:
+                # Modify the last part of the command to append launcher_id without a space
+                if cmd:
+                    # Get the last element of the command
+                    last_cmd = cmd[-1]
+                    # Replace it with last element + launcher ID
+                    cmd[-1] = last_cmd + launcher_id
+                    logger.info(f"Launching game: {game.title} with command: {' '.join(cmd)}")
+                else:
+                    # If command is empty, just use the launcher_id
+                    logger.info(f"Launching game: {game.title} with launcher ID: {launcher_id}")
+                    cmd.append(launcher_id)
+            # For Wii U games, directly pass the game directory to the emulator
+            elif is_wiiu_game and "directory" in installation_data:
                 directory = installation_data["directory"]
                 logger.info(f"Launching Wii U game: {game.title} with command: {runner_command} {directory}")
                 cmd.append(directory)
