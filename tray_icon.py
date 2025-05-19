@@ -232,7 +232,7 @@ class GameShelfTrayIcon:
             helper_path = create_tray_icon_helper()
 
             # Get icon path
-            icon_path = os.path.join(os.path.dirname(__file__), "gameshelf.png")
+            icon_path = os.path.join(os.path.dirname(__file__), "gameshelf-gray.png")
             if not os.path.exists(icon_path):
                 logger.warning(f"Tray icon image not found at {icon_path}, using default icon")
                 icon_path = ""
