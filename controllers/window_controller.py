@@ -198,15 +198,21 @@ class GameShelfWindow(Adw.ApplicationWindow):
     def __init__(self, app, controller):
         super().__init__(application=app)
         self.controller = controller
+        self.app = app
         # Set the window reference in the controller
         self.controller.window = self
         # Track the currently selected game to maintain state across filtering
         self.current_selected_game = None
+        # Flag to control minimize to tray behavior
+        self.minimize_to_tray = True
 
         # Debug to see if the UI template is loaded correctly
         logger.debug(f"Sidebar Container: {self.sidebar_container}")
         logger.debug(f"Games Grid: {self.games_grid}")
         logger.debug(f"Details Panel: {self.details_panel}")
+
+        # Connect to the close-request signal
+        self.connect("close-request", self._on_close_request)
 
         # Initialize sub-controllers
         self._init_controllers()
@@ -427,3 +433,64 @@ class GameShelfWindow(Adw.ApplicationWindow):
         """Handle visibility toggle button click"""
         if self.controller.title_bar_controller:
             self.controller.title_bar_controller.on_visibility_toggle_clicked(button)
+
+    def _on_close_request(self, window):
+        """
+        Handle window close request event
+
+        If minimize_to_tray is True, hide the window instead of closing
+        and show a notification to inform the user.
+
+        Returns:
+            bool: True to prevent the window from closing, False to allow closing
+        """
+        logger.debug("Window close request received")
+
+        # Check if we should minimize to tray
+        if self.minimize_to_tray and hasattr(self.app, 'tray_icon') and self.app.tray_icon:
+            # Hide the window instead of closing it
+            logger.info("Minimizing to system tray instead of closing")
+            self.hide()
+
+            # Show notification to inform user the app is still running
+            try:
+                toast = Adw.Toast.new("GameShelf is still running in the system tray")
+                toast.set_timeout(3)  # 3 seconds
+
+                # Show the notification
+                try:
+                    # First try to use overlay from content
+                    overlay = None
+                    content = self.get_content()
+
+                    if content is not None:
+                        if isinstance(content, Adw.ToastOverlay):
+                            overlay = content
+                        else:
+                            # Try to find a toast overlay in the main window
+                            for widget in [self.app.win, self]:
+                                if hasattr(widget, 'content_area'):
+                                    content_area = widget.content_area
+                                    for child in content_area:
+                                        if isinstance(child, Adw.ToastOverlay):
+                                            overlay = child
+                                            break
+
+                    if overlay:
+                        overlay.add_toast(toast)
+                    else:
+                        # If we couldn't find a toast overlay, just log the message
+                        logger.info("App minimized to system tray, not closed")
+                except Exception as inner_e:
+                    logger.error(f"Error finding toast overlay: {inner_e}")
+                    logger.info("App minimized to system tray, not closed")
+            except Exception as e:
+                logger.error(f"Error showing toast notification: {e}")
+                logger.info("App minimized to system tray, not closed")
+
+            # Return True to prevent the window from closing
+            return True
+
+        # Allow the window to close normally
+        logger.info("Window will close normally")
+        return False

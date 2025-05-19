@@ -13,6 +13,8 @@ from data_handler import DataHandler
 from app_state_manager import AppStateManager
 # Import controllers
 from controllers import GameShelfController, GameShelfWindow, SplashScreen
+# Import tray icon implementation
+from tray_icon import GameShelfTrayIcon
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
@@ -21,6 +23,7 @@ class GameShelfApp(Adw.Application):
         super().__init__(application_id="com.example.GameShelf")
         self.win = None
         self.splash = None
+        self.tray_icon = None
 
         # Load CSS
         css = Gtk.CssProvider()
@@ -120,6 +123,15 @@ class GameShelfApp(Adw.Application):
             self.win.present()
             self._window_shown = True
             logging.info("Main window presented successfully")
+
+            # Initialize system tray icon
+            logging.info("Initializing system tray icon...")
+            self.tray_icon = GameShelfTrayIcon(self)
+
+            # Connect window hide/show signals to update tray icon menu
+            if hasattr(self.win, "connect"):
+                self.win.connect("hide", self._on_window_hide)
+                self.win.connect("show", self._on_window_show)
         except Exception as e:
             logging.error(f"Error initializing main window: {e}")
             # Try again with a fallback approach if there was an error
@@ -147,10 +159,31 @@ class GameShelfApp(Adw.Application):
                 self.win.set_content(box)
                 self.win.present()
                 self._window_shown = True
+
+                # Initialize system tray icon even in fallback mode
+                logging.info("Initializing system tray icon (fallback mode)...")
+                self.tray_icon = GameShelfTrayIcon(self)
+
+                # Connect window hide/show signals
+                if hasattr(self.win, "connect"):
+                    self.win.connect("hide", self._on_window_hide)
+                    self.win.connect("show", self._on_window_show)
             except Exception as e2:
                 logging.critical(f"Fatal error creating window: {e2}")
                 # Emergency exit
                 sys.exit(1)
+
+    def _on_window_hide(self, window):
+        """Handle window hide event to update tray icon menu"""
+        logging.debug("Window hidden")
+        if hasattr(self, 'tray_icon') and self.tray_icon:
+            self.tray_icon.update_show_hide_label(False)
+
+    def _on_window_show(self, window):
+        """Handle window show event to update tray icon menu"""
+        logging.debug("Window shown")
+        if hasattr(self, 'tray_icon') and self.tray_icon:
+            self.tray_icon.update_show_hide_label(True)
 
     def on_shutdown(self, app):
         """Save application state when shutting down"""
@@ -166,6 +199,11 @@ class GameShelfApp(Adw.Application):
         # Save all settings to disk
         if hasattr(self, 'settings_manager'):
             self.settings_manager.save_settings()
+
+        # Clean up tray icon
+        if hasattr(self, 'tray_icon') and self.tray_icon:
+            logging.info("Cleaning up tray icon on shutdown")
+            self.tray_icon._cleanup()
 
 
 if __name__ == "__main__":
