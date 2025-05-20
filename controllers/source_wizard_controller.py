@@ -8,6 +8,7 @@ from controllers.rom_directory_source_dialog_controller import RomDirectorySourc
 from controllers.xbox_source_dialog_controller import XboxSourceDialog
 from controllers.psn_source_dialog_controller import PSNSourceDialog
 from controllers.epic_source_dialog_controller import EpicSourceDialog
+from controllers.steam_source_dialog_controller import SteamSourceDialog
 
 class SourceWizard:
     """
@@ -99,6 +100,10 @@ class SourceWizard:
                 parent=self.parent,
                 callback=self._on_source_saved
             )
+        elif source_type == SourceType.STEAM:
+            dialog = SteamSourceDialog(parent=self.parent, source=self.source)
+            dialog.connect("response", lambda dialog, response_id: self._on_steam_dialog_response(dialog, response_id))
+            dialog.present()
 
     def _on_source_saved(self, source):
         """
@@ -110,3 +115,24 @@ class SourceWizard:
         # Call the callback if provided
         if self.source_saved_callback:
             self.source_saved_callback(source)
+
+    def _on_steam_dialog_response(self, dialog, response_id):
+        """
+        Handle the response from the Steam source dialog.
+
+        Args:
+            dialog: The dialog that received the response
+            response_id: The response ID
+        """
+        if response_id == Gtk.ResponseType.ACCEPT:
+            # Get the source from the dialog
+            source = dialog.get_source()
+
+            # Save the source
+            if self.source_handler.save_source(source):
+                # Call the callback if provided
+                if self.source_saved_callback:
+                    self.source_saved_callback(source)
+
+        # Close the dialog
+        dialog.destroy()

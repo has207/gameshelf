@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <template class="SteamSourceDialog" parent="GtkDialog">
+    <property name="title">Steam Source</property>
+    <property name="resizable">1</property>
+    <property name="modal">1</property>
+    <property name="default-width">600</property>
+    <property name="default-height">500</property>
+    <child internal-child="content_area">
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">16</property>
+        <property name="margin-top">12</property>
+        <property name="margin-bottom">12</property>
+        <property name="margin-start">12</property>
+        <property name="margin-end">12</property>
+        
+        <!-- Source Name Section -->
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">6</property>
+            <child>
+              <object class="GtkLabel">
+                <property name="label">Source Name</property>
+                <property name="halign">start</property>
+                <style>
+                  <class name="heading"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkEntry" id="source_name_entry">
+                <property name="hexpand">1</property>
+                <property name="placeholder-text">Enter a name for this source...</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <!-- Steam Path Section -->
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">6</property>
+            <child>
+              <object class="GtkLabel">
+                <property name="label">Steam Path</property>
+                <property name="halign">start</property>
+                <style>
+                  <class name="heading"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="spacing">6</property>
+                <child>
+                  <object class="GtkEntry" id="steam_path_entry">
+                    <property name="hexpand">1</property>
+                    <property name="placeholder-text">Path to Steam steamapps directory...</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkButton" id="browse_button">
+                    <property name="label">Browse</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="path_status_label">
+                <property name="halign">start</property>
+                <property name="label"></property>
+                <style>
+                  <class name="caption"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="halign">start</property>
+                <property name="label">This should be the directory that contains "libraryfolders.vdf".
+Usually at ~/.steam/debian-installation/steamapps</property>
+                <property name="wrap">1</property>
+                <style>
+                  <class name="caption"/>
+                </style>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <!-- API Settings Section -->
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">10</property>
+            <property name="margin-top">6</property>
+            <child>
+              <object class="GtkLabel">
+                <property name="label">API Settings (Optional)</property>
+                <property name="halign">start</property>
+                <style>
+                  <class name="heading"/>
+                </style>
+              </object>
+            </child>
+            
+            <!-- API Key -->
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">4</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Steam Web API Key</property>
+                    <property name="halign">start</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkEntry" id="api_key_entry">
+                    <property name="hexpand">1</property>
+                    <property name="placeholder-text">Enter your Steam Web API key...</property>
+                    <property name="tooltip-text">Get your API key at: https://steamcommunity.com/dev/apikey</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Get your API key at: https://steamcommunity.com/dev/apikey</property>
+                    <property name="halign">start</property>
+                    <style>
+                      <class name="caption"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+            
+            <!-- Steam ID -->
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">4</property>
+                <property name="margin-top">6</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Steam ID</property>
+                    <property name="halign">start</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkEntry" id="steam_id_entry">
+                    <property name="hexpand">1</property>
+                    <property name="placeholder-text">Enter your Steam ID (or profile URL)...</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Your 64-bit Steam ID or your profile URL (e.g., https://steamcommunity.com/id/username)</property>
+                    <property name="halign">start</property>
+                    <style>
+                      <class name="caption"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+            
+            <!-- Verify API -->
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">horizontal</property>
+                <property name="spacing">6</property>
+                <property name="halign">start</property>
+                <property name="margin-top">6</property>
+                <child>
+                  <object class="GtkButton" id="verify_api_button">
+                    <property name="label">Verify API Credentials</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="api_status_label">
+                    <property name="label"></property>
+                    <property name="halign">start</property>
+                    <property name="hexpand">1</property>
+                    <style>
+                      <class name="caption"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+            
+            <!-- Include Online Games -->
+            <child>
+              <object class="GtkCheckButton" id="include_online_games_check">
+                <property name="label">Include games from online library (requires API key and Steam ID)</property>
+                <property name="active">1</property>
+                <property name="margin-top">6</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <!-- Notes Section -->
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">6</property>
+            <property name="margin-top">12</property>
+            <child>
+              <object class="GtkLabel">
+                <property name="label">Notes</property>
+                <property name="halign">start</property>
+                <style>
+                  <class name="heading"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="label">- Games will be launched through Steam
+- Installed games will be detected automatically from your Steam library folders
+- With API enabled, your online library will also be included
+- API access is optional but provides better metadata and includes non-installed games
+- Games will be imported with their Steam AppID</property>
+                <property name="halign">start</property>
+                <property name="xalign">0</property>
+                <property name="wrap">1</property>
+                <style>
+                  <class name="caption"/>
+                </style>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child type="action">
+      <object class="GtkButton" id="cancel_button">
+        <property name="label">Cancel</property>
+      </object>
+    </child>
+    <child type="action">
+      <object class="GtkButton" id="save_button">
+        <property name="label">Save</property>
+        <style>
+          <class name="suggested-action"/>
+        </style>
+      </object>
+    </child>
+    <action-widgets>
+      <action-widget response="cancel">cancel_button</action-widget>
+      <action-widget response="accept" default="true">save_button</action-widget>
+    </action-widgets>
+  </template>
+</interface>

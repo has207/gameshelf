@@ -18,6 +18,7 @@ class SourceType(Enum):
     XBOX = auto()       # Xbox game library via API
     PLAYSTATION = auto()  # PlayStation Network game library via API
     EPIC = auto()       # Epic Games Store library via API
+    STEAM = auto()      # Steam library via local files
 
     @classmethod
     def from_string(cls, value: str) -> 'SourceType':

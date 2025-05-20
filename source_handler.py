@@ -21,6 +21,7 @@ from sources.psn_client import PSNClient
 from sources.directory_scanner import DirectoryScanner
 from sources.scanner_base import SourceScanner
 from sources.epic_library_client import EpicLibraryClient
+from sources.steam_client import SteamScanner
 from cover_fetch import CoverFetcher
 
 # Set up logger
@@ -283,5 +284,8 @@ class SourceHandler:
             if source_id:
                 token_dir = self.ensure_secure_token_storage(source_id)
             return EpicLibraryClient(self.data_handler, token_dir=token_dir)
+        elif source_type == SourceType.STEAM:
+            # For Steam, no token directory is needed
+            return SteamScanner(self.data_handler)
         else:
             raise ValueError(f"Unsupported source type: {source_type}")
