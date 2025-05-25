@@ -494,3 +494,31 @@ searchentry:focus {
   font-weight: bold;
   padding: 6px 8px;
 }
+
+/* Notification badge styling */
+.notification-badge {
+  background-color: @error_color;
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+  border-radius: 8px;
+  padding: 2px 6px;
+  min-width: 16px;
+}
+
+/* Notification level badges */
+.notification-level {
+  font-size: 10px;
+  font-weight: bold;
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: white;
+}
+
+.notification-level.error {
+  background-color: @error_color;
+}
+
+.notification-level.warning {
+  background-color: @warning_color;
+}

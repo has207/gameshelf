@@ -43,6 +43,33 @@
                 <signal name="clicked" handler="on_manage_sources_clicked"/>
               </object>
             </child>
+            <child type="start">
+              <object class="GtkButton" id="notifications_button">
+                <property name="icon-name">dialog-warning-symbolic</property>
+                <property name="tooltip-text">View Notifications</property>
+                <property name="visible">False</property>
+                <signal name="clicked" handler="on_notifications_clicked"/>
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="spacing">4</property>
+                    <child>
+                      <object class="GtkImage">
+                        <property name="icon-name">dialog-warning-symbolic</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="notification_badge">
+                        <property name="visible">False</property>
+                        <style>
+                          <class name="notification-badge"/>
+                        </style>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
             
             <child type="end">
               <object class="GtkButton" id="sync_sources_button">

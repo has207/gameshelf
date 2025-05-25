@@ -195,6 +195,8 @@ class GameShelfWindow(Adw.ApplicationWindow):
     search_entry: Gtk.SearchEntry = Gtk.Template.Child()
     visibility_toggle: Gtk.ToggleButton = Gtk.Template.Child()
     sync_sources_button: Gtk.Button = Gtk.Template.Child()
+    notifications_button: Gtk.Button = Gtk.Template.Child()
+    notification_badge: Gtk.Label = Gtk.Template.Child()
 
     def __init__(self, app, controller):
         super().__init__(application=app)
@@ -206,6 +208,10 @@ class GameShelfWindow(Adw.ApplicationWindow):
         self.current_selected_game = None
         # Flag to control minimize to tray behavior
         self.minimize_to_tray = True
+
+        # Initialize notification system
+        self.notifications = []
+        self._setup_notification_system()
 
         # Debug to see if the UI template is loaded correctly
         logger.debug(f"Sidebar Container: {self.sidebar_container}")
@@ -503,6 +509,182 @@ class GameShelfWindow(Adw.ApplicationWindow):
 
         # Start with the first source
         sync_next_source(0)
+
+    def _setup_notification_system(self):
+        """Set up the custom log handler to capture warnings and errors"""
+        # Create custom handler that captures log messages
+        class NotificationLogHandler(logging.Handler):
+            def __init__(self, window):
+                super().__init__()
+                self.window = window
+                self.setLevel(logging.WARNING)  # Capture WARNING and ERROR
+
+            def emit(self, record):
+                if record.levelno >= logging.WARNING:
+                    # Use GLib.idle_add to ensure UI updates happen on main thread
+                    from gi.repository import GLib
+                    GLib.idle_add(self.window._add_notification, record)
+
+        # Add our custom handler to the root logger
+        self.notification_handler = NotificationLogHandler(self)
+        logging.getLogger().addHandler(self.notification_handler)
+
+    def _add_notification(self, record):
+        """Add a notification from a log record"""
+        import time
+
+        notification = {
+            'timestamp': time.time(),
+            'level': record.levelname,
+            'message': record.getMessage(),
+            'logger': record.name,
+            'filename': record.filename,
+            'lineno': record.lineno
+        }
+
+        self.notifications.append(notification)
+
+        # Keep only last 100 notifications to prevent memory issues
+        if len(self.notifications) > 100:
+            self.notifications = self.notifications[-100:]
+
+        self._update_notification_button()
+        return False  # Remove from idle queue
+
+    def _update_notification_button(self):
+        """Update the notification button visibility and badge count"""
+        count = len(self.notifications)
+
+        if count > 0:
+            self.notifications_button.set_visible(True)
+            self.notification_badge.set_visible(True)
+            self.notification_badge.set_text(str(count))
+
+            # Update tooltip with latest notification
+            latest = self.notifications[-1]
+            tooltip = f"Latest: {latest['level']} - {latest['message'][:50]}..."
+            self.notifications_button.set_tooltip_text(tooltip)
+        else:
+            self.notifications_button.set_visible(False)
+            self.notification_badge.set_visible(False)
+
+    @Gtk.Template.Callback()
+    def on_notifications_clicked(self, button):
+        """Handle notifications button click - show notifications dialog"""
+        self._show_notifications_dialog()
+
+    def _show_notifications_dialog(self):
+        """Show dialog with all notifications"""
+        dialog = Adw.Window()
+        dialog.set_title("Notifications")
+        dialog.set_default_size(600, 400)
+        dialog.set_transient_for(self)
+        dialog.set_modal(True)
+
+        # Create main layout
+        content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+
+        # Header bar
+        header_bar = Adw.HeaderBar()
+        header_bar.set_title_widget(Adw.WindowTitle(title="Notifications"))
+
+        # Clear button
+        clear_button = Gtk.Button(label="Clear All")
+        clear_button.connect("clicked", lambda b: self._clear_notifications(dialog))
+        header_bar.pack_end(clear_button)
+
+        # Close button
+        close_button = Gtk.Button(label="Close")
+        close_button.connect("clicked", lambda b: dialog.close())
+        header_bar.pack_start(close_button)
+
+        content_box.append(header_bar)
+
+        # Scrolled window for notifications
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_vexpand(True)
+
+        # List box for notifications
+        listbox = Gtk.ListBox()
+        listbox.set_selection_mode(Gtk.SelectionMode.NONE)
+
+        # Add notifications (newest first)
+        for notification in reversed(self.notifications):
+            self._create_notification_row(listbox, notification)
+
+        if not self.notifications:
+            # Show empty state
+            empty_label = Gtk.Label(label="No notifications")
+            empty_label.add_css_class("dim-label")
+            empty_label.set_margin_top(50)
+            empty_label.set_margin_bottom(50)
+            listbox.append(empty_label)
+
+        scrolled.set_child(listbox)
+        content_box.append(scrolled)
+
+        dialog.set_content(content_box)
+        dialog.present()
+
+    def _create_notification_row(self, listbox, notification):
+        """Create a row for a notification"""
+        import datetime
+
+        row = Gtk.ListBoxRow()
+        row.set_selectable(False)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+        box.set_margin_top(8)
+        box.set_margin_bottom(8)
+
+        # Header with level and timestamp
+        header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+
+        # Level badge
+        level_label = Gtk.Label(label=notification['level'])
+        level_label.add_css_class("notification-level")
+        if notification['level'] == 'ERROR':
+            level_label.add_css_class("error")
+        elif notification['level'] == 'WARNING':
+            level_label.add_css_class("warning")
+
+        # Timestamp
+        timestamp = datetime.datetime.fromtimestamp(notification['timestamp'])
+        time_label = Gtk.Label(label=timestamp.strftime("%H:%M:%S"))
+        time_label.add_css_class("dim-label")
+        time_label.set_hexpand(True)
+        time_label.set_halign(Gtk.Align.END)
+
+        header_box.append(level_label)
+        header_box.append(time_label)
+
+        # Message
+        message_label = Gtk.Label(label=notification['message'])
+        message_label.set_wrap(True)
+        message_label.set_halign(Gtk.Align.START)
+        message_label.set_selectable(True)
+
+        # Source info
+        source_text = f"{notification['logger']} ({notification['filename']}:{notification['lineno']})"
+        source_label = Gtk.Label(label=source_text)
+        source_label.add_css_class("dim-label")
+        source_label.set_halign(Gtk.Align.START)
+
+        box.append(header_box)
+        box.append(message_label)
+        box.append(source_label)
+
+        row.set_child(box)
+        listbox.append(row)
+
+    def _clear_notifications(self, dialog):
+        """Clear all notifications"""
+        self.notifications.clear()
+        self._update_notification_button()
+        dialog.close()
 
     def _on_games_added_from_source(self, source_manager, count):
         """Handle games being added or updated from a source scan"""
