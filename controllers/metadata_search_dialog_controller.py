@@ -223,23 +223,25 @@ class MetadataSearchDialog(Adw.Window):
 
     def on_provider_changed(self, dropdown, param):
         """Handle metadata provider selection change"""
-        selected = dropdown.get_selected()
-        if selected == 0:  # OpenCritic
-            self.selected_provider = "OpenCritic"
-            self.metadata_client = OpenCriticClient()
-        elif selected == 1:  # LaunchBox
-            self.selected_provider = "LaunchBox"
-            if not self.launchbox_metadata:
-                # Data directory from the controller
-                data_dir = self.controller.data_handler.data_dir
-                self.launchbox_metadata = LaunchBoxMetadata(str(data_dir))
-            self.metadata_client = self.launchbox_metadata
+        selected_item = dropdown.get_selected_item()
+        if selected_item:
+            provider_name = selected_item.get_string()
+            self.selected_provider = provider_name
 
-            # Check if database initialization is required
-            if not self.launchbox_metadata.database.database_exists():
-                self._show_launchbox_init_dialog()
-                # Return early - we'll handle the search after initialization
-                return
+            if provider_name == "LaunchBox":
+                if not self.launchbox_metadata:
+                    # Data directory from the controller
+                    data_dir = self.controller.data_handler.data_dir
+                    self.launchbox_metadata = LaunchBoxMetadata(str(data_dir))
+                self.metadata_client = self.launchbox_metadata
+
+                # Check if database initialization is required
+                if not self.launchbox_metadata.database.database_exists():
+                    self._show_launchbox_init_dialog()
+                    # Return early - we'll handle the search after initialization
+                    return
+            elif provider_name == "OpenCritic":
+                self.metadata_client = OpenCriticClient()
 
         # Clear existing results when changing provider
         self._clear_results()
@@ -250,6 +252,15 @@ class MetadataSearchDialog(Adw.Window):
             self.perform_search(query)
         else:
             self.search_entry.grab_focus()
+
+    def _select_provider(self, provider_name):
+        """Helper method to select a provider by name"""
+        model = self.provider_dropdown.get_model()
+        for i in range(model.get_n_items()):
+            item = model.get_item(i)
+            if item.get_string() == provider_name:
+                self.provider_dropdown.set_selected(i)
+                break
 
     def _show_launchbox_init_dialog(self):
         """Show dialog for initializing LaunchBox database"""
@@ -280,7 +291,7 @@ class MetadataSearchDialog(Adw.Window):
             thread.start()
         else:
             # Switch back to OpenCritic
-            self.provider_dropdown.set_selected(0)
+            self._select_provider("OpenCritic")
 
     def _initialize_launchbox_thread(self):
         """Background thread for LaunchBox database initialization"""
@@ -311,7 +322,7 @@ class MetadataSearchDialog(Adw.Window):
             error_msg = error_message or "Unknown error"
             self.status_label.set_text(f"Failed to initialize LaunchBox database: {error_msg}")
             # Switch back to OpenCritic
-            self.provider_dropdown.set_selected(0)
+            self._select_provider("OpenCritic")
 
         return False  # Remove from idle queue
 
