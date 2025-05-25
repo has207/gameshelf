@@ -1,4 +1,5 @@
 from typing import Dict, List, Type, Set, Optional, Callable
+import html
 
 from gi.repository import Gtk, Adw, Gio, GObject, GLib
 
@@ -104,7 +105,7 @@ class MetadataSelectionDialog(Adw.Window):
         for item in self.enum_values:
             # Create a row with a check button for each enum value
             row = Adw.ActionRow()
-            row.set_title(item['name'])
+            row.set_title(html.escape(item['name']))
 
             check = Gtk.CheckButton()
             check.set_active(item['selected'])

@@ -5,7 +5,7 @@
   <template class="GameDialog" parent="AdwWindow">
     <property name="title">Game Dialog</property>
     <property name="default-width">500</property>
-    <property name="default-height">650</property>
+    <property name="default-height">500</property>
     <property name="modal">true</property>
     <property name="hide-on-close">true</property>
     
@@ -271,6 +271,7 @@
                         <child>
                           <object class="GtkBox" id="image_preview_container">
                             <property name="halign">center</property>
+                            <property name="valign">start</property>
                             <property name="width-request">200</property>
                             <property name="height-request">260</property>
                             <style>
@@ -282,7 +283,7 @@
                                 <property name="content-fit">cover</property>
                                 <property name="can-shrink">false</property>
                                 <property name="hexpand">true</property>
-                                <property name="vexpand">true</property>
+                                <property name="vexpand">false</property>
                               </object>
                             </child>
                           </object>

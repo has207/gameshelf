@@ -1,5 +1,6 @@
 from typing import List, Optional, Dict, Type, Set
 import logging
+import html
 
 from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk, GLib
 
@@ -71,11 +72,15 @@ class GameDialog(Adw.Window):
         self.selected_age_ratings = []
         self.selected_regions = []
 
-        # Adjust dialog height based on parent window height
+        # Adjust dialog height based on mode and parent window height
         parent_height = parent_window.get_height()
         if parent_height > 0:
-            # Make the dialog about 80% of parent height, but not smaller than default
-            preferred_height = max(650, int(parent_height * 0.8))
+            if edit_mode:
+                # Edit mode needs more space for additional sections
+                preferred_height = max(650, int(parent_height * 0.8))
+            else:
+                # Add mode can be more compact
+                preferred_height = max(500, int(parent_height * 0.6))
             self.set_default_size(500, preferred_height)
 
         # Set up completion status dropdown

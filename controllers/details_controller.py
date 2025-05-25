@@ -653,7 +653,8 @@ class GameDetailsContent(Gtk.Box):
 
             # Set genres if available
             if game.genres and len(game.genres) > 0:
-                genre_names = [genre.value for genre in game.genres]
+                # Decode HTML entities in genre names before displaying
+                genre_names = [html.unescape(genre.value) for genre in game.genres]
                 genre_text = ", ".join(genre_names)
                 self.genres_label.set_text(genre_text)
             else:
