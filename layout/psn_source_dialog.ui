@@ -4,7 +4,7 @@
   <template class="PSNSourceDialog" parent="GtkDialog">
     <property name="title">PlayStation Source</property>
     <property name="modal">True</property>
-    <property name="default-width">500</property>
+    <property name="default-width">650</property>
     <property name="default-height">750</property>
     <property name="use-header-bar">1</property>
     
@@ -74,30 +74,84 @@
                     </child>
                     
                     <child>
-                      <object class="GtkLabel">
-                        <property name="label">1. Open your web browser and go to: playstation.com
-2. Log in to your PlayStation account
-3. Visit: https://ca.account.sony.com/api/v1/ssocookie
-4. Copy the value for the NPSSO token (e.g., {"npsso":"abcd1234"})
-5. Paste it below</property>
-                        <property name="wrap">True</property>
-                        <property name="xalign">0</property>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">4</property>
                         <property name="margin-start">12</property>
-                        <style>
-                          <class name="monospace"/>
-                        </style>
+                        
+                        <child>
+                          <object class="GtkBox">
+                            <property name="spacing">4</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">1. Open your web browser and go to:</property>
+                                <property name="xalign">0</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLinkButton" id="playstation_link">
+                                <property name="label">playstation.com</property>
+                                <property name="uri">https://playstation.com</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">2. Log in to your PlayStation account</property>
+                            <property name="xalign">0</property>
+                          </object>
+                        </child>
+                        
+                        <child>
+                          <object class="GtkBox">
+                            <property name="spacing">4</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">3. Visit:</property>
+                                <property name="xalign">0</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLinkButton" id="sso_link">
+                                <property name="label">https://ca.account.sony.com/api/v1/ssocookie</property>
+                                <property name="uri">https://ca.account.sony.com/api/v1/ssocookie</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">4. Copy the value for the NPSSO token (e.g., {"npsso":"abcd1234"})</property>
+                            <property name="xalign">0</property>
+                            <property name="wrap">True</property>
+                            <style>
+                              <class name="monospace"/>
+                            </style>
+                          </object>
+                        </child>
+                        
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">5. Paste it below</property>
+                            <property name="xalign">0</property>
+                          </object>
+                        </child>
                       </object>
                     </child>
                     
                     <child>
                       <object class="GtkBox">
-                        <property name="orientation">horizontal</property>
+                        <property name="orientation">vertical</property>
                         <property name="spacing">6</property>
                         <property name="margin-top">12</property>
                         
                         <child>
                           <object class="GtkLabel">
                             <property name="label">NPSSO Token:</property>
+                            <property name="xalign">0</property>
                           </object>
                         </child>
                         
@@ -105,6 +159,7 @@
                           <object class="GtkEntry" id="token_entry">
                             <property name="hexpand">True</property>
                             <property name="placeholder-text">{"npsso":"your-token-here"} or just the token value</property>
+                            <property name="width-chars">60</property>
                           </object>
                         </child>
                       </object>
