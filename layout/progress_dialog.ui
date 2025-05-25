@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="ProgressDialog" parent="GtkDialog">
+    <property name="title">Progress</property>
+    <property name="modal">false</property>
+    <property name="default-width">450</property>
+    <property name="default-height">-1</property>
+    <property name="resizable">false</property>
+    <property name="destroy-with-parent">true</property>
+    
+    <child>
+      <object class="GtkBox" id="progress_container">
+        <property name="orientation">vertical</property>
+        <property name="css-classes">progress-container</property>
+      </object>
+    </child>
+  </template>
+</interface>

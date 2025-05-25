@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="ScanErrorsDialog" parent="GtkDialog">
+    <property name="title">Scan Errors</property>
+    <property name="modal">true</property>
+    <property name="default-width">450</property>
+    <property name="default-height">300</property>
+    
+    <child type="action">
+      <object class="GtkButton" id="ok_button">
+        <property name="label">OK</property>
+        <property name="receives-default">true</property>
+      </object>
+    </child>
+    
+    <child>
+      <object class="GtkBox" id="content_area">
+        <property name="orientation">vertical</property>
+        <property name="spacing">10</property>
+        <property name="css-classes">dialog-content</property>
+        
+        <child>
+          <object class="GtkLabel" id="header_label">
+            <property name="halign">start</property>
+            <property name="wrap">true</property>
+            <property name="use-markup">true</property>
+          </object>
+        </child>
+        
+        <child>
+          <object class="GtkScrolledWindow" id="error_scroll">
+            <property name="hexpand">true</property>
+            <property name="vexpand">true</property>
+            <property name="hscrollbar-policy">automatic</property>
+            <property name="vscrollbar-policy">automatic</property>
+            
+            <child>
+              <object class="GtkTextView" id="error_text">
+                <property name="editable">false</property>
+                <property name="wrap-mode">word</property>
+                <property name="css-classes">import-dialog-error-view</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    
+    <action-widgets>
+      <action-widget response="ok">ok_button</action-widget>
+    </action-widgets>
+  </template>
+</interface>

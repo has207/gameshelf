@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="ErrorDialog" parent="GtkDialog">
+    <property name="title">Error</property>
+    <property name="modal">true</property>
+    <property name="default-width">400</property>
+    <property name="default-height">-1</property>
+    
+    <child type="action">
+      <object class="GtkButton" id="ok_button">
+        <property name="label">OK</property>
+        <property name="receives-default">true</property>
+      </object>
+    </child>
+    
+    <child>
+      <object class="GtkBox" id="content_area">
+        <property name="orientation">horizontal</property>
+        <property name="spacing">10</property>
+        <property name="css-classes">dialog-content</property>
+        
+        <child>
+          <object class="GtkImage" id="error_icon">
+            <property name="icon-name">dialog-error</property>
+            <property name="pixel-size">32</property>
+          </object>
+        </child>
+        
+        <child>
+          <object class="GtkLabel" id="message_label">
+            <property name="wrap">true</property>
+            <property name="halign">start</property>
+            <property name="valign">center</property>
+            <property name="hexpand">true</property>
+          </object>
+        </child>
+      </object>
+    </child>
+    
+    <action-widgets>
+      <action-widget response="ok">ok_button</action-widget>
+    </action-widgets>
+  </template>
+</interface>
