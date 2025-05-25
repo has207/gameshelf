@@ -77,7 +77,9 @@ class OpenCriticClient(MetadataProvider):
                 results.append(SearchResultItem(
                     id=item["id"],
                     name=item["name"],
-                    relation=item["relation"]
+                    relation=item["relation"],
+                    platform=None,  # OpenCritic doesn't provide platform info in search results
+                    release_year=None  # OpenCritic doesn't provide release year in search results
                 ))
 
         return results

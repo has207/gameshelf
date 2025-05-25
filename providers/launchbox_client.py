@@ -157,31 +157,37 @@ class LaunchBoxDatabase:
             # Escape special characters in the query for FTS5
             escaped_query = self._escape_fts5_query(query)
 
-            # Use FTS5 to search game names
-            cursor.execute('''
+            sql_query = '''
             SELECT
-                g.*,
-                gn.Name as MatchedName
+                gn.Name as MatchedName,
+                g.*
             FROM
                 GameNames gn
-            INNER JOIN
-                Games g ON g.DatabaseID = gn.DatabaseID
+            JOIN
+                Games g ON gn.DatabaseID = g.DatabaseID
             WHERE
-                GameNames MATCH ?
+                gn.Name MATCH ?
             ORDER BY
                 rank
             LIMIT ?
-            ''', (escaped_query, limit))
+            '''
+
+
+            # Use FTS5 to search game names (match C# implementation)
+            cursor.execute(sql_query, (escaped_query, limit))
 
             results = []
             for row in cursor.fetchall():
                 result = dict(row)
-                # Convert ReleaseDate to datetime if it exists
-                if result['ReleaseDate']:
+
+                # Convert ReleaseDate from ISO format to datetime if it exists
+                if result.get('ReleaseDate'):
                     try:
+                        # Parse ISO 8601 format (e.g., 2009-04-07T00:00:00-07:00)
                         result['ReleaseDate'] = datetime.datetime.fromisoformat(result['ReleaseDate'])
-                    except ValueError:
-                        pass
+                    except (ValueError, OSError):
+                        # If conversion fails, set to None
+                        result['ReleaseDate'] = None
                 results.append(result)
 
             return results
@@ -519,12 +525,19 @@ class LaunchBoxXmlParser:
             release_date = self._get_element_text(game_elem, './ReleaseDate')
             if release_date:
                 try:
-                    parsed_date = datetime.datetime.strptime(release_date, '%Y-%m-%dT%H:%M:%S')
-                    game['ReleaseDate'] = parsed_date.isoformat()
+                    # Parse ISO 8601 format with timezone (e.g., 2009-04-07T00:00:00-07:00)
+                    parsed_date = datetime.datetime.fromisoformat(release_date)
+                    game['ReleaseDate'] = release_date  # Store original ISO format
                     game['ReleaseYear'] = parsed_date.year
-                except ValueError:
-                    game['ReleaseDate'] = None
-                    game['ReleaseYear'] = self._safe_int(self._get_element_text(game_elem, './ReleaseYear'))
+                except (ValueError, OSError):
+                    try:
+                        # Fallback: try without timezone
+                        parsed_date = datetime.datetime.strptime(release_date.split('T')[0], '%Y-%m-%d')
+                        game['ReleaseDate'] = release_date
+                        game['ReleaseYear'] = parsed_date.year
+                    except ValueError:
+                        game['ReleaseDate'] = None
+                        game['ReleaseYear'] = self._safe_int(self._get_element_text(game_elem, './ReleaseYear'))
             else:
                 game['ReleaseDate'] = None
                 game['ReleaseYear'] = self._safe_int(self._get_element_text(game_elem, './ReleaseYear'))
@@ -630,11 +643,12 @@ class MetadataDownloader:
         """
         self.data_directory = data_directory
 
-    def download_metadata(self, force: bool = False) -> Optional[str]:
+    def download_metadata(self, force: bool = False, progress_callback=None) -> Optional[str]:
         """Download the LaunchBox metadata zip file.
 
         Args:
             force: Force download even if local copy exists
+            progress_callback: Optional callback for progress updates (callable with message string)
 
         Returns:
             Path to the downloaded zip file, or None if download failed
@@ -654,16 +668,36 @@ class MetadataDownloader:
 
             # Download with progress
             downloaded = 0
+            last_percent = -1
             with open(zip_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
-                        percent = int(100 * downloaded / total_size) if total_size > 0 else 0
-                        sys.stdout.write(f"\rDownloading: {percent}% ({downloaded} / {total_size} bytes)")
-                        sys.stdout.flush()
 
-            logger.info("Progress complete")  # Progress reporting complete
+                        if total_size > 0:
+                            percent = int(100 * downloaded / total_size)
+                            # Only update progress every 5% to avoid spam
+                            if percent != last_percent and percent % 5 == 0:
+                                if progress_callback:
+                                    mb_downloaded = downloaded / (1024 * 1024)
+                                    mb_total = total_size / (1024 * 1024)
+                                    progress_callback(f"Downloading metadata: {percent}% ({mb_downloaded:.1f} / {mb_total:.1f} MB)")
+                                last_percent = percent
+                        else:
+                            # No total size available, show data downloaded
+                            if progress_callback and downloaded % (1024 * 1024) == 0:  # Update every MB
+                                mb_downloaded = downloaded / (1024 * 1024)
+                                progress_callback(f"Downloading metadata: {mb_downloaded:.1f} MB downloaded")
+
+                        # Still log to stdout for console users
+                        if total_size > 0:
+                            percent = int(100 * downloaded / total_size)
+                            sys.stdout.write(f"\rDownloading: {percent}% ({downloaded} / {total_size} bytes)")
+                            sys.stdout.flush()
+
+            if progress_callback:
+                progress_callback("Download complete")
             logger.info(f"Download complete: {zip_path}")
             return zip_path
 
@@ -759,11 +793,12 @@ class LaunchBoxMetadata(MetadataProvider):
         self.database = LaunchBoxDatabase(launchbox_dir)
         self.downloader = MetadataDownloader(launchbox_dir)
 
-    def initialize_database(self, force: bool = False) -> bool:
+    def initialize_database(self, force: bool = False, progress_callback=None) -> bool:
         """Initialize or update the LaunchBox metadata database.
 
         Args:
             force: Force download even if the database already exists
+            progress_callback: Optional callback for progress updates (callable with message string)
 
         Returns:
             True if initialization was successful, False otherwise
@@ -772,22 +807,32 @@ class LaunchBoxMetadata(MetadataProvider):
             logger.info("Database already exists. Use --force to re-initialize.")
             return True
 
+        if progress_callback:
+            progress_callback("Initializing LaunchBox database...")
         logger.info("Initializing LaunchBox metadata database")
 
         # Download metadata zip
-        zip_path = self.downloader.download_metadata(force=force)
+        if progress_callback:
+            progress_callback("Starting download...")
+        zip_path = self.downloader.download_metadata(force=force, progress_callback=progress_callback)
         if not zip_path:
             return False
 
         # Extract metadata XML
+        if progress_callback:
+            progress_callback("Extracting metadata files...")
         xml_path = self.downloader.extract_metadata_xml(zip_path)
         if not xml_path:
             return False
 
         # Create database tables
+        if progress_callback:
+            progress_callback("Creating database tables...")
         self.database.create_tables()
 
         # Parse XML data
+        if progress_callback:
+            progress_callback("Parsing game metadata...")
         parser = LaunchBoxXmlParser(xml_path)
         try:
             data = parser.get_data()
@@ -796,6 +841,8 @@ class LaunchBoxMetadata(MetadataProvider):
             return False
 
         # Insert data into database
+        if progress_callback:
+            progress_callback("Building game database...")
         conn = self.database.get_connection()
         cursor = conn.cursor()
 
@@ -887,27 +934,60 @@ class LaunchBoxMetadata(MetadataProvider):
             logger.error(traceback.format_exc())
             return False
 
-    def search(self, query: str) -> List[SearchResultItem]:
+    def search(self, query: str, progress_callback=None) -> List[SearchResultItem]:
         """Search for games by name.
 
         Args:
             query: The search string
+            progress_callback: Optional callback for progress updates (callable with message string)
 
         Returns:
             List of matching games as SearchResultItem objects
         """
         if not self.database.database_exists():
-            logger.error("Database not initialized. Run initialize-database first.")
-            return []
+            if progress_callback:
+                progress_callback("Downloading LaunchBox database...")
+            logger.info("LaunchBox database not found. Initializing database...")
+            try:
+                success = self.initialize_database(progress_callback=progress_callback)
+                if not success:
+                    logger.error("Failed to initialize LaunchBox database")
+                    return []
+                logger.info("LaunchBox database initialized successfully")
+            except Exception as e:
+                logger.error(f"Error initializing LaunchBox database: {e}")
+                return []
+
+        if progress_callback:
+            progress_callback("Searching games...")
 
         raw_results = self.database.search_games(query, limit=10)
         results = []
 
         for item in raw_results:
+            # Extract release year - prefer ReleaseYear field, fallback to ReleaseDate
+            release_year = None
+
+            # First try ReleaseYear field (integer)
+            if item.get('ReleaseYear') and item.get('ReleaseYear') > 0:
+                release_year = item.get('ReleaseYear')
+            elif item.get('ReleaseDate'):
+                # Fallback to parsing ReleaseDate
+                try:
+                    if isinstance(item['ReleaseDate'], datetime.datetime):
+                        release_year = item['ReleaseDate'].year
+                    else:
+                        parsed_date = datetime.datetime.fromisoformat(item['ReleaseDate'])
+                        release_year = parsed_date.year
+                except (ValueError, AttributeError):
+                    pass
+
             results.append(SearchResultItem(
                 id=int(item['DatabaseID']) if item['DatabaseID'].isdigit() else 0,
                 name=item['Name'],
-                relation="game"
+                relation="game",
+                platform=item.get('Platform'),
+                release_year=release_year
             ))
 
         return results

@@ -13,8 +13,10 @@ class BaseModel:
 
 @dataclass
 class SearchResultItem(BaseModel):
-    """Search result from the OpenCritic API"""
+    """Search result from metadata providers"""
     relation: str = ""
+    platform: Optional[str] = None
+    release_year: Optional[int] = None
 
 
 @dataclass

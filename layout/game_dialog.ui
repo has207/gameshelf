@@ -73,7 +73,7 @@
                     <child>
                       <object class="AdwActionRow">
                         <property name="title">Download Metadata</property>
-                        <property name="subtitle">Search for your game to download its details from OpenCritic</property>
+                        <property name="subtitle">Search for game details using a metadata provider</property>
                         <child>
                           <object class="GtkButton" id="download_metadata_button">
                             <property name="valign">center</property>

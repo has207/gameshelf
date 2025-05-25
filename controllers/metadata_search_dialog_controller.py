@@ -128,14 +128,26 @@ class MetadataSearchDialog(Adw.Window):
     def _perform_search_thread(self, query):
         """Background thread for search operation"""
         try:
-            # Perform the search
-            results = self.metadata_client.search(query)
+            # Define progress callback for status updates
+            def progress_callback(message):
+                GLib.idle_add(self._update_search_status, message)
+
+            # Perform the search with progress updates
+            if hasattr(self.metadata_client, 'search') and 'progress_callback' in self.metadata_client.search.__code__.co_varnames:
+                results = self.metadata_client.search(query, progress_callback=progress_callback)
+            else:
+                results = self.metadata_client.search(query)
 
             # Update the UI in the main thread
             GLib.idle_add(self._update_search_results, results)
         except Exception as e:
             logger.error(f"Error searching for '{query}': {e}")
             GLib.idle_add(self._show_search_error, str(e))
+
+    def _update_search_status(self, message):
+        """Update the search status message (called in main thread)"""
+        self.status_label.set_text(message)
+        return False  # Remove from idle queue
 
     def _update_search_results(self, results):
         """Update the UI with search results (called in main thread)"""
@@ -161,22 +173,40 @@ class MetadataSearchDialog(Adw.Window):
                 row.set_margin_bottom(8)
 
                 # Create a box for the result item
-                box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+                box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
                 box.set_margin_start(12)
                 box.set_margin_end(12)
-                box.set_margin_top(4)
-                box.set_margin_bottom(4)
+                box.set_margin_top(8)
+                box.set_margin_bottom(8)
 
-                # Add game name
-                label = Gtk.Label(label=result.name)
-                label.set_halign(Gtk.Align.START)
-                label.set_hexpand(True)
+                # Add game name (primary text)
+                title_label = Gtk.Label(label=result.name)
+                title_label.set_halign(Gtk.Align.START)
+                title_label.set_hexpand(True)
+                title_label.add_css_class("heading")
+                box.append(title_label)
+
+                # Build secondary text with available metadata
+                secondary_parts = []
+                if result.platform:
+                    secondary_parts.append(result.platform)
+                if result.release_year:
+                    secondary_parts.append(str(result.release_year))
+
+                # Add secondary text if we have any metadata
+                if secondary_parts:
+                    secondary_text = " • ".join(secondary_parts)
+                    subtitle_label = Gtk.Label(label=secondary_text)
+                    subtitle_label.set_halign(Gtk.Align.START)
+                    subtitle_label.set_hexpand(True)
+                    subtitle_label.add_css_class("caption")
+                    subtitle_label.add_css_class("dim-label")
+                    box.append(subtitle_label)
 
                 # Store the result ID for retrieval when selected
                 row.result_id = result.id
                 row.result_name = result.name
 
-                box.append(label)
                 row.set_child(box)
                 self.results_list.append(row)
 
