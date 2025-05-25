@@ -486,3 +486,11 @@ searchentry:focus {
   color: @error_color;
   font-weight: bold;
 }
+
+/* Sync progress styling */
+.sync-progress {
+  font-size: 13px;
+  color: @accent_color;
+  font-weight: bold;
+  padding: 6px 8px;
+}

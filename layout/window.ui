@@ -44,6 +44,14 @@
               </object>
             </child>
             
+            <child type="end">
+              <object class="GtkButton" id="sync_sources_button">
+                <property name="icon-name">view-refresh-symbolic</property>
+                <property name="tooltip-text">Sync All Sources</property>
+                <signal name="clicked" handler="on_sync_sources_clicked"/>
+              </object>
+            </child>
+            
             <property name="title-widget">
               <object class="GtkBox">
                 <property name="halign">center</property>

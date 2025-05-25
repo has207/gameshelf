@@ -194,6 +194,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
     add_game_button: Gtk.Button = Gtk.Template.Child()
     search_entry: Gtk.SearchEntry = Gtk.Template.Child()
     visibility_toggle: Gtk.ToggleButton = Gtk.Template.Child()
+    sync_sources_button: Gtk.Button = Gtk.Template.Child()
 
     def __init__(self, app, controller):
         super().__init__(application=app)
@@ -359,6 +360,149 @@ class GameShelfWindow(Adw.ApplicationWindow):
         source_manager.connect("source-removed", self._on_source_removed)
 
         dialog.show()
+
+    @Gtk.Template.Callback()
+    def on_sync_sources_clicked(self, button):
+        """Handle sync sources button click - triggers sync on all enabled sources"""
+        from source_handler import SourceHandler
+
+        # Create a source handler
+        source_handler = SourceHandler(self.controller.data_handler)
+
+        # Get all enabled sources
+        sources = source_handler.load_sources()
+        enabled_sources = [source for source in sources if source.active]
+
+        if not enabled_sources:
+            self._show_notification("No enabled sources to sync")
+            return
+
+        # Replace sync button with progress label
+        button.set_visible(False)
+
+        # Get the actual header bar - walk up the widget hierarchy
+        widget = button
+        header_bar = None
+        while widget:
+            if isinstance(widget, Adw.HeaderBar):
+                header_bar = widget
+                break
+            widget = widget.get_parent()
+
+        # Create progress label
+        progress_label = Gtk.Label()
+        progress_label.set_text("Initializing sync...")
+        progress_label.add_css_class("sync-progress")
+
+        if header_bar:
+            header_bar.pack_end(progress_label)
+        else:
+            # Fallback: if we can't find header bar, just show notification
+            self._show_notification("Starting sync...")
+            progress_label = None
+
+        # Start sync for all enabled sources
+        def sync_completed(count):
+            """Called when sync is complete"""
+            # Remove progress label and restore sync button
+            if header_bar and progress_label:
+                header_bar.remove(progress_label)
+            button.set_visible(True)
+
+            # Show notification (UI refresh happens after each source now)
+            if count > 0:
+                if count == 1:
+                    self._show_notification("Sync complete - 1 game updated")
+                else:
+                    self._show_notification(f"Sync complete - {count} games updated")
+            else:
+                self._show_notification("Sync complete - no changes")
+
+        def update_progress(source_name, current, total):
+            """Update the progress label with current source"""
+            progress_text = f"Syncing {source_name} ({current}/{total})"
+            if progress_label:
+                GLib.idle_add(lambda: progress_label.set_text(progress_text))
+            else:
+                # Fallback to notification if no progress label
+                self._show_notification(progress_text)
+
+        # Trigger sync for all enabled sources
+        self._sync_all_sources(enabled_sources, sync_completed, update_progress)
+
+    def _sync_all_sources(self, sources, callback, progress_callback):
+        """Sync all provided sources and call callback with total count"""
+        from gi.repository import GLib
+        import threading
+
+        total_changes = 0
+        sources_completed = 0
+        total_sources = len(sources)
+
+        def source_completed(count):
+            nonlocal total_changes, sources_completed
+            total_changes += count
+            sources_completed += 1
+
+            if sources_completed == total_sources:
+                # All sources complete, call the callback on main thread
+                GLib.idle_add(lambda: callback(total_changes))
+
+        # Sync sources sequentially to show proper progress
+        def sync_next_source(index):
+            if index >= len(sources):
+                return
+
+            source = sources[index]
+
+            # Update progress
+            progress_callback(source.name, index + 1, total_sources)
+
+            def sync_source():
+                try:
+                    # Use the same sync logic as the source manager
+                    from source_handler import SourceHandler
+                    source_handler = SourceHandler(self.controller.data_handler)
+
+                    # Get the scanner for this source type
+                    scanner = source_handler.get_scanner(source.source_type, source.id)
+
+                    # Perform the scan with a dummy progress callback
+                    def dummy_progress_callback(current, total, message):
+                        pass  # We don't need detailed progress, just source-level progress
+
+                    added_count, errors = scanner.scan(source, dummy_progress_callback)
+
+                    # Handle different return formats
+                    if isinstance(added_count, tuple):
+                        # PSN returns (added_count, updated_count)
+                        actual_added, updated_count = added_count
+                        changes = actual_added + updated_count
+                    else:
+                        changes = added_count or 0
+
+                    source_completed(changes)
+
+                    # Refresh UI if there were changes from this source
+                    if changes > 0:
+                        GLib.idle_add(lambda: self.controller.reload_data(refresh_sidebar=True))
+
+                    # Start next source
+                    GLib.idle_add(lambda: sync_next_source(index + 1))
+
+                except Exception as e:
+                    logger.error(f"Error syncing source {source.name}: {e}")
+                    source_completed(0)
+
+                    # Start next source even if this one failed
+                    GLib.idle_add(lambda: sync_next_source(index + 1))
+
+            thread = threading.Thread(target=sync_source)
+            thread.daemon = True
+            thread.start()
+
+        # Start with the first source
+        sync_next_source(0)
 
     def _on_games_added_from_source(self, source_manager, count):
         """Handle games being added or updated from a source scan"""
