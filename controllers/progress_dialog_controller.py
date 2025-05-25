@@ -36,14 +36,8 @@ class ProgressDialog(Gtk.Dialog):
         progress_widget = self.progress_manager.create_progress_widget(operation_id)
         self.progress_container.append(progress_widget)
 
-        # Remove dialog default margins and action area
-        try:
-            # Hide the action area that creates bottom margin
-            action_area = self.get_action_area()
-            if action_area:
-                action_area.set_visible(False)
-        except Exception as e:
-            print(f"Could not hide action area: {e}")
+        # Remove dialog default margins
+        # Note: GTK4 Dialog doesn't have get_action_area() like GTK3
 
         # Remove content area margins
         try:

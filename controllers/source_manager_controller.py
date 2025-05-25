@@ -220,29 +220,15 @@ class SourceManager(Gtk.Box):
         # Determine progress type
         progress_type = ProgressType.DETERMINATE if source.source_type in [SourceType.STEAM, SourceType.ROM_DIRECTORY] else ProgressType.INDETERMINATE
 
-        # Create simple progress dialog with proper centering
-        dialog = Gtk.Dialog(
-            transient_for=self.get_root(),
-            modal=True  # Keep modal to maintain centering
-        )
-        dialog.set_decorated(False)  # Remove title bar
-        dialog.set_default_size(450, -1)
-
-        # Add content
-        content_area = dialog.get_content_area()
-        content_area.add_css_class("dialog-content")
-
-        # Start progress operation
-        progress_callback = self.progress_manager.start_operation(
+        # Create progress dialog using unified system
+        dialog = ProgressDialog(
             operation_id=operation_id,
-            operation_name=f"Scanning {source.name}",
+            operation_name=source.name,
             progress_type=progress_type,
-            cancellable=True
+            transient_for=self.get_root(),
+            modal=True
         )
-
-        # Create and add progress widget
-        progress_widget = self.progress_manager.create_progress_widget(operation_id)
-        content_area.append(progress_widget)
+        progress_callback = dialog.progress_callback
 
         # Track dialog state
         dialog_active = [True]

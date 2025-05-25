@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 from controllers.sidebar_controller import SidebarItem
 from controllers.common import get_template_path
+from controllers.progress_dialog_controller import ProgressDialog
+from progress_manager import ProgressManager, ProgressType
 from data import Game, Runner
 
 
@@ -677,7 +679,7 @@ class GameGridController:
         if not window:
             return
 
-        # Create custom confirmation dialog to support progress indicator
+        # Create custom confirmation dialog
         dialog = Gtk.Dialog(
             title=f"Remove {len(games)} games?",
             transient_for=window,
@@ -721,50 +723,6 @@ class GameGridController:
         message_box.append(text_box)
         content_area.append(message_box)
 
-        # Create progress area (initially hidden)
-        progress_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        progress_box.set_margin_top(10)
-        progress_box.set_visible(False)  # Initially hidden
-
-        # Add a separator above the progress area
-        separator = Gtk.Separator()
-        separator.set_margin_top(5)
-        progress_box.append(separator)
-
-        # Add a descriptive header
-        header_label = Gtk.Label()
-        header_label.set_markup("<b>Operation in progress</b>")
-        header_label.set_margin_top(10)
-        header_label.set_halign(Gtk.Align.CENTER)
-        progress_box.append(header_label)
-
-        # Progress details
-        progress_label = Gtk.Label(label="Deleting games...")
-        progress_label.set_halign(Gtk.Align.CENTER)
-        progress_label.set_margin_top(5)
-        progress_box.append(progress_label)
-
-        # Spinner for showing activity
-        spinner = Gtk.Spinner()
-        spinner.set_size_request(48, 48)  # Make it larger for better visibility
-        spinner.set_halign(Gtk.Align.CENTER)  # Center the spinner
-        spinner.set_spinning(True)  # Pre-activate the spinner
-        # Make sure the spinner has enough space to be visible
-        spinner_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        spinner_box.set_margin_top(10)
-        spinner_box.set_margin_bottom(10)
-        spinner_box.set_hexpand(True)  # Expand horizontally to fill space
-        spinner_box.append(spinner)
-        progress_box.append(spinner_box)
-
-        content_area.append(progress_box)
-
-        # Store references for later use
-        dialog.progress_box = progress_box
-        dialog.progress_label = progress_label
-        dialog.spinner = spinner
-        dialog.delete_button = delete_button
-
         # Connect response handler
         dialog.connect("response", self._on_multi_delete_response, games)
         dialog.show()
@@ -772,19 +730,13 @@ class GameGridController:
     def _on_multi_delete_response(self, dialog, response_id, games):
         """Handle the response from the remove confirmation dialog"""
         if response_id == Gtk.ResponseType.YES:
-            # User confirmed removal - show progress UI
-            dialog.progress_box.set_visible(True)
+            dialog.destroy()
 
-            # Make sure the spinner is running - use set_spinning which is used elsewhere in the app
-            dialog.spinner.set_spinning(True)
-
-            # Disable buttons during deletion
-            dialog.set_response_sensitive(Gtk.ResponseType.YES, False)
-            dialog.set_response_sensitive(Gtk.ResponseType.CANCEL, False)
-
-            # Get the window to update UI if needed
+            # User confirmed removal - start deletion with progress dialog
             from controllers.window_controller import GameShelfWindow
             window = self.grid_view.get_ancestor(GameShelfWindow)
+
+            # Hide details panel if needed
             if window and window.details_panel:
                 window.details_panel.set_reveal_flap(False)
                 window.current_selected_game = None
@@ -794,27 +746,44 @@ class GameGridController:
             if hasattr(self.main_controller, 'sidebar_controller') and self.main_controller.sidebar_controller:
                 active_filters = self.main_controller.sidebar_controller.active_filters.copy() if self.main_controller.sidebar_controller.active_filters else {}
 
+            # Create progress dialog
+            progress_dialog = ProgressDialog(
+                operation_id="delete_games",
+                operation_name="Games",
+                progress_type=ProgressType.DETERMINATE,
+                transient_for=window,
+                modal=True
+            )
+            progress_dialog.show()
+
+            # Get progress manager and set title
+            progress_manager = progress_dialog.progress_manager
+            progress_dialog.set_title("Removing Games")
+
             # Run deletion in a background thread
             def delete_thread():
                 removed_count = 0
                 total_games = len(games)
 
                 for i, game in enumerate(games):
-                    # Update progress in main thread
-                    GLib.idle_add(
-                        lambda idx=i, title=game.title: self._update_delete_progress(
-                            dialog, idx + 1, total_games, title
-                        )
+                    # Update progress
+                    progress_dialog.progress_callback(
+                        current=i + 1,
+                        total=total_games,
+                        message=f"Removing {game.title}..."
                     )
 
                     # Perform actual deletion
                     if self.main_controller.remove_game(game):
                         removed_count += 1
 
+                # Update progress for refresh phase
+                progress_dialog.progress_callback.update_message("Refreshing game list...")
+
                 # Process completed - update UI in main thread
                 GLib.idle_add(
-                    lambda count=removed_count: self._complete_deletion(
-                        dialog, count, active_filters
+                    lambda: self._complete_deletion(
+                        progress_dialog, removed_count, active_filters
                     )
                 )
 
@@ -823,7 +792,6 @@ class GameGridController:
             thread.daemon = True
             thread.start()
 
-            # Don't destroy dialog yet - will be handled after thread completes
             return
 
         # For cancel response, just destroy the dialog
@@ -914,19 +882,9 @@ class GameGridController:
         # Show confirmation dialog
         self._show_multi_delete_confirmation(games)
 
-    def _update_delete_progress(self, dialog, current, total, game_title):
-        """Update the deletion progress UI (called from main thread)"""
-        if not dialog or not hasattr(dialog, 'progress_label'):
-            return False
-
-        dialog.progress_label.set_text(f"Deleting {current} of {total}: {game_title}")
-        return False  # Remove idle callback
-
-    def _complete_deletion(self, dialog, removed_count, active_filters):
+    def _complete_deletion(self, progress_dialog, removed_count, active_filters):
         """Handle completion of deletion thread (called from main thread)"""
-        # Update the label to show completion
-        if dialog and hasattr(dialog, 'progress_label'):
-            dialog.progress_label.set_text(f"Refreshing game grid... ({removed_count} games removed)")
+        # No need to update progress dialog here - it will be closed after refresh
 
         # Refresh UI once after all games are removed
         if removed_count > 0:
@@ -988,32 +946,20 @@ class GameGridController:
                     # No active filters, just reload normally
                     self.main_controller.reload_data(refresh_sidebar=True)
 
-                # Data is now refreshed, now we can stop the spinner and close the dialog
-                if dialog:
-                    # Update the label to show completion
-                    if hasattr(dialog, 'progress_label'):
-                        dialog.progress_label.set_text(f"Completed: {removed_count} games removed")
-
-                    # Stop the spinner now that all operations are complete
-                    if hasattr(dialog, 'spinner'):
-                        dialog.spinner.set_spinning(False)
-
-                    # Close the dialog after a short delay to show the completion message
-                    GLib.timeout_add(1000, lambda: dialog.destroy() or False)
+                # Complete the operation and close the progress dialog after a short delay
+                if progress_dialog:
+                    progress_dialog.progress_callback.complete(f"Removed {removed_count} games")
+                    GLib.timeout_add(1500, lambda: progress_dialog.destroy() or False)
 
                 return False
 
             # Run the refresh after a short delay to allow the UI to update
             GLib.timeout_add(50, refresh_with_filter_preservation)
         else:
-            # No games removed, just stop the spinner and close dialog
-            if dialog:
-                # Stop the spinner
-                if hasattr(dialog, 'spinner'):
-                    dialog.spinner.set_spinning(False)
-
-                # Close the dialog after a short delay
-                GLib.timeout_add(1000, lambda: dialog.destroy() or False)
+            # No games removed, complete operation and close dialog after a short delay
+            if progress_dialog:
+                progress_dialog.progress_callback.complete("No games removed")
+                GLib.timeout_add(1500, lambda: progress_dialog.destroy() or False)
 
         return False  # Remove idle callback
 
