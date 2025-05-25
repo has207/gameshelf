@@ -5,137 +5,103 @@
     <property name="title">ROM Directory Source</property>
     <property name="modal">True</property>
     <property name="default-width">600</property>
+    <property name="default-height">700</property>
+    <property name="resizable">True</property>
+    <property name="use-header-bar">1</property>
     
     <child>
-      <object class="GtkBox">
-        <property name="orientation">vertical</property>
-        <property name="spacing">12</property>
-        <property name="margin-start">12</property>
-        <property name="margin-end">12</property>
-        <property name="margin-top">12</property>
-        <property name="margin-bottom">12</property>
-        
+      <object class="GtkScrolledWindow">
+        <property name="hexpand">True</property>
+        <property name="vexpand">True</property>
+        <property name="hscrollbar-policy">never</property>
+        <property name="vscrollbar-policy">automatic</property>
+        <property name="min-content-height">400</property>
+        <property name="max-content-height">600</property>
         <child>
-          <object class="GtkGrid">
-            <property name="row-spacing">8</property>
-            <property name="column-spacing">12</property>
-            <property name="hexpand">True</property>
-            
+          <object class="AdwPreferencesPage">
             <child>
-              <object class="GtkLabel">
-                <property name="label">Name:</property>
-                <property name="xalign">1</property>
-                <layout>
-                  <property name="column">0</property>
-                  <property name="row">0</property>
-                </layout>
+              <object class="AdwPreferencesGroup">
+                <property name="title">Source Settings</property>
+                
+                <child>
+                  <object class="AdwEntryRow" id="name_entry">
+                    <property name="title">Name</property>
+                  </object>
+                </child>
+                
+                <child>
+                  <object class="AdwActionRow">
+                    <property name="title">Platform</property>
+                    <child type="suffix">
+                      <object class="GtkDropDown" id="platform_dropdown">
+                        <property name="enable-search">True</property>
+                        <property name="search-match-mode">substring</property>
+                        <property name="valign">center</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <child>
+                  <object class="AdwSwitchRow" id="active_switch">
+                    <property name="title">Active</property>
+                    <property name="active">True</property>
+                  </object>
+                </child>
               </object>
             </child>
             
             <child>
-              <object class="GtkEntry" id="name_entry">
-                <property name="hexpand">True</property>
-                <layout>
-                  <property name="column">1</property>
-                  <property name="row">0</property>
-                </layout>
+              <object class="AdwPreferencesGroup">
+                <property name="title">Paths</property>
+                <property name="description">Add directories containing ROM files</property>
+                
+                <!-- Path items container will be added here programmatically -->
+                <child>
+                  <object class="GtkBox" id="paths_container">
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">0</property>
+                    <property name="hexpand">True</property>
+                  </object>
+                </child>
+                
+                <child>
+                  <object class="GtkButton" id="add_path_button">
+                    <property name="label">Add Path</property>
+                    <property name="halign">start</property>
+                    <property name="margin-top">6</property>
+                    <style>
+                      <class name="suggested-action"/>
+                    </style>
+                  </object>
+                </child>
               </object>
             </child>
             
             <child>
-              <object class="GtkLabel">
-                <property name="label">Platform:</property>
-                <property name="xalign">1</property>
-                <layout>
-                  <property name="column">0</property>
-                  <property name="row">1</property>
-                </layout>
-              </object>
-            </child>
-            
-            <child>
-              <object class="GtkDropDown" id="platform_dropdown">
-                <property name="hexpand">True</property>
-                <layout>
-                  <property name="column">1</property>
-                  <property name="row">1</property>
-                </layout>
-              </object>
-            </child>
-
-            <child>
-              <object class="GtkLabel">
-                <property name="label">Active:</property>
-                <property name="xalign">1</property>
-                <layout>
-                  <property name="column">0</property>
-                  <property name="row">2</property>
-                </layout>
-              </object>
-            </child>
-            
-            <child>
-              <object class="GtkSwitch" id="active_switch">
-                <property name="active">True</property>
-                <property name="halign">start</property>
-                <layout>
-                  <property name="column">1</property>
-                  <property name="row">2</property>
-                </layout>
-              </object>
-            </child>
-          </object>
-        </child>
-
-        <child>
-          <object class="GtkLabel">
-            <property name="label">Paths</property>
-            <property name="xalign">0</property>
-            <property name="margin-top">8</property>
-            <style>
-              <class name="title-4"/>
-            </style>
-          </object>
-        </child>
-        
-        <!-- Path items container -->
-        <child>
-          <object class="GtkBox" id="paths_container">
-            <property name="orientation">vertical</property>
-            <property name="spacing">12</property>
-            <property name="hexpand">True</property>
-          </object>
-        </child>
-        
-        <child>
-          <object class="GtkButton" id="add_path_button">
-            <property name="label">Add Path</property>
-            <property name="halign">start</property>
-            <property name="margin-top">6</property>
-            <style>
-              <class name="suggested-action"/>
-            </style>
-          </object>
-        </child>
-        
-        <child>
-          <object class="GtkBox">
-            <property name="spacing">12</property>
-            <property name="halign">end</property>
-            <property name="margin-top">12</property>
-            
-            <child>
-              <object class="GtkButton" id="cancel_button">
-                <property name="label">Cancel</property>
-              </object>
-            </child>
-            
-            <child>
-              <object class="GtkButton" id="save_button">
-                <property name="label">Save</property>
-                <style>
-                  <class name="suggested-action"/>
-                </style>
+              <object class="AdwPreferencesGroup">
+                <child>
+                  <object class="GtkBox">
+                    <property name="spacing">12</property>
+                    <property name="halign">end</property>
+                    <property name="margin-top">12</property>
+                    
+                    <child>
+                      <object class="GtkButton" id="cancel_button">
+                        <property name="label">Cancel</property>
+                      </object>
+                    </child>
+                    
+                    <child>
+                      <object class="GtkButton" id="save_button">
+                        <property name="label">Save</property>
+                        <style>
+                          <class name="suggested-action"/>
+                        </style>
+                      </object>
+                    </child>
+                  </object>
+                </child>
               </object>
             </child>
           </object>

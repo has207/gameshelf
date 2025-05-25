@@ -1,8 +1,12 @@
 import gi
 import os
+import logging
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, Gio, GObject
+gi.require_version("Adw", "1")
+from gi.repository import Gtk, Gio, GObject, Adw
+
+log = logging.getLogger(__name__)
 
 from data import Source, SourceType, RomPath
 from data_mapping import Platforms
@@ -40,7 +44,7 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         self.save_button.connect("clicked", self._on_save_clicked)
 
         # Connect platform selection handler to enable/disable extensions for Wii U
-        self.platform_dropdown.connect("notify::selected", self._on_platform_changed)
+        self.platform_dropdown.connect("notify::selected-item", self._on_platform_changed)
 
         # If editing an existing source, fill the form with its data
         if self.editing:
@@ -81,20 +85,27 @@ class RomDirectorySourceDialog(Gtk.Dialog):
 
     def _setup_platform_dropdown(self):
         """Set up the platform dropdown with all available platforms"""
-        # Create a string list to populate the dropdown
-        platform_model = Gtk.StringList.new()
-
         # Sort platforms alphabetically by display name
         platforms = sorted([p for p in Platforms], key=lambda p: p.value)
 
-        # Add each platform to the model and store enum values in a dict
+        # Create a string list model for DropDown
+        string_list = Gtk.StringList()
         self.platform_mapping = {}
+
         for i, platform in enumerate(platforms):
-            platform_model.append(platform.value)
+            string_list.append(platform.value)
             self.platform_mapping[i] = platform
 
-        # Set the model for the dropdown
-        self.platform_dropdown.set_model(platform_model)
+        # Set the model for the DropDown
+        self.platform_dropdown.set_model(string_list)
+
+        # Set up expression for search - this tells DropDown how to extract searchable text
+        try:
+            # Create an expression that gets the string from StringObject
+            expr = Gtk.PropertyExpression.new(Gtk.StringObject, None, "string")
+            self.platform_dropdown.set_expression(expr)
+        except Exception as e:
+            log.debug(f"Failed to set expression for search: {e}")
 
     def _select_platform_by_value(self, platform_value):
         """Find and select a platform in the dropdown by its value"""
@@ -107,17 +118,19 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         # If not found, just select the first one
         self.platform_dropdown.set_selected(0)
 
-    def _on_platform_changed(self, dropdown, param):
+    def _on_platform_changed(self, dropdown, pspec):
         """Handle platform selection change"""
         self._update_extensions_field_state()
 
     def _update_extensions_field_state(self):
         """Update the state of extension fields for all path items based on the selected platform"""
         selected_index = self.platform_dropdown.get_selected()
-        if selected_index < 0:
+        if selected_index == Gtk.INVALID_LIST_POSITION:
             return
 
-        platform = self.platform_mapping[selected_index]
+        platform = self.platform_mapping.get(selected_index)
+        if not platform:
+            return
 
         # For Wii U, disable extensions field since we'll detect games based on folder structure
         self.is_wiiu = (platform == Platforms.NINTENDO_WIIU)
@@ -160,7 +173,7 @@ class RomDirectorySourceDialog(Gtk.Dialog):
 
         # Get selected platform
         selected_index = self.platform_dropdown.get_selected()
-        if selected_index < 0:
+        if selected_index == Gtk.INVALID_LIST_POSITION:
             self._show_error("Platform selection is required")
             return
 
