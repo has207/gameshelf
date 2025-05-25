@@ -152,9 +152,9 @@ class DirectoryScanner(SourceScanner):
                         metadata_game = self.metadata_provider.search_by_title_and_platform(title, platform_value)
 
                         if metadata_game:
-                            # If the metadata game title is different from our title, log the match
-                            if metadata_game.title.lower() != title.lower():
-                                logger.info(f"Found metadata for '{title}' as '{metadata_game.title}'")
+                            # If the metadata game name is different from our title, log the match
+                            if metadata_game.name.lower() != title.lower():
+                                logger.info(f"Found metadata for '{title}' as '{metadata_game.name}'")
                             else:
                                 logger.info(f"Found metadata for '{title}'")
 
