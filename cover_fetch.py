@@ -2,8 +2,11 @@ import os
 import tempfile
 import logging
 import requests
+import shutil
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any, Union
+
+from data_handler import get_media_filename_for_url
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -40,6 +43,10 @@ class CoverFetcher:
         adapter = requests.adapters.HTTPAdapter(max_retries=max_retries)
         self.session.mount('http://', adapter)
         self.session.mount('https://', adapter)
+
+        # Set up media directory
+        self.media_dir = Path(data_handler.data_dir) / "media"
+        self.media_dir.mkdir(parents=True, exist_ok=True)
 
     def fetch_to_temp(self, url: str, source_name: str = None,
                    headers: Dict[str, str] = None) -> Tuple[bool, Optional[str], Optional[str]]:
@@ -99,7 +106,8 @@ class CoverFetcher:
     def fetch_and_save_for_game(self, game_id: str, url: str, source_name: str = None,
                                headers: Dict[str, str] = None) -> Tuple[bool, Optional[str]]:
         """
-        Fetch a cover image and save it directly to the game's directory
+        Fetch a cover image and save it to the centralized media directory,
+        then create a symlink in the game's directory
 
         Args:
             game_id: The ID of the game to save the cover for
@@ -112,6 +120,14 @@ class CoverFetcher:
             - success: True if download and save was successful, False otherwise
             - error_message: Error message if failed, or None if successful
         """
+        # Check if we already have this image in the media directory
+        media_path = self._get_media_path_for_url(url)
+
+        if media_path.exists():
+            logger.info(f"Cover image already exists in media directory: {media_path}")
+            # Create symlink to existing image
+            return self._create_game_symlink(game_id, media_path)
+
         # First fetch to a temporary file
         success, temp_path, error = self.fetch_to_temp(url, source_name, headers)
 
@@ -119,18 +135,12 @@ class CoverFetcher:
             return False, error
 
         try:
-            # Save the image to the game's directory
-            save_success = self.data_handler.save_game_image(temp_path, game_id)
+            # Move the image to the media directory
+            shutil.move(temp_path, media_path)
+            logger.debug(f"Cover image saved to media directory: {media_path}")
 
-            # Clean up the temporary file regardless of save success
-            self.cleanup_temp_file(temp_path)
-
-            if not save_success:
-                error_msg = f"Failed to save cover image for game ID: {game_id}"
-                logger.error(error_msg)
-                return False, error_msg
-
-            return True, None
+            # Create symlink in game directory
+            return self._create_game_symlink(game_id, media_path)
 
         except Exception as e:
             # Clean up the temporary file if we have an exception
@@ -159,3 +169,49 @@ class CoverFetcher:
         except Exception as e:
             logger.warning(f"Failed to delete temporary image file: {e}")
             return False
+
+    def _get_media_path_for_url(self, url: str) -> Path:
+        """
+        Generate a media file path for a given URL using URL hash
+
+        Args:
+            url: The URL to generate a path for
+
+        Returns:
+            Path to the media file
+        """
+        return self.media_dir / get_media_filename_for_url(url)
+
+    def _create_game_symlink(self, game_id: str, media_path: Path) -> Tuple[bool, Optional[str]]:
+        """
+        Create a symlink from the game directory to the media file
+
+        Args:
+            game_id: The ID of the game
+            media_path: Path to the media file
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        try:
+            game_dir = self.data_handler._get_game_dir_from_id(game_id)
+            game_dir.mkdir(parents=True, exist_ok=True)
+
+            cover_symlink = game_dir / "cover.jpg"
+
+            # Remove existing cover file/symlink if it exists
+            if cover_symlink.exists() or cover_symlink.is_symlink():
+                cover_symlink.unlink()
+
+            # Create relative symlink to media file
+            # Calculate relative path from game directory to media file
+            relative_media_path = os.path.relpath(media_path, game_dir)
+            cover_symlink.symlink_to(relative_media_path)
+
+            logger.debug(f"Created symlink for game {game_id}: {cover_symlink} -> {relative_media_path}")
+            return True, None
+
+        except Exception as e:
+            error_msg = f"Error creating symlink for game {game_id}: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg

@@ -4,6 +4,7 @@ import time
 import shutil
 import enum
 import logging
+import hashlib
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple, Union
@@ -26,12 +27,27 @@ from gi.repository import GdkPixbuf
 logger = logging.getLogger(__name__)
 
 
+def get_media_filename_for_url(url: str) -> str:
+    """
+    Generate a media filename for a given URL using SHA256 hash
+
+    Args:
+        url: The URL to generate a filename for
+
+    Returns:
+        Filename with .jpg extension
+    """
+    url_hash = hashlib.sha256(url.encode('utf-8')).hexdigest()
+    return f"{url_hash}.jpg"
+
+
 class DataHandler:
     def __init__(self, data_dir: str = "data"):
         self.data_dir = Path(data_dir)
         self.games_dir = self.data_dir / "games"
         self.runners_dir = self.data_dir / "runners"
         self.sources_dir = self.data_dir / "sources"
+        self.media_dir = self.data_dir / "media"
 
         # Get the project root directory for finding media directory
         self.project_root = Path(__file__).parent
@@ -49,6 +65,7 @@ class DataHandler:
         self.games_dir.mkdir(parents=True, exist_ok=True)
         self.runners_dir.mkdir(parents=True, exist_ok=True)
         self.sources_dir.mkdir(parents=True, exist_ok=True)
+        self.media_dir.mkdir(parents=True, exist_ok=True)
 
     def load_games(self) -> List[Game]:
         games = []
@@ -312,13 +329,15 @@ class DataHandler:
             logger.error(f"Error saving runner {runner.id}: {e}")
             return False
 
-    def save_game_image(self, source_path: str, game_id: str) -> bool:
+    def save_game_image(self, source_path: str, game_id: str, url: str = None) -> bool:
         """
-        Copy a game image to the game's directory as cover.jpg.
+        Save a game image to the centralized media directory and create a symlink
+        in the game's directory. If url is provided, uses URL-based naming.
 
         Args:
             source_path: Path to the source image
             game_id: ID of the game
+            url: Optional URL of the image for hash-based naming
 
         Returns:
             True if the image was successfully saved, False otherwise
@@ -331,35 +350,58 @@ class DataHandler:
             game_dir = self._get_game_dir_from_id(game_id)
             game_dir.mkdir(parents=True, exist_ok=True)
 
-            # Always save as cover.jpg
-            dest_path = game_dir / "cover.jpg"
+            # Determine media file name
+            if url:
+                media_filename = get_media_filename_for_url(url)
+            else:
+                # Fallback to game-specific naming for manually added images
+                media_filename = f"game_{game_id}.jpg"
 
-            # Copy the file
-            shutil.copy2(source_path, dest_path)
+            media_path = self.media_dir / media_filename
+
+            # Only copy if the media file doesn't already exist
+            if not media_path.exists():
+                shutil.copy2(source_path, media_path)
+                logger.debug(f"Saved image to media directory: {media_path}")
+
+            # Create symlink in game directory
+            cover_symlink = game_dir / "cover.jpg"
+
+            # Remove existing cover file/symlink if it exists
+            if cover_symlink.exists() or cover_symlink.is_symlink():
+                cover_symlink.unlink()
+
+            # Create relative symlink to media file
+            relative_media_path = os.path.relpath(media_path, game_dir)
+            cover_symlink.symlink_to(relative_media_path)
+
+            logger.debug(f"Created symlink for game {game_id}: {cover_symlink} -> {relative_media_path}")
             return True
+
         except Exception as e:
-            logger.error(f"Error copying image: {e}")
+            logger.error(f"Error saving image: {e}")
             return False
 
     def remove_game_image(self, game_id: str) -> bool:
         """
-        Remove a game's cover image if it exists.
+        Remove a game's cover symlink if it exists.
+        Note: This does NOT remove the media file to allow reuse.
 
         Args:
             game_id: ID of the game
 
         Returns:
-            True if the image was successfully removed or didn't exist, False if error
+            True if the symlink was successfully removed or didn't exist, False if error
         """
         try:
             game_dir = self._get_game_dir_from_id(game_id)
             cover_path = game_dir / "cover.jpg"
 
-            if cover_path.exists():
+            if cover_path.exists() or cover_path.is_symlink():
                 cover_path.unlink()
             return True
         except Exception as e:
-            logger.error(f"Error removing cover image for game {game_id}: {e}")
+            logger.error(f"Error removing cover symlink for game {game_id}: {e}")
             return False
 
     def create_game_with_image(self, title: str, image_path: Optional[str] = None) -> Game:
@@ -1092,6 +1134,7 @@ class DataHandler:
     def remove_game(self, game: Game) -> bool:
         """
         Remove a game from the games directory.
+        Note: This preserves media files in the centralized media directory.
 
         Args:
             game: The game to remove
@@ -1103,7 +1146,7 @@ class DataHandler:
 
         try:
             if game_dir.exists():
-                # Remove the entire game directory (which includes the cover image)
+                # Remove the entire game directory (symlinks are removed automatically)
                 shutil.rmtree(game_dir)
 
                 # Try to clean up empty parent directories
