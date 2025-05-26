@@ -733,18 +733,22 @@ class XboxLibrary(SourceScanner):
                             # Default to 0 seconds
                             game.play_time = 0
 
-                    # Check if game has been played
-                    if game.play_time > 0:
-                        game.play_count = 1
-                        # Use the enum value directly
-                        game.completion_status = CompletionStatus.PLAYED
-
                     # Get title history data (for last played date)
                     title_history = game_data.get('titleHistory', {})
                     if title_history and 'lastTimePlayed' in title_history:
-                        # We'll handle last played time via the YAML file's modification time
-                        # This is handled when we save the game
-                        pass
+                        try:
+                            # Parse Xbox timestamp format (ISO 8601)
+                            last_played_str = title_history['lastTimePlayed']
+                            # Remove 'Z' suffix and parse as ISO format
+                            if last_played_str.endswith('Z'):
+                                last_played_str = last_played_str[:-1] + '+00:00'
+
+                            # Parse the datetime and convert to timestamp
+                            last_played_dt = datetime.fromisoformat(last_played_str)
+                            game.last_played = last_played_dt.timestamp()
+                            logger.debug(f"Set last played time for {title}: {last_played_str}")
+                        except (ValueError, TypeError, KeyError) as e:
+                            logger.warning(f"Could not parse last played time for {title}: {e}. Value was: {title_history.get('lastTimePlayed')}")
 
                     # Get cover image URL if available
                     display_image = game_data.get('displayImage')
@@ -763,15 +767,22 @@ class XboxLibrary(SourceScanner):
                     # Save the game
                     if self.data_handler.save_game(game):
                         # After the game is saved with an ID, save the playtime separately
-                        if game.play_time > 0:
+                        if game.play_time is not None and game.play_time > 0:
                             # Use the data_handler method to save play time
                             if not self.data_handler.update_play_time(game, game.play_time):
                                 logger.warning(f"Failed to save play time for {game.title}")
 
                         # Save play count if set
-                        if game.play_count > 0:
+                        if game.play_count is not None and game.play_count > 0:
                             if not self.data_handler.update_play_count(game, game.play_count):
                                 logger.warning(f"Failed to save play count for {game.title}")
+
+                        # Save last played time if set
+                        if hasattr(game, 'last_played') and game.last_played is not None:
+                            if not self.data_handler.set_last_played_time(game, game.last_played):
+                                logger.warning(f"Failed to save last played time for {game.title}")
+                            else:
+                                logger.debug(f"Saved last played time for {game.title}")
 
                         # Download and save the cover image if URL is available
                         if hasattr(game, 'image') and game.image and source.config.get("download_images", True):

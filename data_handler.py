@@ -157,19 +157,49 @@ class DataHandler:
                         source=game_data.get("source")
                     )
 
-                    # Load playtime data (consolidated format)
-                    play_time_file = game_file.parent / "playtime.yaml"
-                    if play_time_file.exists():
-                        try:
-                            with open(play_time_file, "r") as pt_file:
-                                play_time_data = yaml.safe_load(pt_file)
-                                if play_time_data and isinstance(play_time_data, dict):
-                                    game.play_count = play_time_data.get("play_count", 0)
-                                    game.play_time = play_time_data.get("play_time_seconds", 0)
-                                    game.last_played = play_time_data.get("last_played")
-                                    game.first_played = play_time_data.get("first_played")
-                        except Exception as pt_err:
-                            logger.error(f"Error loading playtime data for {game_id}: {pt_err}")
+                    # Load developer and publisher
+                    game.developer = game_data.get("developer")
+                    game.publisher = game_data.get("publisher")
+
+                    # Load playtime data from game.yaml (with fallback to playtime.yaml for migration)
+                    if "play_count" in game_data:
+                        # New format: playtime fields in game.yaml
+                        game.play_count = game_data.get("play_count")
+                        game.play_time = game_data.get("play_time_seconds")
+                        game.last_played = game_data.get("last_played")
+                        game.first_played = game_data.get("first_played")
+                    else:
+                        # Legacy format: fallback to playtime.yaml for migration
+                        play_time_file = game_file.parent / "playtime.yaml"
+                        if play_time_file.exists():
+                            try:
+                                with open(play_time_file, "r") as pt_file:
+                                    play_time_data = yaml.safe_load(pt_file)
+                                    if play_time_data and isinstance(play_time_data, dict):
+                                        game.play_count = play_time_data.get("play_count")
+                                        game.play_time = play_time_data.get("play_time_seconds")
+                                        game.last_played = play_time_data.get("last_played")
+                                        game.first_played = play_time_data.get("first_played")
+
+                                        # Auto-migrate: save playtime data to game.yaml
+                                        logger.info(f"Migrating playtime data for game {game_id} from playtime.yaml to game.yaml")
+                                        self.save_game(game, preserve_created_time=True)
+
+                                        # Remove old playtime.yaml file after successful migration
+                                        try:
+                                            play_time_file.unlink()
+                                            logger.info(f"Removed legacy playtime.yaml for game {game_id}")
+                                        except Exception as e:
+                                            logger.warning(f"Could not remove legacy playtime.yaml for game {game_id}: {e}")
+                            except Exception as pt_err:
+                                logger.error(f"Error loading playtime data for {game_id}: {pt_err}")
+
+                        # Set defaults if no playtime data exists
+                        if "play_count" not in locals() or not hasattr(game, 'play_count'):
+                            game.play_count = None
+                            game.play_time = None
+                            game.last_played = None
+                            game.first_played = None
 
                     # Load description if exists
                     description_file = game_file.parent / "description.yaml"
@@ -251,7 +281,12 @@ class DataHandler:
 
         game_data = {
             "title": game.title,
-            "completion_status": game.completion_status.value
+            "completion_status": game.completion_status.value,
+            # Include playtime fields in game.yaml
+            "play_count": game.play_count,
+            "play_time_seconds": game.play_time,
+            "first_played": game.first_played,
+            "last_played": game.last_played
         }
 
         if game.created:
@@ -281,6 +316,14 @@ class DataHandler:
         # Save source if present
         if game.source:
             game_data["source"] = game.source
+
+        # Save developer if present
+        if game.developer:
+            game_data["developer"] = game.developer
+
+        # Save publisher if present
+        if game.publisher:
+            game_data["publisher"] = game.publisher
 
         try:
             game_dir = self._get_game_dir_from_id(game.id)
@@ -594,16 +637,82 @@ class DataHandler:
             logger.error(f"Error loading image for {runner.title}: {e}")
             return None
 
-    def update_play_count(self, game: Game, count: int) -> bool:
+    def _update_completion_status_based_on_activity(self, game: Game) -> bool:
+        """
+        Update completion status based on play activity indicators.
+        If the game has any play activity (count > 0, time > 0, or timestamps)
+        and status is NOT_PLAYED, change it to PLAYED.
+
+        Args:
+            game: The game to check and update
+
+        Returns:
+            True if completion status was updated, False otherwise
+        """
+        if game.completion_status != CompletionStatus.NOT_PLAYED:
+            return False
+
+        # Check for any play activity
+        has_play_count = game.play_count is not None and game.play_count > 0
+        has_play_time = game.play_time is not None and game.play_time > 0
+        has_first_played = game.first_played is not None
+        has_last_played = game.last_played is not None
+
+        if has_play_count or has_play_time or has_first_played or has_last_played:
+            game.completion_status = CompletionStatus.PLAYED
+            logger.debug(f"Auto-updating completion status to PLAYED for game {game.id} (has play activity)")
+            return True
+
+        return False
+
+    def update_play_activity(self, game: Game, play_count: Optional[int] = None,
+                           play_time: Optional[int] = None,
+                           first_played: Optional[float] = None,
+                           last_played: Optional[float] = None) -> bool:
+        """
+        Update multiple play activity fields at once with consistent completion status handling.
+
+        Args:
+            game: The game to update
+            play_count: New play count (None = don't change)
+            play_time: New play time (None = don't change)
+            first_played: New first played timestamp (None = don't change)
+            last_played: New last played timestamp (None = don't change)
+
+        Returns:
+            True if successfully updated, False otherwise
+        """
+        try:
+            # Update fields that were provided
+            if play_count is not None:
+                game.play_count = play_count
+            if play_time is not None:
+                game.play_time = play_time
+            if first_played is not None:
+                game.first_played = first_played
+            if last_played is not None:
+                game.last_played = last_played
+
+            # Update completion status based on all play activity
+            self._update_completion_status_based_on_activity(game)
+
+            # Save all data
+            return self.save_game(game, preserve_created_time=True)
+        except Exception as e:
+            logger.error(f"Error updating play activity for {game.id}: {e}")
+            return False
+
+    def update_play_count(self, game: Game, count: Optional[int]) -> bool:
         """
         Update the play count for a game and save it to playtime.yaml.
         Also manages the completion status based on play count:
+        - If count is None: No completion status changes (play count not tracked)
         - If count is 0 and status is Playing/Played/Beaten/Completed, reset to Not Played
         - If count > 0 and status is Not Played, change to Played
 
         Args:
             game: The game to update the play count for
-            count: The new play count value
+            count: The new play count value (None = not tracked, 0 = explicitly zero)
 
         Returns:
             True if the play count was successfully updated, False otherwise
@@ -620,39 +729,30 @@ class DataHandler:
                 CompletionStatus.COMPLETED
             ]
 
-            # If count is 0 and the game is in a playable state, reset to NOT_PLAYED
-            if count == 0 and game.completion_status in playable_states:
-                game.completion_status = CompletionStatus.NOT_PLAYED
-                status_updated = True
-                logger.info(f"Resetting completion status for game {game.title} to NOT_PLAYED (play count = 0)")
-
-            # If count > 0 and status is NOT_PLAYED, change to PLAYED
-            elif count > 0 and game.completion_status == CompletionStatus.NOT_PLAYED:
-                game.completion_status = CompletionStatus.PLAYED
-                status_updated = True
-                logger.info(f"Setting completion status for game {game.title} to PLAYED (play count = {count})")
-
             # Update the play count in the game object
             old_count = game.play_count
             game.play_count = count
 
             # Set last_played timestamp when play count increases
-            if count > old_count:
+            if old_count is not None and count is not None and count > old_count:
                 game.last_played = time.time()
                 # Set first_played if this is the first time
                 if not hasattr(game, 'first_played') or game.first_played is None:
                     game.first_played = game.last_played
 
-            # Save consolidated playtime data
-            if not self._save_playtime_data(game):
-                return False
+            # Handle completion status based on all play activity
+            # Special case: if count is explicitly 0 and no other play activity, reset to NOT_PLAYED
+            if (count == 0 and not game.first_played and not game.last_played and
+                (game.play_time is None or game.play_time == 0)):
+                if game.completion_status in playable_states:
+                    game.completion_status = CompletionStatus.NOT_PLAYED
+                    logger.info(f"Resetting completion status for game {game.title} to NOT_PLAYED (no play activity)")
+            else:
+                # Otherwise, update to PLAYED if there's any activity and status is NOT_PLAYED
+                self._update_completion_status_based_on_activity(game)
 
-            # If the completion status changed, update the game.yaml file
-            if status_updated:
-                self.save_game(game, True)
-                logger.info(f"Updated completion status for {game.title} based on play count changes")
-
-            return True
+            # Save consolidated data to game.yaml (includes playtime and completion status)
+            return self.save_game(game, preserve_created_time=True)
         except Exception as e:
             logger.error(f"Error updating play count for {game.id}: {e}")
             return False
@@ -672,7 +772,8 @@ class DataHandler:
         """
         # Incrementing will always result in a count > 0, which means
         # the update_play_count method will handle changing NOT_PLAYED to PLAYED
-        return self.update_play_count(game, game.play_count + 1)
+        current_count = game.play_count if game.play_count is not None else 0
+        return self.update_play_count(game, current_count + 1)
 
     def _save_playtime_data(self, game: Game) -> bool:
         """
@@ -705,13 +806,13 @@ class DataHandler:
             logger.error(f"Error saving playtime data for {game.id}: {e}")
             return False
 
-    def update_play_time(self, game: Game, seconds: int) -> bool:
+    def update_play_time(self, game: Game, seconds: Optional[int]) -> bool:
         """
         Update the play time for a game with a specific value.
 
         Args:
             game: The game to update the play time for
-            seconds: The total seconds to set play time to
+            seconds: The total seconds to set play time to (None = not tracked, 0 = explicitly zero)
 
         Returns:
             True if the play time was successfully updated, False otherwise
@@ -719,7 +820,11 @@ class DataHandler:
         try:
             # Set the play time to the provided value
             game.play_time = seconds
-            return self._save_playtime_data(game)
+
+            # Update completion status based on all play activity
+            self._update_completion_status_based_on_activity(game)
+
+            return self.save_game(game, preserve_created_time=True)
         except Exception as e:
             logger.error(f"Error updating play time for {game.id}: {e}")
             return False
@@ -950,14 +1055,15 @@ class DataHandler:
             return True  # Nothing to add
 
         # Calculate new total
-        new_total = game.play_time + seconds_to_add
+        current_time = game.play_time if game.play_time is not None else 0
+        new_total = current_time + seconds_to_add
 
         # Update the play time with the new total
         return self.update_play_time(game, new_total)
 
     def set_last_played_time(self, game: Game, timestamp: Optional[float]) -> bool:
         """
-        Set the last played time for a game by updating the playtime.yaml file.
+        Set the last played time for a game by updating game.yaml.
 
         Args:
             game: The game to update the last played time for
@@ -970,26 +1076,18 @@ class DataHandler:
             # Set the last played timestamp in the game object
             game.last_played = timestamp
 
-            # Save the consolidated playtime data first
-            playtime_result = self._save_playtime_data(game)
+            # Update completion status based on all play activity
+            self._update_completion_status_based_on_activity(game)
 
-            # Auto-update completion status to PLAYED if it was NOT_PLAYED and we're setting a timestamp
-            if timestamp is not None and game.completion_status == CompletionStatus.NOT_PLAYED:
-                logger.info(f"Auto-updating completion status to PLAYED for game {game.id} (last_played)")
-                game.completion_status = CompletionStatus.PLAYED
-                # Save the updated completion status AFTER playtime data
-                result = self.update_completion_status(game, CompletionStatus.PLAYED)
-                logger.info(f"Completion status update result for game {game.id}: {result}")
-                return result
-
-            return playtime_result
+            # Save all data to game.yaml (including playtime and completion status)
+            return self.save_game(game, preserve_created_time=True)
         except Exception as e:
             logger.error(f"Error setting last played time for {game.id}: {e}")
             return False
 
     def set_first_played_time(self, game: Game, timestamp: Optional[float]) -> bool:
         """
-        Set the first played time for a game by updating the playtime.yaml file.
+        Set the first played time for a game by updating game.yaml.
 
         Args:
             game: The game to update the first played time for
@@ -1002,19 +1100,11 @@ class DataHandler:
             # Set the first played timestamp in the game object
             game.first_played = timestamp
 
-            # Save the consolidated playtime data first
-            playtime_result = self._save_playtime_data(game)
+            # Update completion status based on all play activity
+            self._update_completion_status_based_on_activity(game)
 
-            # Auto-update completion status to PLAYED if it was NOT_PLAYED and we're setting a timestamp
-            if timestamp is not None and game.completion_status == CompletionStatus.NOT_PLAYED:
-                logger.info(f"Auto-updating completion status to PLAYED for game {game.id} (first_played)")
-                game.completion_status = CompletionStatus.PLAYED
-                # Save the updated completion status AFTER playtime data
-                result = self.update_completion_status(game, CompletionStatus.PLAYED)
-                logger.info(f"Completion status update result for game {game.id}: {result}")
-                return result
-
-            return playtime_result
+            # Save all data to game.yaml (including playtime and completion status)
+            return self.save_game(game, preserve_created_time=True)
         except Exception as e:
             logger.error(f"Error setting first played time for {game.id}: {e}")
             return False

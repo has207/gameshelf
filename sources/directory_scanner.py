@@ -385,7 +385,7 @@ class DirectoryScanner(SourceScanner):
 
                     # Extract the game title using the name regex
                     # Use default regex that strips extension if not specified
-                    name_regex = rom_path.name_regex or "^(.+?)(\.[^.]+)?$"
+                    name_regex = rom_path.name_regex or r"^(.+?)(\.[^.]+)?$"
 
                     try:
                         # Apply the regex to extract the game title
@@ -430,7 +430,7 @@ class DirectoryScanner(SourceScanner):
 
                     # Extract the game title from the folder name using regex
                     # Use default regex that strips extension if not specified
-                    name_regex = rom_path.name_regex or "^(.+?)(\.[^.]+)?$"
+                    name_regex = rom_path.name_regex or r"^(.+?)(\.[^.]+)?$"
 
                     try:
                         # Apply the regex to extract the title from folder name

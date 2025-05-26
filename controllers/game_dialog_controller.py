@@ -248,8 +248,8 @@ class GameDialog(Adw.Window):
             buffer.set_text(game.description)
 
         # Set play statistics
-        self.play_count_entry.set_text(str(game.play_count))
-        self.play_time_entry.set_text(str(game.play_time))
+        self.play_count_entry.set_text(str(game.play_count) if game.play_count is not None else "")
+        self.play_time_entry.set_text(str(game.play_time) if game.play_time is not None else "")
 
         # Set timestamps if available
         if hasattr(game, 'first_played') and game.first_played:
@@ -446,14 +446,16 @@ class GameDialog(Adw.Window):
             # Check play stats changes - for EntryRow
             current_play_count = self.play_count_entry.get_text().strip()
             try:
-                if current_play_count and int(current_play_count) != self.game.play_count:
+                current_count = int(current_play_count) if current_play_count else None
+                if current_count != self.game.play_count:
                     has_changes = True
             except (ValueError, TypeError):
                 pass
 
             current_play_time = self.play_time_entry.get_text().strip()
             try:
-                if current_play_time and int(current_play_time) != self.game.play_time:
+                current_time = int(current_play_time) if current_play_time else None
+                if current_time != self.game.play_time:
                     has_changes = True
             except (ValueError, TypeError):
                 pass
@@ -484,6 +486,7 @@ class GameDialog(Adw.Window):
             current_status = self.selected_completion_status
             game_status = self.game.completion_status
             if current_status != game_status:
+                logger.info(f"Competion status changed to {completion_status}")
                 has_changes = True
 
             # Check metadata changes
@@ -620,37 +623,33 @@ class GameDialog(Adw.Window):
         if not self.game:
             return
 
-        # Track if the main game.yaml needs updating
-        need_to_save_game_yaml = False
+        # Track if any changes were made
+        changes_made = False
 
-        # Get the updated values
+        # Get the updated values and update the game object
         title = self.title_entry.get_text().strip()
-
-        # Check if title changed (stored in game.yaml)
         if title != self.game.title:
             self.game.title = title
-            need_to_save_game_yaml = True
+            changes_made = True
 
-        # Get play statistics
+        # Get and update play statistics
         try:
             play_count_text = self.play_count_entry.get_text().strip()
-            if play_count_text:
-                play_count = int(play_count_text)
-                if play_count != self.game.play_count:
-                    # Update play count with new value
-                    self.controller.data_handler.update_play_count(self.game, play_count)
+            play_count = int(play_count_text) if play_count_text else None
+            if play_count != self.game.play_count:
+                self.game.play_count = play_count
+                changes_made = True
         except (ValueError, TypeError) as e:
-            logger.error(f"Error updating play count: {e}")
+            logger.error(f"Error parsing play count: {e}")
 
         try:
             play_time_text = self.play_time_entry.get_text().strip()
-            if play_time_text:
-                play_time = int(play_time_text)
-                if play_time != self.game.play_time:
-                    # Update play time with new value
-                    self.controller.data_handler.update_play_time(self.game, play_time)
+            play_time = int(play_time_text) if play_time_text else None
+            if play_time != self.game.play_time:
+                self.game.play_time = play_time
+                changes_made = True
         except (ValueError, TypeError) as e:
-            logger.error(f"Error updating play time: {e}")
+            logger.error(f"Error parsing play time: {e}")
 
         # Update timestamps
         try:
@@ -660,11 +659,13 @@ class GameDialog(Adw.Window):
                 first_played_timestamp = dt.timestamp()
                 current_first_played = getattr(self.game, 'first_played', None)
                 if first_played_timestamp != current_first_played:
-                    self.controller.data_handler.set_first_played_time(self.game, first_played_timestamp)
+                    self.game.first_played = first_played_timestamp
+                    changes_made = True
             else:
                 # Clear first played time if no date selected
                 if hasattr(self.game, 'first_played') and self.game.first_played:
-                    self.controller.data_handler.set_first_played_time(self.game, None)
+                    self.game.first_played = None
+                    changes_made = True
 
             # Update last played time
             if self.last_played_date:
@@ -672,16 +673,62 @@ class GameDialog(Adw.Window):
                 last_played_timestamp = dt.timestamp()
                 current_last_played = getattr(self.game, 'last_played', None)
                 if last_played_timestamp != current_last_played:
-                    self.controller.data_handler.set_last_played_time(self.game, last_played_timestamp)
+                    self.game.last_played = last_played_timestamp
+                    changes_made = True
             else:
                 # Clear last played time if no date selected
                 if hasattr(self.game, 'last_played') and self.game.last_played:
-                    self.controller.data_handler.set_last_played_time(self.game, None)
+                    self.game.last_played = None
+                    changes_made = True
 
         except Exception as e:
             logger.error(f"Error updating timestamps: {e}")
 
-        # Copy the image if a new one was selected
+        # Update completion status if needed
+        if self.selected_completion_status != self.game.completion_status:
+            self.game.completion_status = self.selected_completion_status
+            changes_made = True
+
+        # Update metadata fields if they've changed
+        # For platforms
+        game_platforms = self.game.platforms or []
+        if set(self.selected_platforms) != set(game_platforms):
+            self.game.platforms = self.selected_platforms[:]
+            changes_made = True
+
+        # For genres
+        game_genres = self.game.genres or []
+        if set(self.selected_genres) != set(game_genres):
+            self.game.genres = self.selected_genres[:]
+            changes_made = True
+
+        # For features
+        game_features = self.game.features or []
+        if set(self.selected_features) != set(game_features):
+            self.game.features = self.selected_features[:]
+            changes_made = True
+
+        # For age ratings
+        game_age_ratings = self.game.age_ratings or []
+        if set(self.selected_age_ratings) != set(game_age_ratings):
+            self.game.age_ratings = self.selected_age_ratings[:]
+            changes_made = True
+
+        # For regions
+        game_regions = self.game.regions or []
+        if set(self.selected_regions) != set(game_regions):
+            self.game.regions = self.selected_regions[:]
+            changes_made = True
+
+        # Save all changes to game.yaml in one operation
+        if changes_made:
+            # Update completion status based on play activity (this handles the automatic NOT_PLAYED -> PLAYED logic)
+            self.controller.data_handler._update_completion_status_based_on_activity(self.game)
+
+            # Save the consolidated game data
+            self.controller.data_handler.save_game(self.game, preserve_created_time=True)
+
+        # Handle image changes (separate file operation)
         if self.selected_image_path is not None:  # Image was changed
             if self.selected_image_path:  # New image selected
                 # Save the new image
@@ -693,89 +740,33 @@ class GameDialog(Adw.Window):
                 # Remove the cover image using the data handler
                 self.controller.data_handler.remove_game_image(self.game.id)
 
-        # Update completion status if needed
-        if self.selected_completion_status != self.game.completion_status:
-            # Update the completion status
-            self.controller.data_handler.update_completion_status(
-                self.game,
-                self.selected_completion_status
-            )
-
-        # Update metadata fields if they've changed
-
-        # For platforms
-        game_platforms = self.game.platforms or []
-        if set(self.selected_platforms) != set(game_platforms):
-            self.controller.data_handler.update_platforms(
-                self.game,
-                self.selected_platforms
-            )
-
-        # For genres
-        game_genres = self.game.genres or []
-        if set(self.selected_genres) != set(game_genres):
-            self.controller.data_handler.update_genres(
-                self.game,
-                self.selected_genres
-            )
-
-        # For features
-        game_features = self.game.features or []
-        if set(self.selected_features) != set(game_features):
-            self.controller.data_handler.update_features(
-                self.game,
-                self.selected_features
-            )
-
-        # For age ratings
-        game_age_ratings = self.game.age_ratings or []
-        if set(self.selected_age_ratings) != set(game_age_ratings):
-            self.controller.data_handler.update_age_ratings(
-                self.game,
-                self.selected_age_ratings
-            )
-
-        # For regions
-        game_regions = self.game.regions or []
-        if set(self.selected_regions) != set(game_regions):
-            self.controller.data_handler.update_regions(
-                self.game,
-                self.selected_regions
-            )
-
-        # Update description if we have one from metadata
+        # Handle description changes (separate file operation)
         if self.metadata_description:
             self.controller.data_handler.update_game_description(
                 self.game,
                 self.metadata_description
             )
 
-        # Only save game.yaml if necessary
-        success = True
-        if need_to_save_game_yaml:
-            success = self.controller.data_handler.save_game(self.game)
+        # Close the dialog first
+        self.close()
 
-        if success:
-            # Close the dialog first
-            self.close()
+        # Schedule full refresh after dialog closes (async)
+        def refresh_after_edit():
+            self.controller.reload_data(refresh_sidebar=True)
+            # Also refresh the details panel if it's showing this game
+            if (hasattr(self.parent_window, 'current_selected_game') and
+                self.parent_window.current_selected_game and
+                self.parent_window.current_selected_game.id == self.game.id):
+                # Find the updated game in the reloaded data
+                for game in self.controller.games:
+                    if game.id == self.game.id:
+                        self.parent_window.current_selected_game = game
+                        if hasattr(self.parent_window, 'details_content'):
+                            self.parent_window.details_content.set_game(game)
+                        break
+            return False
 
-            # Schedule full refresh after dialog closes (async)
-            def refresh_after_edit():
-                self.controller.reload_data(refresh_sidebar=True)
-                # Also refresh the details panel if it's showing this game
-                if (hasattr(self.parent_window, 'current_selected_game') and
-                    self.parent_window.current_selected_game and
-                    self.parent_window.current_selected_game.id == self.game.id):
-                    # Find the updated game in the reloaded data
-                    for game in self.controller.games:
-                        if game.id == self.game.id:
-                            self.parent_window.current_selected_game = game
-                            if hasattr(self.parent_window, 'details_content'):
-                                self.parent_window.details_content.set_game(game)
-                            break
-                return False
-
-            GLib.timeout_add(50, refresh_after_edit)
+        GLib.timeout_add(50, refresh_after_edit)
 
     @Gtk.Template.Callback()
     def on_select_platforms_clicked(self, row):

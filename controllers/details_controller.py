@@ -329,7 +329,11 @@ class GameDetailsContent(Gtk.Box):
             self.play_button.set_sensitive(False)
 
             # Update play count in UI (incremented by process tracker)
-            self.play_count_label.set_text(f"Play Count: {self.game.play_count}")
+            if self.game.play_count is not None:
+                self.play_count_label.set_text(f"Play Count: {self.game.play_count}")
+                self.play_count_label.set_visible(True)
+            else:
+                self.play_count_label.set_visible(False)
 
             # Update completion status in UI (might have changed due to play count)
             self.completion_status_label.set_text(f"Status: {self.game.completion_status.value}")
@@ -637,14 +641,14 @@ class GameDetailsContent(Gtk.Box):
                 self.modified_label.set_text("Modified: Unknown")
 
             # Set play count - only show if > 0
-            if game.play_count > 0:
+            if game.play_count is not None and game.play_count > 0:
                 self.play_count_label.set_text(f"Play Count: {game.play_count}")
                 self.play_count_label.set_visible(True)
             else:
                 self.play_count_label.set_visible(False)
 
             # Set play time - only show if > 0
-            if game.play_time > 0:
+            if game.play_time is not None and game.play_time > 0:
                 formatted_time = format_play_time(game.play_time)
                 self.play_time_label.set_text(f"Play Time: {formatted_time}")
                 self.play_time_label.set_visible(True)

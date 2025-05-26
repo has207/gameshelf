@@ -263,7 +263,7 @@ class EpicLibraryClient(SourceScanner):
                             game.play_time = 0
 
                     # Check if game has been played
-                    if game.play_time > 0:
+                    if game.play_time is not None and game.play_time > 0:
                         game.play_count = 1
                         # Use the enum value directly
                         game.completion_status = CompletionStatus.PLAYED
@@ -311,13 +311,13 @@ class EpicLibraryClient(SourceScanner):
                     # Save the game
                     if self.data_handler.save_game(game):
                         # After the game is saved with an ID, save the playtime separately
-                        if game.play_time > 0:
+                        if game.play_time is not None and game.play_time > 0:
                             # Use the data_handler method to save play time
                             if not self.data_handler.update_play_time(game, game.play_time):
                                 logger.warning(f"Failed to save play time for {game.title}")
 
                         # Save play count if set
-                        if game.play_count > 0:
+                        if game.play_count is not None and game.play_count > 0:
                             if not self.data_handler.update_play_count(game, game.play_count):
                                 logger.warning(f"Failed to save play count for {game.title}")
 

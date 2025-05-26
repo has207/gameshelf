@@ -623,9 +623,9 @@ class GameGridController:
                 return time if time is not None else 0
             return sorted(games, key=get_last_played, reverse=reverse)
         elif sort_field == "play_time":
-            return sorted(games, key=lambda g: g.play_time, reverse=reverse)
+            return sorted(games, key=lambda g: g.play_time if g.play_time is not None else 0, reverse=reverse)
         elif sort_field == "play_count":
-            return sorted(games, key=lambda g: g.play_count, reverse=reverse)
+            return sorted(games, key=lambda g: g.play_count if g.play_count is not None else 0, reverse=reverse)
         elif sort_field == "date_added":
             # Sort by created timestamp
             def get_created(game):

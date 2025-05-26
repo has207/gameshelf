@@ -691,7 +691,8 @@ class PSNClient(SourceScanner):
                         play_count = game_data.get('playCount', 0)
                         if play_count and isinstance(play_count, int) and play_count > 0:
                             # Only update if the new count is greater than the existing one
-                            if play_count > existing_game.play_count:
+                            existing_count = existing_game.play_count if existing_game.play_count is not None else 0
+                            if play_count > existing_count:
                                 logger.debug(f"Updating play count for {title} from {existing_game.play_count} to {play_count}")
 
                                 # Update play count
@@ -774,7 +775,8 @@ class PSNClient(SourceScanner):
                                 logger.debug(f"No trophy data found for game {title} with ID {playstation_id}")
 
                         # If no trophy data but has play count, mark as PLAYED if not already
-                        if playstation_id is None and existing_game.play_count > 0 and existing_game.completion_status == CompletionStatus.NOT_PLAYED:
+                        if (playstation_id is None and existing_game.play_count is not None and
+                            existing_game.play_count > 0 and existing_game.completion_status == CompletionStatus.NOT_PLAYED):
                             if self.data_handler.update_completion_status(existing_game, CompletionStatus.PLAYED):
                                 existing_game.completion_status = CompletionStatus.PLAYED
                                 logger.debug(f"Updated completion status for {title} to PLAYED")
@@ -1036,7 +1038,7 @@ class PSNClient(SourceScanner):
                     # Save the game
                     if self.data_handler.save_game(game):
                         # After the game is saved with an ID, save the playtime separately
-                        if hasattr(game, 'play_time') and game.play_time > 0:
+                        if hasattr(game, 'play_time') and game.play_time is not None and game.play_time > 0:
                             # Use the data_handler method to save play time
                             if not self.data_handler.update_play_time(game, game.play_time):
                                 logger.warning(f"Failed to save play time for {game.title}")
@@ -1044,7 +1046,7 @@ class PSNClient(SourceScanner):
                                 logger.debug(f"Saved play time of {game.play_time} seconds for {game.title}")
 
                         # Save play count if set
-                        if hasattr(game, 'play_count') and game.play_count > 0:
+                        if hasattr(game, 'play_count') and game.play_count is not None and game.play_count > 0:
                             if not self.data_handler.update_play_count(game, game.play_count):
                                 logger.warning(f"Failed to save play count for {game.title}")
                             else:

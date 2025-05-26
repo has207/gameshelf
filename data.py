@@ -107,8 +107,8 @@ class Game:
         self.id = id.lower()
         self.title = title
         self.created = created
-        self.play_count = 0
-        self.play_time = 0  # Total play time in seconds
+        self.play_count = None  # Number of times played
+        self.play_time = None  # Total play time in seconds
         self.last_played = None  # Timestamp when game was last played
         self.first_played = None  # Timestamp when game was first played
         self.hidden = hidden  # Whether the game is hidden from the main grid
@@ -121,6 +121,8 @@ class Game:
         self.source = source  # Source ID where this game was imported from
         self.launcher_type = None  # Type of external launcher (e.g., 'EGS', 'GOG', 'Steam', 'Amazon')
         self.launcher_id = None  # ID of the game in the launcher's namespace
+        self.developer = None  # Game developer
+        self.publisher = None  # Game publisher
 
         # Handle string or enum for completion_status
         if isinstance(completion_status, str):
