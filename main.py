@@ -41,6 +41,8 @@ class GameShelfApp(Adw.Application):
 
         # Debug flag to track if the main window has been shown
         self._window_shown = False
+        # Flag to track if initialization was successful
+        self._initialization_complete = False
 
     def do_command_line(self, command_line):
         """Handle command line invocation"""
@@ -124,6 +126,9 @@ class GameShelfApp(Adw.Application):
             self._window_shown = True
             logging.info("Main window presented successfully")
 
+            # Mark initialization as complete
+            self._initialization_complete = True
+
             # Initialize system tray icon
             logging.info("Initializing system tray icon...")
             self.tray_icon = GameShelfTrayIcon(self)
@@ -173,6 +178,7 @@ class GameShelfApp(Adw.Application):
                 # Emergency exit
                 sys.exit(1)
 
+
     def _on_window_hide(self, window):
         """Handle window hide event to update tray icon menu"""
         logging.debug("Window hidden")
@@ -187,14 +193,17 @@ class GameShelfApp(Adw.Application):
 
     def on_shutdown(self, app):
         """Save application state when shutting down"""
-        # Ensure window size is saved before quitting
-        if hasattr(self, 'win') and self.win:
+        # Only save window state if initialization was completed successfully
+        if self._initialization_complete and hasattr(self, 'win') and self.win:
+            logging.info("Saving window state on shutdown...")
             # Only save size if not maximized (otherwise save the maximized state)
             if not self.win.is_maximized():
                 width, height = self.win.get_default_size()  # Get current window size
                 self.settings_manager.set_window_size(width, height)
 
             self.settings_manager.set_window_maximized(self.win.is_maximized())
+        else:
+            logging.info("Skipping window state save - initialization not completed")
 
         # Save all settings to disk
         if hasattr(self, 'settings_manager'):
