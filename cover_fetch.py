@@ -95,12 +95,10 @@ class CoverFetcher:
 
         except requests.exceptions.RequestException as e:
             error_msg = f"Network error downloading cover image: {str(e)}"
-            logger.error(error_msg)
             return False, None, error_msg
 
         except Exception as e:
             error_msg = f"Error downloading cover image: {str(e)}"
-            logger.error(error_msg)
             return False, None, error_msg
 
     def fetch_and_save_for_game(self, game_id: str, url: str, source_name: str = None,

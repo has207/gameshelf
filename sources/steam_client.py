@@ -209,7 +209,7 @@ class SteamCLI:
             logger.error(f"Error fetching owned games: {e}", exc_info=True)
             return []
 
-    def get_game_details(self, app_id: str) -> Dict[str, Any]:
+    def get_game_details(self, app_id: str, title: str) -> Dict[str, Any]:
         """
         Get game details from Steam store API
 
@@ -231,7 +231,7 @@ class SteamCLI:
             if app_id in data and data[app_id]["success"]:
                 return data[app_id]["data"]
             else:
-                logger.warning(f"No details found for game {app_id}")
+                logger.debug(f"No details found for {title}")
                 return {}
         except Exception as e:
             logger.error(f"Error fetching game details for {app_id}: {e}")
@@ -449,7 +449,7 @@ class SteamScanner(SourceScanner):
                         description = None
                         if api_key:  # Only if we have API access
                             try:
-                                game_details = steam_client.get_game_details(app_id)
+                                game_details = steam_client.get_game_details(app_id, title)
                                 if game_details and "short_description" in game_details:
                                     description = game_details["short_description"]
                             except Exception as e:
@@ -464,8 +464,10 @@ class SteamScanner(SourceScanner):
                             artwork = steam_client.get_artwork_urls(app_id)
                             if artwork and "cover" in artwork:
                                 image_url = artwork["cover"]
-                                logger.info(f"Downloading cover image for '{game_info['title']}' from {image_url}")
-                                self.cover_fetcher.fetch_and_save_for_game(game.id, image_url, "Steam")
+                                logger.debug(f"Downloading cover image for '{game_info['title']}' from {image_url}")
+                                success, error = self.cover_fetcher.fetch_and_save_for_game(game.id, image_url, "Steam")
+                                if not success:
+                                    logger.warning(f"{game_info.get('title')} - {error}")
                         except Exception as e:
                             logger.error(f"Error downloading cover image for '{game_info['title']}': {e}")
 

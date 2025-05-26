@@ -217,7 +217,9 @@ class DirectoryScanner(SourceScanner):
                             image_url = metadata_game.images.box.url
                             if image_url:
                                 logger.info(f"Downloading cover image for '{title}' from {image_url}")
-                                self.cover_fetcher.fetch_and_save_for_game(game.id, image_url, "LaunchBox")
+                                success, error = self.cover_fetcher.fetch_and_save_for_game(game.id, image_url, "LaunchBox")
+                                if not success:
+                                    logger.warning(f"{title} - {error}")
                         except Exception as e:
                             logger.error(f"Error downloading cover image for '{title}': {e}")
 
