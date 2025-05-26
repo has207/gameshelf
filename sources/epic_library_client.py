@@ -213,6 +213,10 @@ class EpicLibraryClient(SourceScanner):
                         source=source.id
                     )
 
+                    # Set launcher data before saving
+                    game.launcher_type = "EPIC"
+                    game.launcher_id = app_id
+
                     # Extract platform info
                     platform_enums = []
 
@@ -320,10 +324,6 @@ class EpicLibraryClient(SourceScanner):
                         if game.play_count is not None and game.play_count > 0:
                             if not self.data_handler.update_play_count(game, game.play_count):
                                 logger.warning(f"Failed to save play count for {game.title}")
-
-                        # Save launcher data for Epic Games
-                        if not self.data_handler.save_launcher_data(game, LauncherType.EPIC.name, app_id):
-                            logger.warning(f"Failed to save launcher data for {game.title}")
 
                         # Download and save the cover image if URL is available
                         if hasattr(game, 'image') and game.image and source.config.get("download_images", True):

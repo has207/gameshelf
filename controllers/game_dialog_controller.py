@@ -486,7 +486,6 @@ class GameDialog(Adw.Window):
             current_status = self.selected_completion_status
             game_status = self.game.completion_status
             if current_status != game_status:
-                logger.info(f"Competion status changed to {completion_status}")
                 has_changes = True
 
             # Check metadata changes

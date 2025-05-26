@@ -423,17 +423,23 @@ class SteamScanner(SourceScanner):
                         platforms=[Platforms.PC_WINDOWS]  # Steam games are primarily Windows games
                     )
 
+                    # Set launcher data before saving
+                    game.launcher_type = "STEAM"
+                    game.launcher_id = app_id
+
                     # Try to save the game
                     if self.data_handler.save_game(game):
-                        # Save Steam launcher data
-                        launcher_success = self.data_handler.save_launcher_data(
-                            game,
-                            launcher_type="STEAM",
-                            launcher_id=app_id
-                        )
+                        # Save installation data for installed games
+                        if game_info.get("is_installed", False) and "install_dir" in game_info:
+                            installation_success = self.data_handler.save_installation_data(
+                                game,
+                                game_info["install_dir"],  # Directory path
+                                [],  # No individual files, just the directory
+                                game_info.get("size", 0)
+                            )
 
-                        if not launcher_success:
-                            logger.warning(f"Failed to save launcher data for '{game_info['title']}'")
+                            if not installation_success:
+                                logger.warning(f"Failed to save installation data for '{game_info['title']}'")
 
                         # Set play time if available
                         if "playtime_minutes" in game_info and game_info["playtime_minutes"] > 0:

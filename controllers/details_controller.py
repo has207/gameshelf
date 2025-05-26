@@ -128,13 +128,10 @@ class GameDetailsContent(Gtk.Box):
         # Get all runners
         all_runners = self.controller.get_runners()
 
-        # Get launcher data for the game
-        launcher_data = self.controller.data_handler.get_launcher_data(game)
+        # Get launcher type from the game object
         game_launcher_type = None
-
-        # If game has launcher data, extract the launcher type
-        if launcher_data and "type" in launcher_data:
-            game_launcher_type = launcher_data["type"]
+        if hasattr(game, 'launcher_type') and game.launcher_type:
+            game_launcher_type = game.launcher_type
 
         # Filter to runners that support at least one of the game's platforms
         compatible = []
@@ -248,15 +245,14 @@ class GameDetailsContent(Gtk.Box):
                 return
 
             # Check if we have launcher data or installation data for this game
-            launcher_data = self.controller.data_handler.get_launcher_data(self.game)
             installation_data = self.controller.data_handler.get_installation_data(self.game)
             file_path = None
             launcher_id = None
 
             # Check if this is a game with launcher data
-            if launcher_data and "id" in launcher_data:
+            if hasattr(self.game, 'launcher_id') and self.game.launcher_id:
                 # Use launcher_id instead of file_path
-                launcher_id = launcher_data["id"]
+                launcher_id = self.game.launcher_id
             else:
                 # Check if this is a Wii U game
                 is_wiiu_game = installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]
@@ -471,12 +467,11 @@ class GameDetailsContent(Gtk.Box):
         compatible_runners = self._get_compatible_runners(game)
         has_compatible_runners = len(compatible_runners) > 0 and any(r.command for r in compatible_runners)
 
-        # Check for installation data or launcher data
+        # Check for installation data
         installation_data = self.controller.data_handler.get_installation_data(game)
-        launcher_data = self.controller.data_handler.get_launcher_data(game)
 
         # Check if this game has launcher data
-        has_launcher_data = launcher_data and "id" in launcher_data
+        has_launcher_data = hasattr(game, 'launcher_id') and game.launcher_id
 
         # Check if this is a Wii U game (which doesn't use the files array)
         is_wiiu_game = installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]
@@ -591,10 +586,9 @@ class GameDetailsContent(Gtk.Box):
             return
 
         # Add each compatible runner with additional info if it has launcher_type
-        launcher_data = self.controller.data_handler.get_launcher_data(self.game)
         game_launcher_type = None
-        if launcher_data and "type" in launcher_data:
-            game_launcher_type = launcher_data["type"]
+        if hasattr(self.game, 'launcher_type') and self.game.launcher_type:
+            game_launcher_type = self.game.launcher_type
 
         for runner in self.compatible_runners:
             # Add launcher type indicator to the button if present
@@ -775,12 +769,7 @@ class GameDetailsContent(Gtk.Box):
                 self.publisher_label.set_visible(False)
                 self.publisher_title_label.set_visible(False)
 
-            # Check if game has launcher data and display it
-            launcher_data = self.controller.data_handler.get_launcher_data(game)
-            if launcher_data and "type" in launcher_data:
-                # Store launcher info in the game object for easy access
-                game.launcher_type = launcher_data["type"]
-                game.launcher_id = launcher_data.get("id", "")
+            # Launcher data is already loaded in the game object from game.yaml
 
             # Set description if available with markup support
             if game.description:

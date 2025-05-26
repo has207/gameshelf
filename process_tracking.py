@@ -5,7 +5,7 @@ import time
 import psutil
 import logging
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Optional, Callable, Set
 
 from gi.repository import GLib
 from data import Game
@@ -27,6 +27,7 @@ class ProcessTracker:
         self.current_game_discord_enabled = True  # Default value for Discord integration
         self.app_window = None  # Reference to main application window
         self.minimize_to_tray_on_game_launch = True  # Whether to minimize to tray when launching games
+        self.directory_monitors = {}  # Track directory monitoring threads
 
     def launch_game(self, game: Game, runner_command: str, file_path: Optional[str] = None,
                 on_exit_callback: Optional[Callable] = None, discord_enabled: bool = True,
@@ -103,8 +104,16 @@ class ProcessTracker:
             # Only increment play count if game launched successfully
             self.data_handler.increment_play_count(game)
 
-            # Start tracking the process to monitor play time
-            self.monitor_game_process(process.pid, game, on_exit_callback)
+            # Check if this is a Steam game that should use directory monitoring
+            installation_data = self.data_handler.get_installation_data(game)
+            if (hasattr(game, 'launcher_type') and game.launcher_type == "STEAM" and
+                installation_data and "directory" in installation_data):
+                # Use directory monitoring for Steam games
+                logger.info(f"Using directory monitoring for Steam game: {game.title}")
+                self.start_directory_monitoring(game, installation_data["directory"], on_exit_callback, discord_enabled)
+            else:
+                # Use traditional PID monitoring for other games
+                self.monitor_game_process(process.pid, game, on_exit_callback)
 
             # Store discord_enabled in a class variable for later use when game exits
             self.current_game_discord_enabled = discord_enabled
@@ -362,3 +371,252 @@ class ProcessTracker:
         except Exception as e:
             logger.error(f"Error killing process for game {game.title}: {e}")
             return False
+
+    def start_directory_monitoring(self, game: Game, install_directory: str, on_exit_callback: Optional[Callable] = None, discord_enabled: bool = True) -> bool:
+        """
+        Start monitoring processes in a game's installation directory for Steam/Epic games.
+
+        Args:
+            game: The game to monitor
+            install_directory: Path to the game's installation directory
+            on_exit_callback: Optional callback function to call when the game exits
+            discord_enabled: Whether to enable Discord rich presence
+
+        Returns:
+            True if monitoring started successfully, False otherwise
+        """
+        if game.id in self.directory_monitors:
+            logger.warning(f"Already monitoring directory for {game.title}")
+            return False
+
+        try:
+            install_path = Path(install_directory)
+            if not install_path.exists():
+                logger.error(f"Install directory does not exist: {install_directory}")
+                return False
+
+            logger.info(f"Starting directory monitoring for {game.title} in {install_directory}")
+
+            # Save a marker file to indicate the game is being monitored
+            self.data_handler.save_game_pid(game, -1)  # Use -1 to indicate directory monitoring
+
+            # Store discord_enabled for later use
+            self.current_game_discord_enabled = discord_enabled
+
+            # Start tracking thread
+            monitor_thread = threading.Thread(
+                target=self._directory_monitor_thread,
+                args=(game, install_path, on_exit_callback),
+                daemon=True
+            )
+            monitor_thread.start()
+            self.directory_monitors[game.id] = monitor_thread
+
+            # Only increment play count if monitoring started successfully
+            self.data_handler.increment_play_count(game)
+
+            # Try to update Discord Rich Presence
+            try:
+                platform = None
+                from discord_integration import SHOW_PLATFORM_INFO
+                if SHOW_PLATFORM_INFO and hasattr(game, 'platforms') and game.platforms:
+                    if game.platforms:
+                        platform = game.platforms[0].value
+
+                if discord_enabled:
+                    logger.info(f"Discord integration enabled for directory monitoring")
+                    discord_presence.game_started(game.title, platform, discord_enabled)
+                else:
+                    logger.info(f"Discord integration disabled for directory monitoring")
+            except Exception as e:
+                logger.error(f"Discord integration error: {e}")
+
+            # Minimize window if enabled
+            if self.minimize_to_tray_on_game_launch and self.app_window:
+                logger.info(f"Minimizing main window to tray while monitoring {game.title}")
+                try:
+                    from gi.repository import Adw
+                    toast = Adw.Toast.new(f"Monitoring {game.title} - GameShelf minimized to tray")
+                    toast.set_timeout(3)
+
+                    content = self.app_window.get_content()
+                    if content is not None and isinstance(content, Adw.ToastOverlay):
+                        content.add_toast(toast)
+                except Exception as e:
+                    logger.debug(f"Could not show notification toast: {e}")
+
+                GLib.idle_add(self.app_window.hide)
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error starting directory monitoring: {e}")
+            return False
+
+    def _directory_monitor_thread(self, game: Game, install_path: Path, on_exit_callback: Optional[Callable] = None):
+        """
+        Thread function to monitor processes in a game's installation directory.
+
+        Args:
+            game: The game being monitored
+            install_path: Path to the game's installation directory
+            on_exit_callback: Optional callback function to call when monitoring stops
+        """
+        try:
+            # Get start time from the pid.yaml file
+            pid_file = Path(game.get_pid_path(self.data_handler.data_dir))
+            start_time = pid_file.stat().st_ctime
+
+            logger.info(f"Started directory monitoring for {game.title} at {install_path}")
+
+            # Monitor for processes in the install directory
+            running_processes: Set[int] = set()
+            poll_interval = 2  # Check every 2 seconds
+
+            while True:
+                try:
+                    current_processes = self._get_processes_in_directory(install_path)
+
+                    # Check for new processes
+                    new_processes = current_processes - running_processes
+                    if new_processes:
+                        logger.info(f"Detected {len(new_processes)} new process(es) for {game.title}")
+                        running_processes.update(new_processes)
+
+                    # Check for stopped processes
+                    stopped_processes = running_processes - current_processes
+                    if stopped_processes:
+                        logger.info(f"Detected {len(stopped_processes)} stopped process(es) for {game.title}")
+                        running_processes -= stopped_processes
+
+                    # If no processes are running, wait a bit more to see if any start
+                    if not running_processes:
+                        # Wait a bit longer to see if any processes start
+                        time.sleep(poll_interval * 2)
+                        current_processes = self._get_processes_in_directory(install_path)
+                        if not current_processes:
+                            logger.info(f"No processes found in {install_path} for {game.title}, stopping monitoring")
+                            break
+                        else:
+                            running_processes.update(current_processes)
+
+                    time.sleep(poll_interval)
+
+                except Exception as e:
+                    logger.error(f"Error during directory monitoring: {e}")
+                    break
+
+            # Calculate play time
+            end_time = time.time()
+            seconds_played = int(end_time - start_time)
+
+            if seconds_played < 1:
+                seconds_played = 1
+
+            logger.info(f"Game {game.title} monitored for {seconds_played} seconds")
+
+            # Update play time
+            self.data_handler.increment_play_time(game, seconds_played)
+
+            # Clean up
+            self.data_handler.clear_game_pid(game)
+            if game.id in self.directory_monitors:
+                del self.directory_monitors[game.id]
+
+            # Clear Discord presence if enabled
+            if hasattr(self, 'current_game_discord_enabled') and self.current_game_discord_enabled:
+                try:
+                    logger.info(f"Directory monitoring ended for {game.title} - clearing Discord Rich Presence")
+                    discord_presence.game_stopped()
+                except Exception as e:
+                    logger.error(f"Discord integration error on monitoring end: {e}")
+
+            # Restore window
+            if self.minimize_to_tray_on_game_launch and self.app_window:
+                logger.info(f"Directory monitoring ended for {game.title} - restoring main window")
+
+                def restore_window_with_notification():
+                    self.app_window.present()
+                    try:
+                        from gi.repository import Adw
+                        toast = Adw.Toast.new(f"{game.title} monitoring ended - Played for {seconds_played//60} min, {seconds_played%60} sec")
+                        toast.set_timeout(5)
+
+                        content = self.app_window.get_content()
+                        if content is not None and isinstance(content, Adw.ToastOverlay):
+                            content.add_toast(toast)
+                    except Exception as e:
+                        logger.debug(f"Could not show notification toast: {e}")
+                    return False
+
+                GLib.idle_add(restore_window_with_notification)
+
+            # Call callback
+            if on_exit_callback:
+                GLib.idle_add(on_exit_callback, game)
+
+        except Exception as e:
+            logger.error(f"Error in directory monitoring thread: {e}")
+            # Clean up on error
+            self.data_handler.clear_game_pid(game)
+            if game.id in self.directory_monitors:
+                del self.directory_monitors[game.id]
+
+    def _get_processes_in_directory(self, install_path: Path) -> Set[int]:
+        """
+        Get all process IDs for processes running from the specified directory.
+
+        Args:
+            install_path: Path to check for processes
+
+        Returns:
+            Set of process IDs
+        """
+        processes = set()
+        try:
+            for proc in psutil.process_iter(['pid', 'exe', 'cwd']):
+                try:
+                    proc_info = proc.info
+
+                    # Check if executable is in the install directory
+                    if proc_info['exe']:
+                        exe_path = Path(proc_info['exe'])
+                        if install_path in exe_path.parents or exe_path.parent == install_path:
+                            processes.add(proc_info['pid'])
+                            continue
+
+                    # Check if current working directory is in the install directory
+                    if proc_info['cwd']:
+                        cwd_path = Path(proc_info['cwd'])
+                        if install_path in cwd_path.parents or cwd_path == install_path:
+                            processes.add(proc_info['pid'])
+
+                except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+                    # Process might have terminated or we don't have access
+                    continue
+
+        except Exception as e:
+            logger.error(f"Error getting processes in directory {install_path}: {e}")
+
+        return processes
+
+    def stop_directory_monitoring(self, game: Game) -> bool:
+        """
+        Stop directory monitoring for a game.
+
+        Args:
+            game: The game to stop monitoring
+
+        Returns:
+            True if monitoring was stopped, False if not monitoring
+        """
+        if game.id not in self.directory_monitors:
+            return False
+
+        logger.info(f"Stopping directory monitoring for {game.title}")
+
+        # The monitoring thread will clean itself up when it detects no processes
+        # We just need to clear the PID file to signal it should stop
+        self.data_handler.clear_game_pid(game)
+
+        return True

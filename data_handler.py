@@ -212,12 +212,9 @@ class DataHandler:
                         except Exception as desc_err:
                             logger.error(f"Error loading description for {game_id}: {desc_err}")
 
-                    # Load launcher data if exists
-                    launcher_data = self.get_launcher_data(game)
-                    if launcher_data:
-                        # Store launcher data in game object properties
-                        game.launcher_type = launcher_data.get("type")
-                        game.launcher_id = launcher_data.get("id")
+                    # Load launcher data from game.yaml
+                    game.launcher_type = game_data.get("launcher_type")
+                    game.launcher_id = game_data.get("launcher_id")
 
 
                     games.append(game)
@@ -316,6 +313,12 @@ class DataHandler:
         # Save source if present
         if game.source:
             game_data["source"] = game.source
+
+        # Save launcher data if present
+        if hasattr(game, 'launcher_type') and game.launcher_type:
+            game_data["launcher_type"] = game.launcher_type
+        if hasattr(game, 'launcher_id') and game.launcher_id:
+            game_data["launcher_id"] = game.launcher_id
 
         # Save developer if present
         if game.developer:
@@ -985,60 +988,6 @@ class DataHandler:
             logger.error(f"Error updating regions for {game.id}: {e}")
             return False
 
-    def save_launcher_data(self, game: Game, launcher_type: str, launcher_id: str) -> bool:
-        """
-        Save launcher data for a game to a launcher.yaml file.
-
-        Args:
-            game: The game to save launcher data for
-            launcher_type: The type of launcher (e.g., 'EGS', 'PSN', 'XBOX')
-            launcher_id: The ID of the game in the launcher's namespace
-
-        Returns:
-            True if the launcher data was successfully saved, False otherwise
-        """
-        game_dir = self._get_game_dir_from_id(game.id)
-        launcher_file = self._get_game_dir_from_id(game.id) / "launcher.yaml"
-
-        try:
-            # Create the launcher data
-            launcher_data = {
-                "type": launcher_type,
-                "id": launcher_id
-            }
-
-            # Write to the file
-            with open(launcher_file, "w") as f:
-                yaml.dump(launcher_data, f)
-
-            return True
-        except Exception as e:
-            logger.error(f"Error saving launcher data for {game.id}: {e}")
-            return False
-
-    def get_launcher_data(self, game: Game) -> Optional[Dict[str, str]]:
-        """
-        Get launcher data for a game from the launcher.yaml file.
-
-        Args:
-            game: The game to get launcher data for
-
-        Returns:
-            Dictionary with launcher data if found, None otherwise
-        """
-        launcher_file = Path(game.get_launcher_path(self.data_dir))
-
-        if not launcher_file.exists():
-            return None
-
-        try:
-            with open(launcher_file, "r") as f:
-                launcher_data = yaml.safe_load(f)
-                return launcher_data
-        except Exception as e:
-            logger.error(f"Error loading launcher data for {game.id}: {e}")
-
-        return None
 
     def increment_play_time(self, game: Game, seconds_to_add: int) -> bool:
         """
