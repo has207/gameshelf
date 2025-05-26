@@ -86,14 +86,6 @@
                       </object>
                     </child>
                     <child>
-                      <object class="AdwComboRow" id="launcher_type_combo">
-                        <property name="title">Launcher Type</property>
-                        <property name="subtitle">For matching with imported games from external launchers</property>
-                        <property name="visible" bind-source="windows_platform_check" bind-property="active" bind-flags="sync-create"/>
-                        <signal name="notify::selected" handler="on_launcher_type_changed"/>
-                      </object>
-                    </child>
-                    <child>
                       <object class="AdwActionRow">
                         <property name="title">Platforms</property>
                         <property name="subtitle">Select the platforms this runner supports</property>
@@ -180,6 +172,36 @@
                             </child>
                           </object>
                         </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <!-- Advanced Section -->
+                <child>
+                  <object class="AdwPreferencesGroup">
+                    <property name="title">Advanced Settings</property>
+                    <property name="description">Optional settings for launcher integration and game management</property>
+                    <child>
+                      <object class="AdwComboRow" id="launcher_type_combo">
+                        <property name="title">Launcher Type</property>
+                        <property name="subtitle">For matching with imported games from external launchers</property>
+                        <property name="visible" bind-source="windows_platform_check" bind-property="active" bind-flags="sync-create"/>
+                        <signal name="notify::selected" handler="on_launcher_type_changed"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="AdwEntryRow" id="install_command_entry">
+                        <property name="title">Install Command</property>
+                        <property name="tooltip-text">Optional command to install games (e.g., for launcher-based runners)</property>
+                        <signal name="changed" handler="on_entry_changed"/>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="AdwEntryRow" id="uninstall_command_entry">
+                        <property name="title">Uninstall Command</property>
+                        <property name="tooltip-text">Optional command to uninstall games (e.g., for launcher-based runners)</property>
+                        <signal name="changed" handler="on_entry_changed"/>
                       </object>
                     </child>
                   </object>

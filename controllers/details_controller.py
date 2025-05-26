@@ -398,6 +398,9 @@ class GameDetailsContent(Gtk.Box):
             self.play_button.set_sensitive(False)
             return
 
+        # Check if this is an install operation
+        is_install_operation = self.play_button.get_label() == "Install Game"
+
         # Get compatible runners
         compatible_runners = self._get_compatible_runners(self.game)
 
@@ -410,32 +413,113 @@ class GameDetailsContent(Gtk.Box):
             )
             return
 
-        # Filter to runners with commands
-        compatible_runners = [r for r in compatible_runners if r.command]
+        if is_install_operation:
+            # Filter to runners with install commands and matching launcher type
+            game_launcher_type = getattr(self.game, 'launcher_type', None)
+            install_runners = []
+            for runner in compatible_runners:
+                if (hasattr(runner, 'launcher_type') and runner.launcher_type == game_launcher_type and
+                    hasattr(runner, 'install_command') and runner.install_command):
+                    install_runners.append(runner)
 
-        if not compatible_runners:
-            show_error_dialog(
-                self.get_ancestor(Gtk.Window),
-                "Invalid Runners",
-                "None of the compatible runners have launch commands configured."
-            )
-            return
+            if not install_runners:
+                show_error_dialog(
+                    self.get_ancestor(Gtk.Window),
+                    "No Install Commands",
+                    "None of the compatible runners have install commands configured."
+                )
+                return
 
-        # If we have only one compatible runner, use it directly
-        if len(compatible_runners) == 1:
-            runner = compatible_runners[0]
-            self._on_runner_clicked(None, runner)
+            # Use install runners
+            target_runners = install_runners
+        else:
+            # Filter to runners with launch commands
+            play_runners = [r for r in compatible_runners if r.command]
+
+            if not play_runners:
+                show_error_dialog(
+                    self.get_ancestor(Gtk.Window),
+                    "Invalid Runners",
+                    "None of the compatible runners have launch commands configured."
+                )
+                return
+
+            # Use play runners
+            target_runners = play_runners
+
+        # If we have only one target runner, use it directly
+        if len(target_runners) == 1:
+            runner = target_runners[0]
+            if is_install_operation:
+                self._on_install_runner_clicked(runner)
+            else:
+                self._on_runner_clicked(None, runner)
         else:
             # Show runner selection dialog
             from controllers.runner_selection_dialog import RunnerSelectionDialog
             window = self.get_ancestor(Gtk.Window)
-            dialog = RunnerSelectionDialog(window, compatible_runners)
-            dialog.connect("runner-selected", self._on_runner_selected_from_dialog)
+            dialog_title = "Select Install Runner" if is_install_operation else "Select Runner"
+            dialog = RunnerSelectionDialog(window, target_runners, title=dialog_title)
+            if is_install_operation:
+                dialog.connect("runner-selected", self._on_install_runner_selected_from_dialog)
+            else:
+                dialog.connect("runner-selected", self._on_runner_selected_from_dialog)
             dialog.show()
 
     def _on_runner_selected_from_dialog(self, dialog, runner):
         """Handle runner selection from the dialog"""
         self._on_runner_clicked(None, runner)
+
+    def _on_install_runner_selected_from_dialog(self, dialog, runner):
+        """Handle install runner selection from the dialog"""
+        self._on_install_runner_clicked(runner)
+
+    def _on_install_runner_clicked(self, runner):
+        """
+        Handle click on an install runner - installs the game with the selected runner.
+
+        Args:
+            runner: The runner that was clicked for installation
+        """
+        if not self.game or not self.controller or not runner:
+            return
+
+        if not hasattr(runner, 'install_command') or not runner.install_command:
+            show_error_dialog(
+                self.get_ancestor(Gtk.Window),
+                "No Install Command",
+                f"Runner '{runner.title}' does not have an install command configured."
+            )
+            return
+
+        # Use the install command instead of the regular command
+        install_command = runner.install_command
+
+        # Get launcher ID for the command
+        launcher_id = None
+        if hasattr(self.game, 'launcher_id') and self.game.launcher_id:
+            launcher_id = self.game.launcher_id
+
+        # Launch through process tracker using install command
+        launch_success = self.controller.process_tracker.launch_game(
+            self.game,
+            install_command,
+            None,  # No file path for install
+            self._update_playtime_ui,  # Callback when install completes
+            True,  # Discord enabled (can be configurable later)
+            launcher_id  # Pass launcher ID
+        )
+
+        if launch_success:
+            # Update the button state immediately
+            self.play_button.set_label("Installing...")
+            self.play_button.set_sensitive(False)
+        else:
+            show_error_dialog(
+                self.get_ancestor(Gtk.Window),
+                "Install Failed",
+                "Failed to start the installation process."
+            )
 
     def _delayed_grid_refresh(self):
         """Refresh the game grid and sidebar after a short delay to ensure data is saved"""
@@ -479,17 +563,36 @@ class GameDetailsContent(Gtk.Box):
         # For Wii U games, we check if the directory exists
         if is_wiiu_game:
             has_installation_files = installation_data and "directory" in installation_data
-        # For launcher games, we only need the launcher ID
+        # For launcher games, check if they have installation data (meaning they're installed)
         elif has_launcher_data:
-            has_installation_files = True
+            has_installation_files = installation_data and "directory" in installation_data
         else:
             # For regular games, check for files list
             has_installation_files = installation_data and "files" in installation_data and len(installation_data["files"]) > 0
 
         # Update button state based on conditions
         if not has_installation_files:
-            self.play_button.set_label("No Game Files")
-            self.play_button.set_sensitive(False)
+            # Check if this is a launcher game that can be installed
+            if has_launcher_data and has_compatible_runners:
+                # Get the game's launcher type
+                game_launcher_type = getattr(game, 'launcher_type', None)
+
+                # Check if any compatible runner has an install command
+                install_runners = []
+                for runner in compatible_runners:
+                    if (hasattr(runner, 'launcher_type') and runner.launcher_type == game_launcher_type and
+                        hasattr(runner, 'install_command') and runner.install_command):
+                        install_runners.append(runner)
+
+                if install_runners:
+                    self.play_button.set_label("Install Game")
+                    self.play_button.set_sensitive(True)
+                else:
+                    self.play_button.set_label("No Game Files")
+                    self.play_button.set_sensitive(False)
+            else:
+                self.play_button.set_label("No Game Files")
+                self.play_button.set_sensitive(False)
         elif not has_compatible_runners:
             self.play_button.set_label("No Compatible Runners")
             self.play_button.set_sensitive(False)

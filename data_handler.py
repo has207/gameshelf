@@ -252,7 +252,9 @@ class DataHandler:
                         id=runner_file.stem,
                         platforms=platforms,
                         discord_enabled=discord_enabled,
-                        launcher_type=runner_data.get("launcher_type")
+                        launcher_type=runner_data.get("launcher_type"),
+                        install_command=runner_data.get("install_command"),
+                        uninstall_command=runner_data.get("uninstall_command")
                     )
                     runners.append(runner)
             except Exception as e:
@@ -354,6 +356,12 @@ class DataHandler:
         # Save launcher type if it exists
         if hasattr(runner, 'launcher_type') and runner.launcher_type:
             runner_data["launcher_type"] = runner.launcher_type
+
+        # Save install/uninstall commands if they exist
+        if hasattr(runner, 'install_command') and runner.install_command:
+            runner_data["install_command"] = runner.install_command
+        if hasattr(runner, 'uninstall_command') and runner.uninstall_command:
+            runner_data["uninstall_command"] = runner.uninstall_command
 
         # Save platform enum display values
         if runner.platforms:

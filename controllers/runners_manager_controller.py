@@ -119,6 +119,8 @@ class RunnerDialog(Adw.Window):
     command_entry: Adw.EntryRow = Gtk.Template.Child()
     discord_switch: Adw.SwitchRow = Gtk.Template.Child()
     launcher_type_combo: Adw.ComboRow = Gtk.Template.Child()
+    install_command_entry: Adw.EntryRow = Gtk.Template.Child()
+    uninstall_command_entry: Adw.EntryRow = Gtk.Template.Child()
     windows_platform_check: Gtk.CheckButton = Gtk.Template.Child()
     image_preview: Gtk.Picture = Gtk.Template.Child()
     select_image_button: Gtk.Button = Gtk.Template.Child()
@@ -293,6 +295,8 @@ class RunnerDialog(Adw.Window):
         self.runner = runner
         self.title_entry.set_text(runner.title)
         self.command_entry.set_text(runner.command or "")
+        self.install_command_entry.set_text(runner.install_command or "")
+        self.uninstall_command_entry.set_text(runner.uninstall_command or "")
         self.discord_switch.set_active(runner.discord_enabled if hasattr(runner, 'discord_enabled') else True)
         self.discord_enabled = runner.discord_enabled if hasattr(runner, 'discord_enabled') else True
         self.selected_image_path = None
@@ -564,6 +568,20 @@ class RunnerDialog(Adw.Window):
                 has_changes = True
                 logger.debug(f"Launcher type changed from {original_launcher_type} to {self.launcher_type}")
 
+            # Check install command change
+            current_install_command = self.install_command_entry.get_text().strip()
+            original_install_command = getattr(self.runner, 'install_command', None) or ""
+            if current_install_command != original_install_command:
+                has_changes = True
+                logger.debug(f"Install command changed from '{original_install_command}' to '{current_install_command}'")
+
+            # Check uninstall command change
+            current_uninstall_command = self.uninstall_command_entry.get_text().strip()
+            original_uninstall_command = getattr(self.runner, 'uninstall_command', None) or ""
+            if current_uninstall_command != original_uninstall_command:
+                has_changes = True
+                logger.debug(f"Uninstall command changed from '{original_uninstall_command}' to '{current_uninstall_command}'")
+
             # Check image change
             if self.selected_image_path is not None:  # Only if image was explicitly changed
                 has_changes = True
@@ -617,6 +635,8 @@ class RunnerDialog(Adw.Window):
         # Get the input values
         title = self.title_entry.get_text().strip()
         command = self.command_entry.get_text().strip()
+        install_command = self.install_command_entry.get_text().strip()
+        uninstall_command = self.uninstall_command_entry.get_text().strip()
         discord_enabled = self.discord_switch.get_active()
 
         # Get selected platforms
@@ -633,7 +653,9 @@ class RunnerDialog(Adw.Window):
             image=self.selected_image_path,
             platforms=platforms,
             discord_enabled=discord_enabled,
-            launcher_type=self.launcher_type
+            launcher_type=self.launcher_type,
+            install_command=install_command if install_command else None,
+            uninstall_command=uninstall_command if uninstall_command else None
         )
 
         # Save the runner through the controller
@@ -659,6 +681,8 @@ class RunnerDialog(Adw.Window):
         # Get the updated values
         title = self.title_entry.get_text().strip()
         command = self.command_entry.get_text().strip()
+        install_command = self.install_command_entry.get_text().strip()
+        uninstall_command = self.uninstall_command_entry.get_text().strip()
         discord_enabled = self.discord_switch.get_active()
 
         # Get selected platforms
@@ -667,6 +691,8 @@ class RunnerDialog(Adw.Window):
         # Update the runner object
         self.runner.title = title
         self.runner.command = command
+        self.runner.install_command = install_command if install_command else None
+        self.runner.uninstall_command = uninstall_command if uninstall_command else None
         self.runner.platforms = platforms
         self.runner.discord_enabled = discord_enabled
         self.runner.launcher_type = self.launcher_type
