@@ -23,9 +23,9 @@ class GameShelfController:
     Main controller class for the GameShelf application.
     Handles data management, game/runner operations, and UI coordination.
     """
-    def __init__(self, data_handler: DataHandler, settings_manager: AppStateManager):
+    def __init__(self, data_handler: DataHandler, app_state_manager: AppStateManager):
         self.data_handler = data_handler
-        self.settings_manager = settings_manager
+        self.app_state_manager = app_state_manager
         self.games = self.data_handler.load_games()
         self.runners = {runner.id: runner for runner in self.data_handler.load_runners()}
         self.window = None
@@ -34,10 +34,10 @@ class GameShelfController:
         # Initialize process tracker
         self.process_tracker = ProcessTracker(data_handler)
 
-        # Load settings
-        self.current_filter = self.settings_manager.get_current_filter()
-        self.sort_field, self.sort_ascending = self.settings_manager.get_sort_settings()
-        self.show_hidden = self.settings_manager.get_show_hidden()
+        # Load app state
+        self.current_filter = self.app_state_manager.get_current_filter()
+        self.sort_field, self.sort_ascending = self.app_state_manager.get_sort_state()
+        self.show_hidden = self.app_state_manager.get_show_hidden()
 
         # Sub-controllers will be initialized later when the window is created
         self.title_bar_controller = None
@@ -58,7 +58,7 @@ class GameShelfController:
 
     def get_search_text(self) -> str:
         """
-        Get the current search text from the UI or settings
+        Get the current search text from the UI or app state
 
         Returns:
             str: The current search text or empty string if not available
@@ -67,9 +67,9 @@ class GameShelfController:
         # Try to get from UI
         if self.window and hasattr(self.window, 'search_entry'):
             search_text = self.window.search_entry.get_text().strip().lower()
-        # Fall back to settings if UI not available
-        elif hasattr(self, 'settings_manager'):
-            search_text = self.settings_manager.get_search_text()
+        # Fall back to app state if UI not available
+        elif hasattr(self, 'app_state_manager'):
+            search_text = self.app_state_manager.get_search_text()
         return search_text
 
     def add_game(self, game: Game) -> bool:
@@ -150,12 +150,12 @@ class GameShelfController:
         self.show_hidden = not self.show_hidden
         logger.debug(f"Toggled show_hidden to: {self.show_hidden}")
 
-        # Save state to settings
-        self.settings_manager.set_show_hidden(self.show_hidden)
+        # Save state to app state
+        self.app_state_manager.set_show_hidden(self.show_hidden)
 
         # Get search text and save it
         search_text = self.get_search_text()
-        self.settings_manager.set_search_text(search_text)
+        self.app_state_manager.set_search_text(search_text)
 
         # Refresh the sidebar to update filter counts
         if hasattr(self, 'sidebar_controller') and self.sidebar_controller:
@@ -246,7 +246,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
 
         # Initialize visibility button with saved state
         if hasattr(self, 'visibility_toggle') and self.visibility_toggle is not None:
-            show_hidden = self.controller.settings_manager.get_show_hidden()
+            show_hidden = self.controller.app_state_manager.get_show_hidden()
 
             # Update the icon based on state
             if show_hidden:
@@ -270,7 +270,7 @@ class GameShelfWindow(Adw.ApplicationWindow):
             self.controller.game_grid_controller.bind_gridview(self.games_grid)
 
             # Clear old sidebar index selection to avoid interference with new filter system
-            self.controller.settings_manager.set_sidebar_selection(0)
+            self.controller.app_state_manager.set_sidebar_selection(0)
 
         # 3. Then details panel
         if hasattr(self, 'details_content') and hasattr(self, 'details_panel'):
@@ -284,12 +284,12 @@ class GameShelfWindow(Adw.ApplicationWindow):
 
         # 5. Apply saved filters after sidebar is set up
         if hasattr(self, 'games_grid') and self.games_grid is not None:
-            # Initialize with active filters from settings
-            active_filters = self.controller.settings_manager.get_sidebar_active_filters()
+            # Initialize with active filters from app state
+            active_filters = self.controller.app_state_manager.get_sidebar_active_filters()
 
             # We'll let the sidebar controller apply the filters since it has all the filter categories
             if hasattr(self.controller, 'sidebar_controller') and self.controller.sidebar_controller:
-                logger.debug("Applying saved filters from settings")
+                logger.debug("Applying saved filters from app state")
 
                 # Set active filters in the sidebar controller
                 self.controller.sidebar_controller.active_filters = active_filters
@@ -300,8 +300,8 @@ class GameShelfWindow(Adw.ApplicationWindow):
                 # Update "All Games" label to reflect if filters are active
                 self.controller.sidebar_controller._update_all_games_label()
 
-                # Get search text from settings
-                search_text = self.controller.settings_manager.get_search_text()
+                # Get search text from app state
+                search_text = self.controller.app_state_manager.get_search_text()
 
                 # Populate games with filters from sidebar controller
                 self.controller.game_grid_controller.populate_games(search_text=search_text)

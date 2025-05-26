@@ -132,9 +132,9 @@ class SidebarController:
         self.all_games_row = None
         self.filter_categories = {}  # Maps category_id to CategoryItem
 
-        # Load active filters from settings
+        # Load active filters from app state
         # Structure will be {category_id: Set[value_id]} to support multiple selections per category
-        self.active_filters = self.main_controller.settings_manager.get_sidebar_active_filters()
+        self.active_filters = self.main_controller.app_state_manager.get_sidebar_active_filters()
 
         # Convert old format (if needed)
         if self.active_filters and not all(isinstance(values, set) for values in self.active_filters.values()):
@@ -246,9 +246,9 @@ class SidebarController:
         # Clear active filters
         self.active_filters = {}
 
-        # Save to settings
-        self.main_controller.settings_manager.set_sidebar_active_filters(self.active_filters)
-        self.main_controller.settings_manager.save_settings()
+        # Save to file
+        self.main_controller.app_state_manager.set_sidebar_active_filters(self.active_filters)
+        self.main_controller.app_state_manager.save_app_state()
 
         # Update UI to show this as selected
         self._update_selection_state()
@@ -260,21 +260,21 @@ class SidebarController:
         if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
             logger.debug("Showing all games - filters cleared")
 
-            # Clear search text in UI and settings
+            # Clear search text in UI and state
             window = self.main_controller.window
             if window and hasattr(window, 'search_entry'):
                 if window.search_entry.get_text():
                     window.search_entry.set_text("")
-                    self.main_controller.settings_manager.set_search_text("")
+                    self.main_controller.app_state_manager.set_search_text("")
 
             # Refresh grid with no filters
             self.main_controller.game_grid_controller.populate_games(search_text="")
 
     def add_filter_categories(self):
         """Add filter category sections to the sidebar"""
-        # Get expanded states from settings
-        expanded_categories = self.main_controller.settings_manager.get_sidebar_expanded_categories()
-        logger.debug(f"Loaded expanded categories from settings: {expanded_categories}")
+        # Get expanded states from disk
+        expanded_categories = self.main_controller.app_state_manager.get_sidebar_expanded_categories()
+        logger.debug(f"Loaded expanded categories from app state: {expanded_categories}")
 
         # Create all categories - define them in alphabetical order
 
@@ -358,7 +358,7 @@ class SidebarController:
             self.sidebar_box.append(category_row)
 
     def _on_category_toggled(self, category_item):
-        """Handle category expansion toggling and save to settings"""
+        """Handle category expansion toggling and save to app state"""
         category_id = category_item.category_id
         logger.debug(f"Category {category_item.name} ({category_id}) toggled to {category_item.expanded}")
 
@@ -390,15 +390,15 @@ class SidebarController:
                 return
 
         # Get current expanded states
-        expanded_categories = self.main_controller.settings_manager.get_sidebar_expanded_categories()
+        expanded_categories = self.main_controller.app_state_manager.get_sidebar_expanded_categories()
         logger.debug(f"Current expanded categories before update: {expanded_categories}")
 
         # Update the expanded state for this category
         expanded_categories[category_id] = category_item.expanded
 
-        # Save to settings
-        self.main_controller.settings_manager.set_sidebar_expanded_categories(expanded_categories)
-        self.main_controller.settings_manager.save_settings()
+        # Save to disk
+        self.main_controller.app_state_manager.set_sidebar_expanded_categories(expanded_categories)
+        self.main_controller.app_state_manager.save_app_state()
 
         logger.debug(f"Updated expanded categories: {expanded_categories}")
 
@@ -569,13 +569,13 @@ class SidebarController:
                 category_row.set_expanded(True)
 
                 # Also update the stored expanded states
-                expanded_categories = self.main_controller.settings_manager.get_sidebar_expanded_categories()
+                expanded_categories = self.main_controller.app_state_manager.get_sidebar_expanded_categories()
                 expanded_categories[category_id] = True
-                self.main_controller.settings_manager.set_sidebar_expanded_categories(expanded_categories)
+                self.main_controller.app_state_manager.set_sidebar_expanded_categories(expanded_categories)
 
-        # Save to settings
-        self.main_controller.settings_manager.set_sidebar_active_filters(self.active_filters)
-        self.main_controller.settings_manager.save_settings()
+        # Save to disk
+        self.main_controller.app_state_manager.set_sidebar_active_filters(self.active_filters)
+        self.main_controller.app_state_manager.save_app_state()
 
         # Update UI to show the correct items as selected
         self._update_selection_state()
@@ -1245,8 +1245,8 @@ class SidebarController:
         if "runner" in self.active_filters:
             logger.debug("Clearing obsolete runner filters")
             self.active_filters.pop("runner")
-            self.main_controller.settings_manager.set_sidebar_active_filters(self.active_filters)
-            self.main_controller.settings_manager.save_settings()
+            self.main_controller.app_state_manager.set_sidebar_active_filters(self.active_filters)
+            self.main_controller.app_state_manager.save_app_state()
 
     def get_active_filters(self):
         """

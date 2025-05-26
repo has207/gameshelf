@@ -186,9 +186,9 @@ class GameItem(Gtk.Box):
             window.details_content.set_game(self.game)
             window.details_panel.set_reveal_flap(True)
 
-            # Save panel visibility and game selection to settings
-            window.controller.settings_manager.set_details_visible(True)
-            window.controller.settings_manager.set_current_game_id(self.game.id)
+            # Save panel visibility and game selection to file
+            window.controller.app_state_manager.set_details_visible(True)
+            window.controller.app_state_manager.set_current_game_id(self.game.id)
 
             # Update the last selected position
             grid_ctrl.last_selected_position = position
@@ -472,9 +472,9 @@ class GameGridController:
             window.details_content.set_game(game)
             window.details_panel.set_reveal_flap(True)
 
-            # Save panel visibility and game selection to settings
-            window.controller.settings_manager.set_details_visible(True)
-            window.controller.settings_manager.set_current_game_id(game.id)
+            # Save panel visibility and game selection to file
+            window.controller.app_state_manager.set_details_visible(True)
+            window.controller.app_state_manager.set_current_game_id(game.id)
 
             # Update the last selected position
             self.last_selected_position = position
@@ -939,9 +939,9 @@ class GameGridController:
                         self.main_controller.sidebar_controller._update_selection_state()
                         self.main_controller.sidebar_controller._update_all_games_label()
 
-                        # Also save the cleared filters to settings
-                        self.main_controller.settings_manager.set_sidebar_active_filters({})
-                        self.main_controller.settings_manager.save_settings()
+                        # Also save the cleared filters to file
+                        self.main_controller.app_state_manager.set_sidebar_active_filters({})
+                        self.main_controller.app_state_manager.save_app_state()
                 else:
                     # No active filters, just reload normally
                     self.main_controller.reload_data(refresh_sidebar=True)

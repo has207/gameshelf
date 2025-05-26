@@ -23,7 +23,7 @@ class ImportDialog(Gtk.Dialog):
 
         self.controller = controller
         self.data_handler = controller.data_handler
-        self.settings_manager = controller.settings_manager
+        self.app_state_manager = controller.app_state_manager
         self.json_path = None
         self.cover_dir = None
 
@@ -148,8 +148,8 @@ class ImportDialog(Gtk.Dialog):
         self.cover_entry.connect("changed", self.validate_inputs)
 
         # Initialize with saved paths
-        saved_json_path = self.settings_manager.get_import_json_path()
-        saved_cover_dir = self.settings_manager.get_import_cover_dir()
+        saved_json_path = self.app_state_manager.get_import_json_path()
+        saved_cover_dir = self.app_state_manager.get_import_cover_dir()
 
         if saved_json_path:
             self.json_entry.set_text(saved_json_path)
@@ -167,12 +167,12 @@ class ImportDialog(Gtk.Dialog):
 
         # Save valid paths to app state
         if self.json_path:
-            self.settings_manager.set_import_json_path(self.json_path)
-            self.settings_manager.save_settings()
+            self.app_state_manager.set_import_json_path(self.json_path)
+            self.app_state_manager.save_app_state()
 
         if self.cover_dir:
-            self.settings_manager.set_import_cover_dir(self.cover_dir)
-            self.settings_manager.save_settings()
+            self.app_state_manager.set_import_cover_dir(self.cover_dir)
+            self.app_state_manager.save_app_state()
 
         # Enable import button only if both paths are valid
         self.import_button.set_sensitive(self.json_path is not None and self.cover_dir is not None)
@@ -192,7 +192,7 @@ class ImportDialog(Gtk.Dialog):
         file_dialog.set_filters(filters)
 
         # Set initial folder if we have a saved path
-        saved_json_path = self.settings_manager.get_import_json_path()
+        saved_json_path = self.app_state_manager.get_import_json_path()
         if saved_json_path:
             initial_folder = os.path.dirname(saved_json_path)
             if os.path.isdir(initial_folder):
@@ -221,7 +221,7 @@ class ImportDialog(Gtk.Dialog):
         file_dialog.set_title("Select Cover Images Directory")
 
         # Set initial folder if we have a saved path
-        saved_cover_dir = self.settings_manager.get_import_cover_dir()
+        saved_cover_dir = self.app_state_manager.get_import_cover_dir()
         if saved_cover_dir and os.path.isdir(saved_cover_dir):
             file_dialog.set_initial_folder(Gio.File.new_for_path(saved_cover_dir))
 

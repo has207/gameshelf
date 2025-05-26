@@ -58,18 +58,18 @@ class GameSortMenu(Gtk.Popover):
     def on_visible_notify(self, popover, param):
         """Called when the popover visibility changes"""
         if popover.get_visible() and not self.connected:
-            # Only load settings the first time the menu is shown
+            # Only load app state the first time the menu is shown
             self.connected = True
 
             # Get window
             from controllers.window_controller import GameShelfWindow
             window = self.get_ancestor(GameShelfWindow)
             if window and window.controller:
-                # Get sort settings
-                self.sort_field, self.ascending = window.controller.settings_manager.get_sort_settings()
+                # Get sort state
+                self.sort_field, self.ascending = window.controller.app_state_manager.get_sort_state()
 
                 # Set the correct sort field button without triggering callbacks
-                # This part just sets up the UI to match current settings
+                # This part just sets up the UI to match current app state
                 button_to_activate = None
                 if self.sort_field == "title":
                     button_to_activate = self.sort_by_title
@@ -130,8 +130,8 @@ class TitleBarController:
     def setup_search(self, search_entry):
         self.search_entry = search_entry
 
-        # Set initial search text from settings
-        saved_search = self.main_controller.settings_manager.get_search_text()
+        # Set initial search text from app state
+        saved_search = self.main_controller.app_state_manager.get_search_text()
         if saved_search:
             search_entry.set_text(saved_search)
 
@@ -140,8 +140,8 @@ class TitleBarController:
         search_text = search_entry.get_text().strip().lower()
         logger.debug(f"Search text changed to: {search_text}")
 
-        # Save search text to settings
-        self.main_controller.settings_manager.set_search_text(search_text)
+        # Save search text to app state
+        self.main_controller.app_state_manager.set_search_text(search_text)
 
         # Update games grid directly with just the new search text
         # The grid controller will automatically get filters from the sidebar controller
@@ -161,15 +161,15 @@ class TitleBarController:
             self.main_controller.sort_field = sort_field
             self.main_controller.sort_ascending = ascending
 
-            # Save sort settings to persist across sessions
-            self.main_controller.settings_manager.set_sort_settings(sort_field, ascending)
+            # Save sort state to persist across sessions
+            self.main_controller.app_state_manager.set_sort_state(sort_field, ascending)
 
             # Get current search text
             search_text = ""
             if self.search_entry:
                 search_text = self.search_entry.get_text().strip().lower()
 
-            # Get all current filter settings directly from sidebar
+            # Get current filter state directly from sidebar
             if hasattr(self.main_controller, 'game_grid_controller') and self.main_controller.game_grid_controller:
                 self.main_controller.game_grid_controller.populate_games(search_text=search_text)
         # If sort parameters didn't change, do nothing to avoid unnecessary reloading

@@ -11,74 +11,74 @@ logger = logging.getLogger(__name__)
 class AppStateManager:
     def __init__(self, data_dir: str = "data"):
         """
-        Initialize the settings manager
+        Initialize the app state manager
 
         Args:
             data_dir: The data directory path
         """
         self.data_dir = Path(data_dir)
-        self.settings_file = self.data_dir / "app_state.yaml"
-        self.settings = self._load_settings()
+        self.app_state_file = self.data_dir / "app_state.yaml"
+        self.app_state = self._load_app_state()
 
-    def _load_settings(self) -> Dict[str, Any]:
+    def _load_app_state(self) -> Dict[str, Any]:
         """
-        Load settings from the settings file
+        Load app state from the app state file
 
         Returns:
-            Dictionary containing settings
+            Dictionary containing app state
         """
-        default_settings = self._get_default_settings()
+        default_app_state = self._get_default_app_state()
 
-        if not self.settings_file.exists():
-            return default_settings
+        if not self.app_state_file.exists():
+            return default_app_state
 
         try:
-            with open(self.settings_file, "r") as f:
-                loaded_settings = yaml.safe_load(f)
-                if not loaded_settings:
-                    return default_settings
+            with open(self.app_state_file, "r") as f:
+                loaded_app_state = yaml.safe_load(f)
+                if not loaded_app_state:
+                    return default_app_state
 
-                # Deep merge loaded settings with default settings
+                # Deep merge loaded app state with default app state
                 # This ensures all default sections and values exist
-                merged_settings = self._deep_merge_settings(default_settings, loaded_settings)
+                merged_app_state = self._deep_merge_app_state(default_app_state, loaded_app_state)
 
-                return merged_settings
+                return merged_app_state
         except Exception as e:
-            logger.error(f"Error loading settings: {e}")
-            return default_settings
+            logger.error(f"Error loading app state: {e}")
+            return default_app_state
 
-    def _deep_merge_settings(self, defaults: Dict[str, Any], loaded: Dict[str, Any]) -> Dict[str, Any]:
+    def _deep_merge_app_state(self, defaults: Dict[str, Any], loaded: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Recursively merge loaded settings with default settings
+        Recursively merge loaded app state
 
         This ensures that all keys from defaults exist in the result,
         while preserving existing values from loaded.
 
         Args:
-            defaults: Default settings dictionary
-            loaded: Loaded settings from file
+            defaults: Default app state dictionary
+            loaded: Loaded app state from file
 
         Returns:
-            Merged settings dictionary
+            Merged app state dictionary
         """
         result = defaults.copy()
 
         for key, loaded_value in loaded.items():
             # If the key exists in defaults and both are dictionaries, merge them
             if key in defaults and isinstance(defaults[key], dict) and isinstance(loaded_value, dict):
-                result[key] = self._deep_merge_settings(defaults[key], loaded_value)
+                result[key] = self._deep_merge_app_state(defaults[key], loaded_value)
             else:
                 # Otherwise use the loaded value
                 result[key] = loaded_value
 
         return result
 
-    def _get_default_settings(self) -> Dict[str, Any]:
+    def _get_default_app_state(self) -> Dict[str, Any]:
         """
-        Get default settings
+        Get default state
 
         Returns:
-            Dictionary with default settings
+            Dictionary with default state
         """
         return {
             "window": {
@@ -113,9 +113,9 @@ class AppStateManager:
             }
         }
 
-    def save_settings(self) -> bool:
+    def save_app_state(self) -> bool:
         """
-        Save settings to the settings file
+        Save app state to the app state file
 
         Returns:
             True if successful, False otherwise
@@ -124,36 +124,36 @@ class AppStateManager:
             # Ensure the data directory exists
             self.data_dir.mkdir(parents=True, exist_ok=True)
 
-            # Write settings to file
-            with open(self.settings_file, "w") as f:
-                yaml.dump(self.settings, f)
+            # Write app state to file
+            with open(self.app_state_file, "w") as f:
+                yaml.dump(self.app_state, f)
             return True
         except Exception as e:
-            logger.error(f"Error saving settings: {e}")
+            logger.error(f"Error saving app state: {e}")
             return False
 
     def get_window_size(self) -> Tuple[int, int]:
         """
-        Get the window size from settings
+        Get the window size
 
         Returns:
             Tuple of (width, height)
         """
         return (
-            self.settings["window"]["width"],
-            self.settings["window"]["height"]
+            self.app_state["window"]["width"],
+            self.app_state["window"]["height"]
         )
 
     def set_window_size(self, width: int, height: int) -> None:
         """
-        Set the window size in settings
+        Set the window size
 
         Args:
             width: Window width
             height: Window height
         """
-        self.settings["window"]["width"] = width
-        self.settings["window"]["height"] = height
+        self.app_state["window"]["width"] = width
+        self.app_state["window"]["height"] = height
 
     def get_window_maximized(self) -> bool:
         """
@@ -162,7 +162,7 @@ class AppStateManager:
         Returns:
             True if the window is maximized, False otherwise
         """
-        return self.settings["window"]["maximized"]
+        return self.app_state["window"]["maximized"]
 
     def set_window_maximized(self, maximized: bool) -> None:
         """
@@ -171,7 +171,7 @@ class AppStateManager:
         Args:
             maximized: True if maximized, False otherwise
         """
-        self.settings["window"]["maximized"] = maximized
+        self.app_state["window"]["maximized"] = maximized
 
     def get_current_filter(self) -> Optional[str]:
         """
@@ -180,7 +180,7 @@ class AppStateManager:
         Returns:
             Current filter, or None for no filter
         """
-        return self.settings["filters"]["current_filter"]
+        return self.app_state["filters"]["current_filter"]
 
     def set_current_filter(self, filter_value: Optional[str]) -> None:
         """
@@ -189,7 +189,7 @@ class AppStateManager:
         Args:
             filter_value: Filter value or None for no filter
         """
-        self.settings["filters"]["current_filter"] = filter_value
+        self.app_state["filters"]["current_filter"] = filter_value
 
     def get_show_hidden(self) -> bool:
         """
@@ -198,7 +198,7 @@ class AppStateManager:
         Returns:
             True if showing hidden games, False otherwise
         """
-        return self.settings["filters"]["show_hidden"]
+        return self.app_state["filters"]["show_hidden"]
 
     def set_show_hidden(self, show_hidden: bool) -> None:
         """
@@ -207,7 +207,7 @@ class AppStateManager:
         Args:
             show_hidden: True to show hidden games, False otherwise
         """
-        self.settings["filters"]["show_hidden"] = show_hidden
+        self.app_state["filters"]["show_hidden"] = show_hidden
 
     def get_search_text(self) -> str:
         """
@@ -216,7 +216,7 @@ class AppStateManager:
         Returns:
             Current search text
         """
-        return self.settings["filters"]["search_text"]
+        return self.app_state["filters"]["search_text"]
 
     def set_search_text(self, search_text: str) -> None:
         """
@@ -225,30 +225,30 @@ class AppStateManager:
         Args:
             search_text: Search text
         """
-        self.settings["filters"]["search_text"] = search_text
+        self.app_state["filters"]["search_text"] = search_text
 
-    def get_sort_settings(self) -> Tuple[str, bool]:
+    def get_sort_state(self) -> Tuple[str, bool]:
         """
-        Get the current sort settings
+        Get the current sort state
 
         Returns:
             Tuple of (sort_field, ascending)
         """
         return (
-            self.settings["sort"]["field"],
-            self.settings["sort"]["ascending"]
+            self.app_state["sort"]["field"],
+            self.app_state["sort"]["ascending"]
         )
 
-    def set_sort_settings(self, sort_field: str, ascending: bool) -> None:
+    def set_sort_state(self, sort_field: str, ascending: bool) -> None:
         """
-        Set the sort settings
+        Set the sort state
 
         Args:
             sort_field: Field to sort by
             ascending: True for ascending, False for descending
         """
-        self.settings["sort"]["field"] = sort_field
-        self.settings["sort"]["ascending"] = ascending
+        self.app_state["sort"]["field"] = sort_field
+        self.app_state["sort"]["ascending"] = ascending
 
     def get_sidebar_selection(self) -> int:
         """
@@ -257,7 +257,7 @@ class AppStateManager:
         Returns:
             Selected index
         """
-        return self.settings["sidebar"]["selected_index"]
+        return self.app_state["sidebar"]["selected_index"]
 
     def set_sidebar_selection(self, index: int) -> None:
         """
@@ -266,7 +266,7 @@ class AppStateManager:
         Args:
             index: Selected index
         """
-        self.settings["sidebar"]["selected_index"] = index
+        self.app_state["sidebar"]["selected_index"] = index
 
     def get_details_visible(self) -> bool:
         """
@@ -275,7 +275,7 @@ class AppStateManager:
         Returns:
             True if visible, False otherwise
         """
-        return self.settings["details"]["visible"]
+        return self.app_state["details"]["visible"]
 
     def set_details_visible(self, visible: bool) -> None:
         """
@@ -284,7 +284,7 @@ class AppStateManager:
         Args:
             visible: True if visible, False otherwise
         """
-        self.settings["details"]["visible"] = visible
+        self.app_state["details"]["visible"] = visible
 
     def get_current_game_id(self) -> Optional[str]:
         """
@@ -293,7 +293,7 @@ class AppStateManager:
         Returns:
             Current game ID or None
         """
-        return self.settings["details"]["current_game_id"]
+        return self.app_state["details"]["current_game_id"]
 
     def set_current_game_id(self, game_id: Optional[str]) -> None:
         """
@@ -302,7 +302,7 @@ class AppStateManager:
         Args:
             game_id: Game ID or None
         """
-        self.settings["details"]["current_game_id"] = game_id
+        self.app_state["details"]["current_game_id"] = game_id
 
     def get_sidebar_active_filters(self) -> Dict[str, str]:
         """
@@ -311,7 +311,7 @@ class AppStateManager:
         Returns:
             Dictionary mapping category IDs to value IDs
         """
-        return self.settings["sidebar"].get("active_filters", {})
+        return self.app_state["sidebar"].get("active_filters", {})
 
     def set_sidebar_active_filters(self, active_filters: Dict[str, str]) -> None:
         """
@@ -320,7 +320,7 @@ class AppStateManager:
         Args:
             active_filters: Dictionary mapping category IDs to value IDs
         """
-        self.settings["sidebar"]["active_filters"] = active_filters
+        self.app_state["sidebar"]["active_filters"] = active_filters
 
     def get_sidebar_expanded_categories(self) -> Dict[str, bool]:
         """
@@ -329,7 +329,7 @@ class AppStateManager:
         Returns:
             Dictionary mapping category IDs to expanded state (True/False)
         """
-        return self.settings["sidebar"].get("expanded_categories", {
+        return self.app_state["sidebar"].get("expanded_categories", {
             "runner": True,
             "completion_status": True
         })
@@ -341,7 +341,7 @@ class AppStateManager:
         Args:
             expanded_categories: Dictionary mapping category IDs to expanded state
         """
-        self.settings["sidebar"]["expanded_categories"] = expanded_categories
+        self.app_state["sidebar"]["expanded_categories"] = expanded_categories
 
     def get_import_json_path(self) -> str:
         """
@@ -350,7 +350,7 @@ class AppStateManager:
         Returns:
             Path to the last used JSON file
         """
-        return self.settings["import_paths"].get("json_file", "")
+        return self.app_state["import_paths"].get("json_file", "")
 
     def set_import_json_path(self, path: str) -> None:
         """
@@ -359,7 +359,7 @@ class AppStateManager:
         Args:
             path: Path to the JSON file
         """
-        self.settings["import_paths"]["json_file"] = path
+        self.app_state["import_paths"]["json_file"] = path
 
     def get_import_cover_dir(self) -> str:
         """
@@ -368,7 +368,7 @@ class AppStateManager:
         Returns:
             Path to the last used cover images directory
         """
-        return self.settings["import_paths"].get("cover_dir", "")
+        return self.app_state["import_paths"].get("cover_dir", "")
 
     def set_import_cover_dir(self, path: str) -> None:
         """
@@ -377,4 +377,4 @@ class AppStateManager:
         Args:
             path: Path to the cover images directory
         """
-        self.settings["import_paths"]["cover_dir"] = path
+        self.app_state["import_paths"]["cover_dir"] = path

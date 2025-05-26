@@ -75,10 +75,10 @@ class GameShelfApp(Adw.Application):
         try:
             # Initialize data handler and app state manager
             self.data_handler = DataHandler()
-            self.settings_manager = AppStateManager()
+            self.app_state_manager = AppStateManager()
 
             # Create main controller with handlers
-            self.controller = GameShelfController(self.data_handler, self.settings_manager)
+            self.controller = GameShelfController(self.data_handler, self.app_state_manager)
 
             logging.info("Application data initialization complete")
         except Exception as e:
@@ -88,10 +88,10 @@ class GameShelfApp(Adw.Application):
             # Make sure we have at least minimal required objects
             if not hasattr(self, 'data_handler'):
                 self.data_handler = DataHandler()
-            if not hasattr(self, 'settings_manager'):
-                self.settings_manager = AppStateManager()
+            if not hasattr(self, 'app_state_manager'):
+                self.app_state_manager = AppStateManager()
             if not hasattr(self, 'controller'):
-                self.controller = GameShelfController(self.data_handler, self.settings_manager)
+                self.controller = GameShelfController(self.data_handler, self.app_state_manager)
 
         return False  # Don't repeat this timeout
 
@@ -104,8 +104,8 @@ class GameShelfApp(Adw.Application):
             if not hasattr(self, 'controller') or self.controller is None:
                 logging.info("Creating controller first...")
                 self.data_handler = DataHandler()
-                self.settings_manager = AppStateManager()
-                self.controller = GameShelfController(self.data_handler, self.settings_manager)
+                self.app_state_manager = AppStateManager()
+                self.controller = GameShelfController(self.data_handler, self.app_state_manager)
 
             # Create the window if not already created
             if not hasattr(self, 'win') or self.win is None:
@@ -114,10 +114,10 @@ class GameShelfApp(Adw.Application):
                 self.win = GameShelfWindow(self, self.controller)
 
                 # Apply saved window size and state
-                width, height = self.settings_manager.get_window_size()
+                width, height = self.app_state_manager.get_window_size()
                 self.win.set_default_size(width, height)
 
-                if self.settings_manager.get_window_maximized():
+                if self.app_state_manager.get_window_maximized():
                     self.win.maximize()
 
             # Present the window
@@ -199,15 +199,15 @@ class GameShelfApp(Adw.Application):
             # Only save size if not maximized (otherwise save the maximized state)
             if not self.win.is_maximized():
                 width, height = self.win.get_default_size()  # Get current window size
-                self.settings_manager.set_window_size(width, height)
+                self.app_state_manager.set_window_size(width, height)
 
-            self.settings_manager.set_window_maximized(self.win.is_maximized())
+            self.app_state_manager.set_window_maximized(self.win.is_maximized())
         else:
             logging.info("Skipping window state save - initialization not completed")
 
-        # Save all settings to disk
-        if hasattr(self, 'settings_manager'):
-            self.settings_manager.save_settings()
+        # Save all app state to disk
+        if hasattr(self, 'app_state_manager'):
+            self.app_state_manager.save_app_state()
 
         # Clean up tray icon
         if hasattr(self, 'tray_icon') and self.tray_icon:

@@ -367,9 +367,9 @@ class GameDetailsContent(Gtk.Box):
             # Hide the panel
             window.details_panel.set_reveal_flap(False)
 
-            # Save state to settings
-            window.controller.settings_manager.set_details_visible(False)
-            window.controller.settings_manager.set_current_game_id(None)
+            # Save state to file
+            window.controller.app_state_manager.set_details_visible(False)
+            window.controller.app_state_manager.set_current_game_id(None)
 
     @Gtk.Template.Callback()
     def on_toggle_hidden_clicked(self, button):
@@ -910,15 +910,15 @@ class DetailsController:
         self.details_content = details_content
         self.details_panel = details_panel
 
-        # Restore details panel state from settings
-        should_reveal = self.main_controller.settings_manager.get_details_visible()
-        current_game_id = self.main_controller.settings_manager.get_current_game_id()
+        # Restore details panel state
+        should_reveal = self.main_controller.app_state_manager.get_details_visible()
+        current_game_id = self.main_controller.app_state_manager.get_current_game_id()
 
         # Set the controller for the details content
         if details_content:
             details_content.set_controller(self.main_controller)
 
-        # If we have a current game ID from settings, try to restore it
+        # If we have a current game ID from app state, try to restore it
         if current_game_id and should_reveal:
             # Find the game with the saved ID
             for game in self.main_controller.games:
