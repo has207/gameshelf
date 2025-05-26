@@ -249,11 +249,11 @@ class EpicLibraryClient(SourceScanner):
 
                     # Add developer if available
                     if 'developer' in game_data:
-                        # Store developer in description if it's not already included
-                        if game.description and 'Developer:' not in game.description:
-                            game.description = f"Developer: {game_data['developer']}\n\n{game.description}"
-                        elif not game.description:
-                            game.description = f"Developer: {game_data['developer']}"
+                        game.developer = game_data['developer']
+
+                    # Add publisher if available
+                    if 'publisher' in game_data:
+                        game.publisher = game_data['publisher']
 
                     # Add playtime if available
                     if 'playtime' in game_data and game_data['playtime'] is not None:

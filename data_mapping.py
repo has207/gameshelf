@@ -416,6 +416,49 @@ class AgeRatings(BaseEnum):
                 pass
         return ratings
 
+    @classmethod
+    def from_min_age(cls, min_age: int) -> List['AgeRatings']:
+        """
+        Convert minimum age integer to appropriate age rating enums from multiple systems
+
+        Args:
+            min_age: Minimum age requirement
+
+        Returns:
+            List of mapped AgeRatings enum values (PEGI, ESRB, CERO when available)
+        """
+        ratings = []
+
+        if min_age <= 0:
+            # Everyone/All ages
+            ratings.extend([cls.ESRB_E, cls.PEGI_3, cls.CERO_A])
+        elif min_age <= 3:
+            # Ages 3+
+            ratings.extend([cls.ESRB_E, cls.PEGI_3, cls.CERO_A])
+        elif min_age <= 7:
+            # Ages 7+
+            ratings.extend([cls.ESRB_E, cls.PEGI_7, cls.CERO_A])
+        elif min_age <= 10:
+            # Ages 10+
+            ratings.extend([cls.ESRB_E10_PLUS, cls.PEGI_7, cls.CERO_B])
+        elif min_age <= 12:
+            # Ages 12+
+            ratings.extend([cls.ESRB_T, cls.PEGI_12, cls.CERO_B])
+        elif min_age <= 13:
+            # Ages 13+ (Teen)
+            ratings.extend([cls.ESRB_T, cls.PEGI_12, cls.CERO_C])
+        elif min_age <= 16:
+            # Ages 16+
+            ratings.extend([cls.ESRB_T, cls.PEGI_16, cls.CERO_C])
+        elif min_age <= 17:
+            # Ages 17+ (Mature)
+            ratings.extend([cls.ESRB_M, cls.PEGI_16, cls.CERO_D])
+        else:
+            # Ages 18+
+            ratings.extend([cls.ESRB_M, cls.PEGI_18, cls.CERO_Z])
+
+        return ratings
+
 
 class Features(BaseEnum):
     STEREO_SURROUND = "Stereo Surround"

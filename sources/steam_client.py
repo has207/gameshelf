@@ -427,20 +427,14 @@ class SteamScanner(SourceScanner):
                     game.launcher_type = "STEAM"
                     game.launcher_id = app_id
 
+                    # Set installation data for installed games
+                    if game_info.get("is_installed", False) and "install_dir" in game_info:
+                        game.installation_directory = game_info["install_dir"]
+                        game.installation_files = []  # No individual files, just the directory
+                        game.installation_size = game_info.get("size", 0)
+
                     # Try to save the game
                     if self.data_handler.save_game(game):
-                        # Save installation data for installed games
-                        if game_info.get("is_installed", False) and "install_dir" in game_info:
-                            installation_success = self.data_handler.save_installation_data(
-                                game,
-                                game_info["install_dir"],  # Directory path
-                                [],  # No individual files, just the directory
-                                game_info.get("size", 0)
-                            )
-
-                            if not installation_success:
-                                logger.warning(f"Failed to save installation data for '{game_info['title']}'")
-
                         # Set play time if available
                         if "playtime_minutes" in game_info and game_info["playtime_minutes"] > 0:
                             # Convert minutes to seconds
@@ -451,19 +445,35 @@ class SteamScanner(SourceScanner):
                             play_count = max(1, game_info["playtime_minutes"] // 30)  # Roughly 1 count per half hour
                             self.data_handler.update_play_count(game, play_count)
 
-                        # Try to fetch game details for description
+                        # Try to fetch game details for description, developer, and publisher
                         description = None
+                        developer = None
+                        publisher = None
                         if api_key:  # Only if we have API access
                             try:
-                                game_details = steam_client.get_game_details(app_id, title)
-                                if game_details and "short_description" in game_details:
-                                    description = game_details["short_description"]
+                                game_details = steam_client.get_game_details(app_id, game_info["title"])
+                                if game_details:
+                                    if "short_description" in game_details:
+                                        description = game_details["short_description"]
+                                    if "developers" in game_details and game_details["developers"]:
+                                        developer = game_details["developers"][0]  # Take first developer
+                                    if "publishers" in game_details and game_details["publishers"]:
+                                        publisher = game_details["publishers"][0]  # Take first publisher
                             except Exception as e:
-                                logger.warning(f"Error fetching description for game {app_id}: {e}")
+                                logger.warning(f"Error fetching details for game {app_id}: {e}")
 
                         # Save description if we got one
                         if description:
                             self.data_handler.update_game_description(game, description)
+
+                        # Update developer and publisher if we got them
+                        if developer or publisher:
+                            if developer:
+                                game.developer = developer
+                            if publisher:
+                                game.publisher = publisher
+                            # Re-save the game to update developer/publisher data
+                            self.data_handler.save_game(game)
 
                         # Try to fetch cover image from Steam CDN
                         try:

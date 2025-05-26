@@ -126,6 +126,9 @@ class Game:
         self.launcher_id = None  # ID of the game in the launcher's namespace
         self.developer = None  # Game developer
         self.publisher = None  # Game publisher
+        self.installation_directory = None  # Directory where game files are located
+        self.installation_files = None  # List of file paths relative to directory
+        self.installation_size = None  # Total size of all files in bytes
 
         # Handle string or enum for completion_status
         if isinstance(completion_status, str):
@@ -265,9 +268,6 @@ class Game:
         """Get the path to the game's description file"""
         return str(self._get_game_dir_path(data_dir) / "description.yaml")
 
-    def get_installation_path(self, data_dir: Path) -> str:
-        """Get the path to the game's installation file"""
-        return str(self._get_game_dir_path(data_dir) / "installation.yaml")
 
     def get_launcher_path(self, data_dir: Path) -> str:
         """Get the path to the game's launcher data file"""
@@ -280,6 +280,15 @@ class Game:
     def get_last_played_time(self, data_dir: Path) -> Optional[float]:
         """Get the last played timestamp from playtime.yaml"""
         return self.last_played
+
+    def should_launch_directory(self) -> bool:
+        """Check if this game should be launched with its directory rather than individual files."""
+        if self.platforms:
+            for platform in self.platforms:
+                if platform.name == 'NINTENDO_WIIU':
+                    return True
+                # Future: Add other platforms that need directory launching here
+        return False
 
     def is_running(self, data_dir: Path) -> bool:
         """

@@ -161,6 +161,11 @@ class DataHandler:
                     game.developer = game_data.get("developer")
                     game.publisher = game_data.get("publisher")
 
+                    # Load installation data
+                    game.installation_directory = game_data.get("installation_directory")
+                    game.installation_files = game_data.get("installation_files")
+                    game.installation_size = game_data.get("installation_size")
+
                     # Load playtime data from game.yaml (with fallback to playtime.yaml for migration)
                     if "play_count" in game_data:
                         # New format: playtime fields in game.yaml
@@ -329,6 +334,14 @@ class DataHandler:
         # Save publisher if present
         if game.publisher:
             game_data["publisher"] = game.publisher
+
+        # Save installation data if present
+        if game.installation_directory:
+            game_data["installation_directory"] = game.installation_directory
+        if game.installation_files is not None:
+            game_data["installation_files"] = game.installation_files
+        if game.installation_size is not None:
+            game_data["installation_size"] = game.installation_size
 
         try:
             game_dir = self._get_game_dir_from_id(game.id)
@@ -1139,57 +1152,6 @@ class DataHandler:
             logger.error(f"Error clearing PID for {game.id}: {e}")
             return False
 
-    def save_installation_data(self, game: Game, directory: str, files: List[str], total_size: int) -> bool:
-        """
-        Save installation data for a game to an installation.yaml file.
-
-        Args:
-            game: The game to save installation data for
-            directory: The directory where the game files are located
-            files: List of file paths relative to the directory
-            total_size: Total size of all files in bytes
-
-        Returns:
-            True if the installation data was successfully saved, False otherwise
-        """
-        installation_file = Path(game.get_installation_path(self.data_dir))
-
-        try:
-            # Check if this is a Wii U game based on platforms
-            is_wiiu_game = False
-            if game.platforms:
-                for platform in game.platforms:
-                    if platform == Platforms.NINTENDO_WIIU:
-                        is_wiiu_game = True
-                        break
-
-            # For Wii U games, we'll store the directory but not individual files
-            # since we only need the game root folder to launch it
-            if is_wiiu_game:
-                # Create the installation data for Wii U games
-                installation_data = {
-                    "directory": directory,
-                    "is_wiiu": True,  # Flag to identify this as a Wii U game
-                    "size": total_size
-                }
-                logger.info(f"Saved Wii U game installation data for {game.title}")
-            else:
-                # For normal games, sort the files list and include them
-                sorted_files = sorted(files, key=self._natural_sort_key)
-                installation_data = {
-                    "directory": directory,
-                    "files": sorted_files,
-                    "size": total_size
-                }
-
-            # Write to the file
-            with open(installation_file, "w") as f:
-                yaml.dump(installation_data, f)
-
-            return True
-        except Exception as e:
-            logger.error(f"Error saving installation data for {game.id}: {e}")
-            return False
 
     def _natural_sort_key(self, s):
         """
@@ -1200,29 +1162,6 @@ class DataHandler:
         # Split the string into text and numeric parts
         return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', s)]
 
-    def get_installation_data(self, game: Game) -> Optional[Dict[str, Any]]:
-        """
-        Get installation data for a game from the installation.yaml file.
-
-        Args:
-            game: The game to get installation data for
-
-        Returns:
-            Dictionary with installation data if found, None otherwise
-        """
-        installation_file = Path(game.get_installation_path(self.data_dir))
-
-        if not installation_file.exists():
-            return None
-
-        try:
-            with open(installation_file, "r") as f:
-                installation_data = yaml.safe_load(f)
-                return installation_data
-        except Exception as e:
-            logger.error(f"Error loading installation data for {game.id}: {e}")
-
-        return None
 
     def remove_game(self, game: Game) -> bool:
         """

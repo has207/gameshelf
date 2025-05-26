@@ -54,13 +54,7 @@ class ProcessTracker:
             # Split the command into its parts
             cmd = runner_command.split()
 
-            # Get installation data to check if it's a Wii U game
-            installation_data = self.data_handler.get_installation_data(game)
-
-            # Check if this is a Wii U game
-            is_wiiu_game = False
-            if installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]:
-                is_wiiu_game = True
+            # Check if this game should be launched with its directory
 
             # If launcher_id is provided, use that instead of file_path
             if launcher_id is not None:
@@ -75,9 +69,9 @@ class ProcessTracker:
                     # If command is empty, just use the launcher_id
                     logger.info(f"Launching game: {game.title} with launcher ID: {launcher_id}")
                     cmd.append(launcher_id)
-            # For Wii U games, directly pass the game directory to the emulator
-            elif is_wiiu_game and "directory" in installation_data:
-                directory = installation_data["directory"]
+            # For games that launch from directory, directly pass the game directory to the runner
+            elif game.should_launch_directory() and hasattr(game, 'installation_directory') and game.installation_directory:
+                directory = game.installation_directory
                 logger.info(f"Launching Wii U game: {game.title} with command: {runner_command} {directory}")
                 cmd.append(directory)
             # Regular games use the file path
@@ -85,9 +79,9 @@ class ProcessTracker:
                 # Combine directory and file if needed - handle both absolute and relative paths
                 full_path = file_path
                 if not os.path.isabs(file_path):
-                    # Get installation data for the directory
-                    if installation_data and "directory" in installation_data:
-                        directory = installation_data["directory"]
+                    # Get installation directory from the game object
+                    if hasattr(game, 'installation_directory') and game.installation_directory:
+                        directory = game.installation_directory
                         full_path = os.path.join(directory, file_path)
 
                 logger.info(f"Launching game: {game.title} with command: {runner_command} {full_path}")
@@ -105,12 +99,11 @@ class ProcessTracker:
             self.data_handler.increment_play_count(game)
 
             # Check if this is a Steam game that should use directory monitoring
-            installation_data = self.data_handler.get_installation_data(game)
             if (hasattr(game, 'launcher_type') and game.launcher_type == "STEAM" and
-                installation_data and "directory" in installation_data):
+                hasattr(game, 'installation_directory') and game.installation_directory):
                 # Use directory monitoring for Steam games
                 logger.info(f"Using directory monitoring for Steam game: {game.title}")
-                self.start_directory_monitoring(game, installation_data["directory"], on_exit_callback, discord_enabled)
+                self.start_directory_monitoring(game, game.installation_directory, on_exit_callback, discord_enabled)
             else:
                 # Use traditional PID monitoring for other games
                 self.monitor_game_process(process.pid, game, on_exit_callback)

@@ -242,7 +242,13 @@ class GameDetailsContent(Gtk.Box):
                 return
 
             # Check if we have launcher data or installation data for this game
-            installation_data = self.controller.data_handler.get_installation_data(self.game)
+            installation_data = None
+            if (hasattr(self.game, 'installation_directory') and self.game.installation_directory):
+                installation_data = {
+                    "directory": self.game.installation_directory,
+                    "files": getattr(self.game, 'installation_files', []) or [],
+                    "size": getattr(self.game, 'installation_size', 0) or 0
+                }
             file_path = None
             launcher_id = None
 
@@ -251,11 +257,8 @@ class GameDetailsContent(Gtk.Box):
                 # Use launcher_id instead of file_path
                 launcher_id = self.game.launcher_id
             else:
-                # Check if this is a Wii U game
-                is_wiiu_game = installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]
-
-                # For Wii U games, we don't need file selection - just pass directory to the runner
-                if is_wiiu_game:
+                # For games that launch from directory, we don't need file selection
+                if self.game.should_launch_directory():
                     # We'll pass None for file_path, process_tracking will handle the directory
                     file_path = None
                 # For regular games, we handle file selection
@@ -548,17 +551,20 @@ class GameDetailsContent(Gtk.Box):
         compatible_runners = self._get_compatible_runners(game)
         has_compatible_runners = len(compatible_runners) > 0 and any(r.command for r in compatible_runners)
 
-        # Check for installation data
-        installation_data = self.controller.data_handler.get_installation_data(game)
+        # Check for installation data directly from game object
+        installation_data = None
+        if (hasattr(game, 'installation_directory') and game.installation_directory):
+            installation_data = {
+                "directory": game.installation_directory,
+                "files": getattr(game, 'installation_files', []) or [],
+                "size": getattr(game, 'installation_size', 0) or 0
+            }
 
         # Check if this game has launcher data
         has_launcher_data = hasattr(game, 'launcher_id') and game.launcher_id
 
-        # Check if this is a Wii U game (which doesn't use the files array)
-        is_wiiu_game = installation_data and "is_wiiu" in installation_data and installation_data["is_wiiu"]
-
-        # For Wii U games, we check if the directory exists
-        if is_wiiu_game:
+        # For games that launch from directory (like Wii U), we check if the directory exists
+        if game.should_launch_directory():
             has_installation_files = installation_data and "directory" in installation_data
         # For launcher games, check if they have installation data (meaning they're installed)
         elif has_launcher_data:

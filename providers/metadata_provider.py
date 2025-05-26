@@ -72,6 +72,7 @@ class Game(BaseModel):
     genres: List[Genre] = field(default_factory=list)
     platforms: List[Platform] = field(default_factory=list)
     url: Optional[str] = None
+    rating: Optional[str] = None  # Age rating string (e.g., "E - Everyone")
 
 
 class MetadataProvider(ABC):

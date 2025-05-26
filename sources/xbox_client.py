@@ -12,7 +12,7 @@ from typing import List, Tuple, Optional, Dict, Any
 
 from sources.scanner_base import SourceScanner
 from data import Source, Game
-from data_mapping import Platforms, Genres, CompletionStatus
+from data_mapping import Platforms, Genres, CompletionStatus, AgeRatings
 from cover_fetch import CoverFetcher
 
 # Set up logger
@@ -26,6 +26,7 @@ class XboxLibrary(SourceScanner):
     CLIENT_ID = "85736097-7c70-4eba-ae9a-0cf0de4391e1"
     REDIRECT_URI = "https://login.live.com/oauth20_desktop.srf"
     SCOPE = "Xboxlive.signin Xboxlive.offline_access"
+
 
     def __init__(self, data_handler=None, token_dir=None):
         """
@@ -704,6 +705,26 @@ class XboxLibrary(SourceScanner):
                         # Add description
                         game.description = detail.get('description', '')
 
+                        # Add developer if available
+                        if 'developerName' in detail:
+                            game.developer = detail['developerName']
+
+                        # Add publisher if available
+                        if 'publisherName' in detail:
+                            game.publisher = detail['publisherName']
+
+                        # Add age ratings if minAge is available
+                        if 'minAge' in detail and detail['minAge'] is not None:
+                            try:
+                                min_age = int(detail['minAge'])
+                                age_ratings = AgeRatings.from_min_age(min_age)
+                                if age_ratings:
+                                    game.age_ratings = age_ratings
+                                    rating_names = [rating.value for rating in age_ratings]
+                                    logger.info(f"Mapped minAge {min_age} to ratings: {rating_names} for '{title}'")
+                            except (ValueError, TypeError) as e:
+                                logger.warning(f"Failed to convert minAge '{detail['minAge']}' to integer for '{title}': {e}")
+
                         # Add genres
                         genres = detail.get('genres', [])
                         genre_enums = []
@@ -783,6 +804,13 @@ class XboxLibrary(SourceScanner):
                                 logger.warning(f"Failed to save last played time for {game.title}")
                             else:
                                 logger.debug(f"Saved last played time for {game.title}")
+
+                        # Save description if available
+                        if hasattr(game, 'description') and game.description:
+                            if not self.data_handler.update_game_description(game, game.description):
+                                logger.warning(f"Failed to save description for {game.title}")
+                            else:
+                                logger.debug(f"Saved description for {game.title}")
 
                         # Download and save the cover image if URL is available
                         if hasattr(game, 'image') and game.image and source.config.get("download_images", True):

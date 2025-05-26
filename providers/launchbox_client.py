@@ -1163,12 +1163,54 @@ class LaunchBoxMetadata(MetadataProvider):
             genres=genres,
             platforms=platforms,
             companies=companies,
-            url=raw_game.get('WikipediaURL')
+            url=raw_game.get('WikipediaURL'),
+            rating=raw_game.get('ESRB')
         )
 
     def close(self):
         """Close database connections and clean up resources."""
         self.database.close()
+
+    def map_single_age_rating(self, rating_str: str):
+        """
+        Override base class method to handle LaunchBox ESRB format.
+
+        LaunchBox ESRB format examples:
+        - "E - Everyone"
+        - "T - Teen"
+        - "M - Mature"
+        - "E10+ - Everyone 10+"
+        - "Not Rated"
+
+        Args:
+            rating_str: LaunchBox ESRB rating string
+
+        Returns:
+            Mapped AgeRatings enum value or None
+        """
+        if not rating_str:
+            return None
+
+        # Import here to avoid circular imports
+        from data_mapping import AgeRatings
+
+        # Normalize the string (lowercase and strip)
+        normalized = rating_str.lower().strip()
+
+        # Map LaunchBox ESRB formats to our enum values
+        if normalized.startswith('e - everyone') or normalized == 'e':
+            return AgeRatings.ESRB_E
+        elif normalized.startswith('e10+ - everyone 10+') or normalized == 'e10+':
+            return AgeRatings.ESRB_E10_PLUS
+        elif normalized.startswith('t - teen') or normalized == 't':
+            return AgeRatings.ESRB_T
+        elif normalized.startswith('m - mature') or normalized == 'm':
+            return AgeRatings.ESRB_M
+        elif normalized.startswith('not rated'):
+            return AgeRatings.ESRB_NOT_RATED
+
+        # Fallback to base class implementation for other formats
+        return super().map_single_age_rating(rating_str)
 
 
 def display_game_search_results(results: List[Dict[str, Any]]):

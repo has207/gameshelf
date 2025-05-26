@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Any
 
 from data import Source, Game, SourceType, RomPath
-from data_mapping import Platforms
+from data_mapping import Platforms, AgeRatings
 from sources.scanner_base import SourceScanner
 from providers.launchbox_client import LaunchBoxMetadata
 from cover_fetch import CoverFetcher
@@ -136,6 +136,11 @@ class DirectoryScanner(SourceScanner):
                     source=source.id
                 )
 
+                # Set installation data directly on the game object
+                game.installation_directory = entry["directory"]
+                game.installation_files = entry["files"]
+                game.installation_size = entry["size"]
+
                 # Set platform for ROM_DIRECTORY sources if we have a platform specified
                 platform_value = ""
                 if platform:
@@ -174,6 +179,17 @@ class DirectoryScanner(SourceScanner):
                                     game.genres = mapped_genres
                                     logger.debug(f"Mapped {len(mapped_genres)} genres for '{title}'")
 
+                            # Extract developer and publisher from companies if available
+                            if hasattr(metadata_game, 'companies') and metadata_game.companies:
+                                for company in metadata_game.companies:
+                                    if hasattr(company, 'type') and hasattr(company, 'name'):
+                                        if company.type.lower() == 'developer' and not game.developer:
+                                            game.developer = company.name
+                                            logger.info(f"Set developer '{company.name}' for '{title}'")
+                                        elif company.type.lower() == 'publisher' and not game.publisher:
+                                            game.publisher = company.name
+                                            logger.info(f"Set publisher '{company.name}' for '{title}'")
+
                             # Try to map age ratings if available
                             if hasattr(metadata_game, 'rating') and metadata_game.rating:
                                 rating_str = metadata_game.rating
@@ -198,18 +214,8 @@ class DirectoryScanner(SourceScanner):
                     except Exception as e:
                         logger.error(f"Error fetching metadata for '{title}': {e}")
 
-                # Save the game
+                # Save the game (installation data is now included in the game object)
                 if self.data_handler.save_game(game):
-                    # Save installation data
-                    installation_success = self.data_handler.save_installation_data(
-                        game,
-                        entry["directory"],
-                        entry["files"],
-                        entry["size"]
-                    )
-
-                    if not installation_success:
-                        logger.warning(f"Failed to save installation data for '{title}'")
 
                     # If we found metadata with cover art, try to download the cover image
                     if metadata_game and metadata_game.images and metadata_game.images.box:

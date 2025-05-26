@@ -32,8 +32,8 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         self.source_handler = source_handler
         self.editing = source is not None
 
-        # Track whether we need to disable extensions for Wii U games
-        self.is_wiiu = False
+        # Track whether we need to disable extensions
+        self.should_disable_extensions = False
 
         # Set up platform dropdown
         self._setup_platform_dropdown()
@@ -43,7 +43,7 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         self.cancel_button.connect("clicked", self._on_cancel_clicked)
         self.save_button.connect("clicked", self._on_save_clicked)
 
-        # Connect platform selection handler to enable/disable extensions for Wii U
+        # Connect platform selection handler to enable/disable extensions
         self.platform_dropdown.connect("notify::selected-item", self._on_platform_changed)
 
         # If editing an existing source, fill the form with its data
@@ -132,17 +132,18 @@ class RomDirectorySourceDialog(Gtk.Dialog):
         if not platform:
             return
 
-        # For Wii U, disable extensions field since we'll detect games based on folder structure
-        self.is_wiiu = (platform == Platforms.NINTENDO_WIIU)
+        # Disable extensions field since we'll detect games based on folder structure
+        # TODO:dedup this logic with Game.should_launch_directory
+        self.should_disable_extensions = (platform == Platforms.NINTENDO_WIIU)
 
         # Update all path items in the container
         for child in self.paths_container:
             if isinstance(child, RomPathItem):
-                child.set_extensions_sensitive(not self.is_wiiu)
+                child.set_extensions_sensitive(not self.should_disable_extensions)
 
     def _add_path_item(self, rom_path=None):
         """Add a new path item to the container"""
-        path_item = RomPathItem(rom_path, not self.is_wiiu)
+        path_item = RomPathItem(rom_path, not self.should_disable_extensions)
         path_item.connect("remove-requested", self._on_path_remove_requested)
         self.paths_container.append(path_item)
         return path_item
