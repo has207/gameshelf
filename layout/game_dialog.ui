@@ -117,6 +117,30 @@
                       </object>
                     </child>
                     <child>
+                      <object class="AdwActionRow">
+                        <property name="title">First Played</property>
+                        <child>
+                          <object class="GtkButton" id="first_played_button">
+                            <property name="label">Select Date</property>
+                            <property name="valign">center</property>
+                            <signal name="clicked" handler="on_first_played_clicked" swapped="no"/>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="AdwActionRow">
+                        <property name="title">Last Played</property>
+                        <child>
+                          <object class="GtkButton" id="last_played_button">
+                            <property name="label">Select Date</property>
+                            <property name="valign">center</property>
+                            <signal name="clicked" handler="on_last_played_clicked" swapped="no"/>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
                       <object class="AdwComboRow" id="completion_status_dropdown">
                         <property name="title">Completion Status</property>
                         <signal name="notify::selected" handler="on_completion_status_selected"/>

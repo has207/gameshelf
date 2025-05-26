@@ -142,61 +142,60 @@
 
         <!-- Play Stats -->
         <child>
-          <object class="GtkBox">
-            <property name="spacing">12</property>
+          <object class="GtkBox" id="play_stats_box">
+            <property name="orientation">vertical</property>
+            <property name="spacing">4</property>
             <style>
               <class name="play-stats-box"/>
             </style>
             <child>
-              <object class="GtkImage">
-                <property name="icon-name">media-playback-start-symbolic</property>
-                <property name="icon-size">large</property>
+              <object class="GtkLabel" id="first_played_label">
+                <property name="label">First Played: Never</property>
+                <property name="xalign">0</property>
+                <property name="ellipsize">end</property>
+                <style>
+                  <class name="body"/>
+                </style>
               </object>
             </child>
             <child>
-              <object class="GtkBox">
-                <property name="orientation">vertical</property>
-                <property name="spacing">4</property>
-                <child>
-                  <object class="GtkLabel" id="last_played_label">
-                    <property name="label">Last Played: Never</property>
-                    <property name="xalign">0</property>
-                    <property name="ellipsize">end</property>
-                    <style>
-                      <class name="body"/>
-                    </style>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkLabel" id="play_time_label">
-                    <property name="label">Play Time: Not played</property>
-                    <property name="xalign">0</property>
-                    <property name="ellipsize">end</property>
-                    <style>
-                      <class name="body"/>
-                    </style>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkLabel" id="play_count_label">
-                    <property name="label">Play Count: 0</property>
-                    <property name="xalign">0</property>
-                    <property name="ellipsize">end</property>
-                    <style>
-                      <class name="body"/>
-                    </style>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkLabel" id="completion_status_label">
-                    <property name="label">Status: Not Played</property>
-                    <property name="xalign">0</property>
-                    <property name="ellipsize">end</property>
-                    <style>
-                      <class name="body"/>
-                    </style>
-                  </object>
-                </child>
+              <object class="GtkLabel" id="last_played_label">
+                <property name="label">Last Played: Never</property>
+                <property name="xalign">0</property>
+                <property name="ellipsize">end</property>
+                <style>
+                  <class name="body"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="play_time_label">
+                <property name="label">Play Time: Not played</property>
+                <property name="xalign">0</property>
+                <property name="ellipsize">end</property>
+                <style>
+                  <class name="body"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="play_count_label">
+                <property name="label">Play Count: 0</property>
+                <property name="xalign">0</property>
+                <property name="ellipsize">end</property>
+                <style>
+                  <class name="body"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="completion_status_label">
+                <property name="label">Status: Not Played</property>
+                <property name="xalign">0</property>
+                <property name="ellipsize">end</property>
+                <style>
+                  <class name="body"/>
+                </style>
               </object>
             </child>
           </object>
@@ -205,40 +204,29 @@
         <!-- Timestamps -->
         <child>
           <object class="GtkBox">
-            <property name="spacing">12</property>
+            <property name="orientation">vertical</property>
+            <property name="spacing">4</property>
             <style>
               <class name="timestamps-box"/>
             </style>
             <child>
-              <object class="GtkImage">
-                <property name="icon-name">x-office-calendar-symbolic</property>
-                <property name="icon-size">large</property>
+              <object class="GtkLabel" id="created_label">
+                <property name="label">Added: Unknown</property>
+                <property name="xalign">0</property>
+                <property name="ellipsize">end</property>
+                <style>
+                  <class name="body"/>
+                </style>
               </object>
             </child>
             <child>
-              <object class="GtkBox">
-                <property name="orientation">vertical</property>
-                <property name="spacing">4</property>
-                <child>
-                  <object class="GtkLabel" id="created_label">
-                    <property name="label">Added: Unknown</property>
-                    <property name="xalign">0</property>
-                    <property name="ellipsize">end</property>
-                    <style>
-                      <class name="body"/>
-                    </style>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkLabel" id="modified_label">
-                    <property name="label">Modified: Unknown</property>
-                    <property name="xalign">0</property>
-                    <property name="ellipsize">end</property>
-                    <style>
-                      <class name="body"/>
-                    </style>
-                  </object>
-                </child>
+              <object class="GtkLabel" id="modified_label">
+                <property name="label">Modified: Unknown</property>
+                <property name="xalign">0</property>
+                <property name="ellipsize">end</property>
+                <style>
+                  <class name="body"/>
+                </style>
               </object>
             </child>
           </object>
@@ -254,24 +242,13 @@
               <class name="compatible-runners"/>
             </style>
             <child>
-              <object class="GtkBox">
-                <property name="spacing">12</property>
-                <child>
-                  <object class="GtkImage">
-                    <property name="icon-name">application-x-executable-symbolic</property>
-                    <property name="icon-size">large</property>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkLabel">
-                    <property name="label">Compatible Runners</property>
-                    <property name="xalign">0</property>
-                    <style>
-                      <class name="caption-heading"/>
-                      <class name="dim-label"/>
-                    </style>
-                  </object>
-                </child>
+              <object class="GtkLabel">
+                <property name="label">Compatible Runners</property>
+                <property name="xalign">0</property>
+                <style>
+                  <class name="caption-heading"/>
+                  <class name="dim-label"/>
+                </style>
               </object>
             </child>
             <child>
@@ -307,7 +284,7 @@
                 
                 <!-- Platforms Row -->
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkLabel" id="platforms_title_label">
                     <property name="label">Platforms:</property>
                     <property name="xalign">1</property>
                     <property name="valign">start</property>
@@ -341,7 +318,7 @@
                 
                 <!-- Genres Row -->
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkLabel" id="genres_title_label">
                     <property name="label">Genres:</property>
                     <property name="xalign">1</property>
                     <property name="valign">start</property>
@@ -375,7 +352,7 @@
                 
                 <!-- Features Row -->
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkLabel" id="features_title_label">
                     <property name="label">Features:</property>
                     <property name="xalign">1</property>
                     <property name="valign">start</property>
@@ -409,7 +386,7 @@
                 
                 <!-- Age Ratings Row -->
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkLabel" id="age_ratings_title_label">
                     <property name="label">Age Ratings:</property>
                     <property name="xalign">1</property>
                     <property name="valign">start</property>
@@ -443,7 +420,7 @@
                 
                 <!-- Regions Row -->
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkLabel" id="regions_title_label">
                     <property name="label">Regions:</property>
                     <property name="xalign">1</property>
                     <property name="valign">start</property>
@@ -474,6 +451,108 @@
                     </layout>
                   </object>
                 </child>
+                
+                <!-- Source Row -->
+                <child>
+                  <object class="GtkLabel" id="source_title_label">
+                    <property name="label">Source:</property>
+                    <property name="xalign">1</property>
+                    <property name="valign">start</property>
+                    <style>
+                      <class name="caption-heading"/>
+                      <class name="dim-label"/>
+                    </style>
+                    <layout>
+                      <property name="column">0</property>
+                      <property name="row">5</property>
+                    </layout>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="source_label">
+                    <property name="xalign">0</property>
+                    <property name="wrap">true</property>
+                    <property name="wrap-mode">word-char</property>
+                    <property name="max-width-chars">40</property>
+                    <property name="label">No source available</property>
+                    <property name="use-markup">false</property>
+                    <style>
+                      <class name="body"/>
+                    </style>
+                    <layout>
+                      <property name="column">1</property>
+                      <property name="row">5</property>
+                    </layout>
+                  </object>
+                </child>
+                
+                <!-- Developer Row -->
+                <child>
+                  <object class="GtkLabel" id="developer_title_label">
+                    <property name="label">Developer:</property>
+                    <property name="xalign">1</property>
+                    <property name="valign">start</property>
+                    <style>
+                      <class name="caption-heading"/>
+                      <class name="dim-label"/>
+                    </style>
+                    <layout>
+                      <property name="column">0</property>
+                      <property name="row">6</property>
+                    </layout>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="developer_label">
+                    <property name="xalign">0</property>
+                    <property name="wrap">true</property>
+                    <property name="wrap-mode">word-char</property>
+                    <property name="max-width-chars">40</property>
+                    <property name="label">No developer available</property>
+                    <property name="use-markup">false</property>
+                    <style>
+                      <class name="body"/>
+                    </style>
+                    <layout>
+                      <property name="column">1</property>
+                      <property name="row">6</property>
+                    </layout>
+                  </object>
+                </child>
+                
+                <!-- Publisher Row -->
+                <child>
+                  <object class="GtkLabel" id="publisher_title_label">
+                    <property name="label">Publisher:</property>
+                    <property name="xalign">1</property>
+                    <property name="valign">start</property>
+                    <style>
+                      <class name="caption-heading"/>
+                      <class name="dim-label"/>
+                    </style>
+                    <layout>
+                      <property name="column">0</property>
+                      <property name="row">7</property>
+                    </layout>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="publisher_label">
+                    <property name="xalign">0</property>
+                    <property name="wrap">true</property>
+                    <property name="wrap-mode">word-char</property>
+                    <property name="max-width-chars">40</property>
+                    <property name="label">No publisher available</property>
+                    <property name="use-markup">false</property>
+                    <style>
+                      <class name="body"/>
+                    </style>
+                    <layout>
+                      <property name="column">1</property>
+                      <property name="row">7</property>
+                    </layout>
+                  </object>
+                </child>
               </object>
             </child>
           </object>
@@ -488,24 +567,13 @@
               <class name="description-box"/>
             </style>
             <child>
-              <object class="GtkBox">
-                <property name="spacing">8</property>
-                <child>
-                  <object class="GtkImage">
-                    <property name="icon-name">document-properties-symbolic</property>
-                    <property name="icon-size">large</property>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkLabel">
-                    <property name="label">Description</property>
-                    <property name="xalign">0</property>
-                    <style>
-                      <class name="caption-heading"/>
-                      <class name="dim-label"/>
-                    </style>
-                  </object>
-                </child>
+              <object class="GtkLabel">
+                <property name="label">Description</property>
+                <property name="xalign">0</property>
+                <style>
+                  <class name="caption-heading"/>
+                  <class name="dim-label"/>
+                </style>
               </object>
             </child>
             <child>

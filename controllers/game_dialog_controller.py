@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Type, Set
 import logging
 import html
+from datetime import datetime
 
 from gi.repository import Gtk, Adw, Gio, GObject, GdkPixbuf, Gdk, GLib
 
@@ -36,6 +37,8 @@ class GameDialog(Adw.Window):
     play_stats_group: Adw.PreferencesGroup = Gtk.Template.Child()
     play_count_entry: Adw.EntryRow = Gtk.Template.Child()
     play_time_entry: Adw.EntryRow = Gtk.Template.Child()
+    first_played_button: Gtk.Button = Gtk.Template.Child()
+    last_played_button: Gtk.Button = Gtk.Template.Child()
     completion_status_dropdown: Adw.ComboRow = Gtk.Template.Child()
     description_group: Adw.PreferencesGroup = Gtk.Template.Child()
     description_text: Gtk.TextView = Gtk.Template.Child()
@@ -50,6 +53,113 @@ class GameDialog(Adw.Window):
     features_summary_label: Gtk.Label = Gtk.Template.Child()
     age_ratings_summary_label: Gtk.Label = Gtk.Template.Child()
     regions_summary_label: Gtk.Label = Gtk.Template.Child()
+
+    @Gtk.Template.Callback()
+    def on_first_played_clicked(self, button):
+        """Handle first played date button click"""
+        self._show_calendar_dialog("first_played")
+
+    @Gtk.Template.Callback()
+    def on_last_played_clicked(self, button):
+        """Handle last played date button click"""
+        self._show_calendar_dialog("last_played")
+
+    def _show_calendar_dialog(self, field_type):
+        """Show a calendar dialog for date selection"""
+        dialog = Adw.Window()
+        dialog.set_title("Select Date")
+        dialog.set_modal(True)
+        dialog.set_transient_for(self)
+        dialog.set_default_size(320, 400)
+
+        # Create main box
+        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        dialog.set_content(main_box)
+
+        # Header bar
+        header = Adw.HeaderBar()
+        header.set_show_start_title_buttons(False)
+        header.set_show_end_title_buttons(False)
+        main_box.append(header)
+
+        # Cancel button
+        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn.connect("clicked", lambda b: dialog.close())
+        header.pack_start(cancel_btn)
+
+        # Select button
+        select_btn = Gtk.Button(label="Select")
+        select_btn.add_css_class("suggested-action")
+        header.pack_end(select_btn)
+
+        # Calendar widget
+        calendar = Gtk.Calendar()
+        calendar.set_margin_top(12)
+        calendar.set_margin_bottom(12)
+        calendar.set_margin_start(12)
+        calendar.set_margin_end(12)
+
+        # Set current date if available
+        if field_type == "first_played" and self.first_played_date:
+            # Convert Python date to GLib.DateTime
+            glib_date = GLib.DateTime.new_local(
+                self.first_played_date.year,
+                self.first_played_date.month,
+                self.first_played_date.day,
+                0, 0, 0
+            )
+            calendar.select_day(glib_date)
+        elif field_type == "last_played" and self.last_played_date:
+            # Convert Python date to GLib.DateTime
+            glib_date = GLib.DateTime.new_local(
+                self.last_played_date.year,
+                self.last_played_date.month,
+                self.last_played_date.day,
+                0, 0, 0
+            )
+            calendar.select_day(glib_date)
+
+        main_box.append(calendar)
+
+        # Clear button at bottom
+        clear_btn = Gtk.Button(label="Clear Date")
+        clear_btn.add_css_class("destructive-action")
+        clear_btn.set_margin_top(12)
+        clear_btn.set_margin_bottom(12)
+        clear_btn.set_margin_start(12)
+        clear_btn.set_margin_end(12)
+        main_box.append(clear_btn)
+
+        # Connect signals
+        def on_select_clicked(btn):
+            selected_date = calendar.get_date()
+            # Convert GLib.DateTime to Python datetime.date
+            python_date = selected_date.to_local().format("%Y-%m-%d")
+            date_obj = datetime.strptime(python_date, "%Y-%m-%d").date()
+
+            if field_type == "first_played":
+                self.first_played_date = date_obj
+                self.first_played_button.set_label(python_date)
+            elif field_type == "last_played":
+                self.last_played_date = date_obj
+                self.last_played_button.set_label(python_date)
+            self.validate_form()
+            dialog.close()
+
+        def on_clear_clicked(btn):
+            if field_type == "first_played":
+                self.first_played_date = None
+                self.first_played_button.set_label("Select Date")
+            elif field_type == "last_played":
+                self.last_played_date = None
+                self.last_played_button.set_label("Select Date")
+            self.validate_form()
+            dialog.close()
+
+        select_btn.connect("clicked", on_select_clicked)
+        clear_btn.connect("clicked", on_clear_clicked)
+
+        dialog.present()
 
     def __init__(self, parent_window, controller=None, edit_mode=False):
         super().__init__()
@@ -72,6 +182,11 @@ class GameDialog(Adw.Window):
         self.selected_age_ratings = []
         self.selected_regions = []
 
+
+        # Date state for calendar dialogs
+        self.first_played_date = None  # datetime.date object
+        self.last_played_date = None   # datetime.date object
+
         # Adjust dialog height based on mode and parent window height
         parent_height = parent_window.get_height()
         if parent_height > 0:
@@ -82,9 +197,6 @@ class GameDialog(Adw.Window):
                 # Add mode can be more compact
                 preferred_height = max(500, int(parent_height * 0.6))
             self.set_default_size(500, preferred_height)
-
-        # Set up completion status dropdown
-        self._populate_completion_status_dropdown()
 
         # Configure UI based on mode (add or edit)
         if edit_mode:
@@ -103,6 +215,9 @@ class GameDialog(Adw.Window):
             self.play_stats_group.set_visible(False)
             self.metadata_group.set_visible(False)
             self.remove_game_container.set_visible(False)
+
+        # Set up completion status dropdown
+        self._populate_completion_status_dropdown()
 
         # Ensure action button updates when entry changes
         self.title_entry.connect("notify::text", self.validate_form)
@@ -135,6 +250,23 @@ class GameDialog(Adw.Window):
         # Set play statistics
         self.play_count_entry.set_text(str(game.play_count))
         self.play_time_entry.set_text(str(game.play_time))
+
+        # Set timestamps if available
+        if hasattr(game, 'first_played') and game.first_played:
+            dt = datetime.fromtimestamp(game.first_played)
+            self.first_played_date = dt.date()
+            self.first_played_button.set_label(dt.strftime("%Y-%m-%d"))
+        else:
+            self.first_played_date = None
+            self.first_played_button.set_label("Select Date")
+
+        if hasattr(game, 'last_played') and game.last_played:
+            dt = datetime.fromtimestamp(game.last_played)
+            self.last_played_date = dt.date()
+            self.last_played_button.set_label(dt.strftime("%Y-%m-%d"))
+        else:
+            self.last_played_date = None
+            self.last_played_button.set_label("Select Date")
 
         # Set completion status from enum
         # Find the index of the completion status enum in completion_status_data
@@ -326,6 +458,28 @@ class GameDialog(Adw.Window):
             except (ValueError, TypeError):
                 pass
 
+            # Check timestamp changes
+            game_first_played = getattr(self.game, 'first_played', None)
+            game_last_played = getattr(self.game, 'last_played', None)
+
+            # Check first played changes
+            current_first_timestamp = None
+            if self.first_played_date:
+                dt = datetime.combine(self.first_played_date, datetime.min.time())
+                current_first_timestamp = dt.timestamp()
+
+            if current_first_timestamp != game_first_played:
+                has_changes = True
+
+            # Check last played changes
+            current_last_timestamp = None
+            if self.last_played_date:
+                dt = datetime.combine(self.last_played_date, datetime.min.time())
+                current_last_timestamp = dt.timestamp()
+
+            if current_last_timestamp != game_last_played:
+                has_changes = True
+
             # Check completion status changes
             current_status = self.selected_completion_status
             game_status = self.game.completion_status
@@ -498,6 +652,35 @@ class GameDialog(Adw.Window):
         except (ValueError, TypeError) as e:
             logger.error(f"Error updating play time: {e}")
 
+        # Update timestamps
+        try:
+            # Update first played time
+            if self.first_played_date:
+                dt = datetime.combine(self.first_played_date, datetime.min.time())
+                first_played_timestamp = dt.timestamp()
+                current_first_played = getattr(self.game, 'first_played', None)
+                if first_played_timestamp != current_first_played:
+                    self.controller.data_handler.set_first_played_time(self.game, first_played_timestamp)
+            else:
+                # Clear first played time if no date selected
+                if hasattr(self.game, 'first_played') and self.game.first_played:
+                    self.controller.data_handler.set_first_played_time(self.game, None)
+
+            # Update last played time
+            if self.last_played_date:
+                dt = datetime.combine(self.last_played_date, datetime.min.time())
+                last_played_timestamp = dt.timestamp()
+                current_last_played = getattr(self.game, 'last_played', None)
+                if last_played_timestamp != current_last_played:
+                    self.controller.data_handler.set_last_played_time(self.game, last_played_timestamp)
+            else:
+                # Clear last played time if no date selected
+                if hasattr(self.game, 'last_played') and self.game.last_played:
+                    self.controller.data_handler.set_last_played_time(self.game, None)
+
+        except Exception as e:
+            logger.error(f"Error updating timestamps: {e}")
+
         # Copy the image if a new one was selected
         if self.selected_image_path is not None:  # Image was changed
             if self.selected_image_path:  # New image selected
@@ -573,16 +756,26 @@ class GameDialog(Adw.Window):
             success = self.controller.data_handler.save_game(self.game)
 
         if success:
-            # Update the details panel if open and showing this game
-            if (self.parent_window.current_selected_game and
-                self.parent_window.current_selected_game.id == self.game.id):
-                self.parent_window.details_content.set_game(self.game)
-
             # Close the dialog first
             self.close()
 
-            # Schedule sidebar refresh after dialog closes (async)
-            GLib.timeout_add(50, lambda: self.controller.reload_data(refresh_sidebar=True) or False)
+            # Schedule full refresh after dialog closes (async)
+            def refresh_after_edit():
+                self.controller.reload_data(refresh_sidebar=True)
+                # Also refresh the details panel if it's showing this game
+                if (hasattr(self.parent_window, 'current_selected_game') and
+                    self.parent_window.current_selected_game and
+                    self.parent_window.current_selected_game.id == self.game.id):
+                    # Find the updated game in the reloaded data
+                    for game in self.controller.games:
+                        if game.id == self.game.id:
+                            self.parent_window.current_selected_game = game
+                            if hasattr(self.parent_window, 'details_content'):
+                                self.parent_window.details_content.set_game(game)
+                            break
+                return False
+
+            GLib.timeout_add(50, refresh_after_edit)
 
     @Gtk.Template.Callback()
     def on_select_platforms_clicked(self, row):
@@ -772,3 +965,4 @@ class GameDialog(Adw.Window):
 
         # Make sure the action button is enabled
         self.validate_form()
+

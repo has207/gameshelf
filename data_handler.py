@@ -955,7 +955,7 @@ class DataHandler:
         # Update the play time with the new total
         return self.update_play_time(game, new_total)
 
-    def set_last_played_time(self, game: Game, timestamp: float) -> bool:
+    def set_last_played_time(self, game: Game, timestamp: Optional[float]) -> bool:
         """
         Set the last played time for a game by updating the playtime.yaml file.
 
@@ -970,13 +970,24 @@ class DataHandler:
             # Set the last played timestamp in the game object
             game.last_played = timestamp
 
-            # Save the consolidated playtime data
-            return self._save_playtime_data(game)
+            # Save the consolidated playtime data first
+            playtime_result = self._save_playtime_data(game)
+
+            # Auto-update completion status to PLAYED if it was NOT_PLAYED and we're setting a timestamp
+            if timestamp is not None and game.completion_status == CompletionStatus.NOT_PLAYED:
+                logger.info(f"Auto-updating completion status to PLAYED for game {game.id} (last_played)")
+                game.completion_status = CompletionStatus.PLAYED
+                # Save the updated completion status AFTER playtime data
+                result = self.update_completion_status(game, CompletionStatus.PLAYED)
+                logger.info(f"Completion status update result for game {game.id}: {result}")
+                return result
+
+            return playtime_result
         except Exception as e:
             logger.error(f"Error setting last played time for {game.id}: {e}")
             return False
 
-    def set_first_played_time(self, game: Game, timestamp: float) -> bool:
+    def set_first_played_time(self, game: Game, timestamp: Optional[float]) -> bool:
         """
         Set the first played time for a game by updating the playtime.yaml file.
 
@@ -991,8 +1002,19 @@ class DataHandler:
             # Set the first played timestamp in the game object
             game.first_played = timestamp
 
-            # Save the consolidated playtime data
-            return self._save_playtime_data(game)
+            # Save the consolidated playtime data first
+            playtime_result = self._save_playtime_data(game)
+
+            # Auto-update completion status to PLAYED if it was NOT_PLAYED and we're setting a timestamp
+            if timestamp is not None and game.completion_status == CompletionStatus.NOT_PLAYED:
+                logger.info(f"Auto-updating completion status to PLAYED for game {game.id} (first_played)")
+                game.completion_status = CompletionStatus.PLAYED
+                # Save the updated completion status AFTER playtime data
+                result = self.update_completion_status(game, CompletionStatus.PLAYED)
+                logger.info(f"Completion status update result for game {game.id}: {result}")
+                return result
+
+            return playtime_result
         except Exception as e:
             logger.error(f"Error setting first played time for {game.id}: {e}")
             return False

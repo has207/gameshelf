@@ -82,15 +82,28 @@ class GameDetailsContent(Gtk.Box):
     created_label: Gtk.Label = Gtk.Template.Child()
     modified_label: Gtk.Label = Gtk.Template.Child()
     play_count_label: Gtk.Label = Gtk.Template.Child()
+    first_played_label: Gtk.Label = Gtk.Template.Child()
     last_played_label: Gtk.Label = Gtk.Template.Child()
     play_time_label: Gtk.Label = Gtk.Template.Child()
     completion_status_label: Gtk.Label = Gtk.Template.Child()
+    play_stats_box: Gtk.Box = Gtk.Template.Child()
     description_label: Gtk.Label = Gtk.Template.Child()
     platforms_label: Gtk.Label = Gtk.Template.Child()
+    platforms_title_label: Gtk.Label = Gtk.Template.Child()
     genres_label: Gtk.Label = Gtk.Template.Child()
+    genres_title_label: Gtk.Label = Gtk.Template.Child()
     features_label: Gtk.Label = Gtk.Template.Child()
+    features_title_label: Gtk.Label = Gtk.Template.Child()
     age_ratings_label: Gtk.Label = Gtk.Template.Child()
+    age_ratings_title_label: Gtk.Label = Gtk.Template.Child()
     regions_label: Gtk.Label = Gtk.Template.Child()
+    regions_title_label: Gtk.Label = Gtk.Template.Child()
+    source_label: Gtk.Label = Gtk.Template.Child()
+    source_title_label: Gtk.Label = Gtk.Template.Child()
+    developer_label: Gtk.Label = Gtk.Template.Child()
+    developer_title_label: Gtk.Label = Gtk.Template.Child()
+    publisher_label: Gtk.Label = Gtk.Template.Child()
+    publisher_title_label: Gtk.Label = Gtk.Template.Child()
     compatible_runners_box: Gtk.FlowBox = Gtk.Template.Child()
 
     def __init__(self):
@@ -623,33 +636,53 @@ class GameDetailsContent(Gtk.Box):
             else:
                 self.modified_label.set_text("Modified: Unknown")
 
-            # Set play count
-            self.play_count_label.set_text(f"Play Count: {game.play_count}")
+            # Set play count - only show if > 0
+            if game.play_count > 0:
+                self.play_count_label.set_text(f"Play Count: {game.play_count}")
+                self.play_count_label.set_visible(True)
+            else:
+                self.play_count_label.set_visible(False)
 
-            # Set play time
+            # Set play time - only show if > 0
             if game.play_time > 0:
                 formatted_time = format_play_time(game.play_time)
                 self.play_time_label.set_text(f"Play Time: {formatted_time}")
+                self.play_time_label.set_visible(True)
             else:
-                self.play_time_label.set_text("Play Time: Not played")
+                self.play_time_label.set_visible(False)
 
-            # Set completion status - use the enum value
+            # Set completion status - always show
             self.completion_status_label.set_text(f"Status: {game.completion_status.value}")
+            self.completion_status_label.set_visible(True)
 
+            # Set first played - show if available
+            first_played = game.get_first_played_time(self.controller.data_handler.data_dir)
+            if first_played:
+                friendly_time = get_friendly_time(first_played)
+                self.first_played_label.set_text(f"First Played: {friendly_time}")
+                self.first_played_label.set_visible(True)
+            else:
+                self.first_played_label.set_visible(False)
+
+            # Set last played - show if available
             last_played = game.get_last_played_time(self.controller.data_handler.data_dir)
-            if last_played and game.play_count > 0:
+            if last_played:
                 friendly_time = get_friendly_time(last_played)
                 self.last_played_label.set_text(f"Last Played: {friendly_time}")
+                self.last_played_label.set_visible(True)
             else:
-                self.last_played_label.set_text("Last Played: Never")
+                self.last_played_label.set_visible(False)
 
             # Set platforms if available
             if game.platforms and len(game.platforms) > 0:
                 platform_names = [platform.value for platform in game.platforms]
                 platform_text = ", ".join(platform_names)
                 self.platforms_label.set_text(platform_text)
+                self.platforms_label.set_visible(True)
+                self.platforms_title_label.set_visible(True)
             else:
-                self.platforms_label.set_text("No platforms available")
+                self.platforms_label.set_visible(False)
+                self.platforms_title_label.set_visible(False)
 
             # Set genres if available
             if game.genres and len(game.genres) > 0:
@@ -657,32 +690,86 @@ class GameDetailsContent(Gtk.Box):
                 genre_names = [html.unescape(genre.value) for genre in game.genres]
                 genre_text = ", ".join(genre_names)
                 self.genres_label.set_text(genre_text)
+                self.genres_label.set_visible(True)
+                self.genres_title_label.set_visible(True)
             else:
-                self.genres_label.set_text("No genres available")
+                self.genres_label.set_visible(False)
+                self.genres_title_label.set_visible(False)
 
             # Set features if available
             if game.features and len(game.features) > 0:
                 feature_names = [feature.value for feature in game.features]
                 feature_text = ", ".join(feature_names)
                 self.features_label.set_text(feature_text)
+                self.features_label.set_visible(True)
+                self.features_title_label.set_visible(True)
             else:
-                self.features_label.set_text("No features available")
+                self.features_label.set_visible(False)
+                self.features_title_label.set_visible(False)
 
             # Set age ratings if available
             if game.age_ratings and len(game.age_ratings) > 0:
                 rating_names = [rating.value for rating in game.age_ratings]
                 rating_text = ", ".join(rating_names)
                 self.age_ratings_label.set_text(rating_text)
+                self.age_ratings_label.set_visible(True)
+                self.age_ratings_title_label.set_visible(True)
             else:
-                self.age_ratings_label.set_text("No age ratings available")
+                self.age_ratings_label.set_visible(False)
+                self.age_ratings_title_label.set_visible(False)
 
             # Set regions if available
             if game.regions and len(game.regions) > 0:
                 region_names = [region.value for region in game.regions]
                 region_text = ", ".join(region_names)
                 self.regions_label.set_text(region_text)
+                self.regions_label.set_visible(True)
+                self.regions_title_label.set_visible(True)
             else:
-                self.regions_label.set_text("No regions available")
+                self.regions_label.set_visible(False)
+                self.regions_title_label.set_visible(False)
+
+            # Set source if available
+            if hasattr(game, 'source') and game.source:
+                # Get friendly source name
+                source_name = game.source
+                if game.source.isdigit():
+                    # Try to get source name from the data handler
+                    if self.controller and hasattr(self.controller, 'data_handler'):
+                        source_obj = self.controller.data_handler.get_source_by_id(game.source)
+                        if source_obj and hasattr(source_obj, 'name'):
+                            source_name = source_obj.name
+                        else:
+                            # Use a default if we couldn't find the name
+                            source_name = f"Source {game.source}"
+                else:
+                    # Just capitalize the source ID if it's not numeric
+                    source_name = game.source.capitalize()
+
+                self.source_label.set_text(source_name)
+                self.source_label.set_visible(True)
+                self.source_title_label.set_visible(True)
+            else:
+                self.source_label.set_visible(False)
+                self.source_title_label.set_visible(False)
+
+            # Set developer if available
+            if hasattr(game, 'developer') and game.developer:
+                self.developer_label.set_text(game.developer)
+                self.developer_label.set_visible(True)
+                self.developer_title_label.set_visible(True)
+            else:
+                self.developer_label.set_visible(False)
+                self.developer_title_label.set_visible(False)
+
+            # Set publisher if available
+            if hasattr(game, 'publisher') and game.publisher:
+                self.publisher_label.set_text(game.publisher)
+                self.publisher_label.set_visible(True)
+                self.publisher_title_label.set_visible(True)
+            else:
+                self.publisher_label.set_visible(False)
+                self.publisher_title_label.set_visible(False)
 
             # Check if game has launcher data and display it
             launcher_data = self.controller.data_handler.get_launcher_data(game)

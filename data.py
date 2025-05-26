@@ -268,6 +268,10 @@ class Game:
         """Get the path to the game's launcher data file"""
         return str(self._get_game_dir_path(data_dir) / "launcher.yaml")
 
+    def get_first_played_time(self, data_dir: Path) -> Optional[float]:
+        """Get the first played timestamp"""
+        return self.first_played
+
     def get_last_played_time(self, data_dir: Path) -> Optional[float]:
         """Get the last played timestamp from playtime.yaml"""
         return self.last_played
