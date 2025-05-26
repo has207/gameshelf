@@ -124,7 +124,7 @@ class RunnerDialog(Adw.Window):
     select_image_button: Gtk.Button = Gtk.Template.Child()
     clear_image_container: Gtk.Box = Gtk.Template.Child()
     clear_image_button: Gtk.Button = Gtk.Template.Child()
-    platform_flowbox: Gtk.FlowBox = Gtk.Template.Child()  # Platform selection flowbox
+    platforms_summary_label: Gtk.Label = Gtk.Template.Child()  # Platform selection summary
     action_button: Gtk.Button = Gtk.Template.Child()
     cancel_button: Gtk.Button = Gtk.Template.Child()
     remove_runner_container: Adw.PreferencesGroup = Gtk.Template.Child()
@@ -167,8 +167,9 @@ class RunnerDialog(Adw.Window):
         # Add required field indicators next to the fields
         self._add_required_field_indicators()
 
-        # Initialize platform selection
-        self._init_platform_selection()
+        # Initialize platform selection with empty selection
+        self.selected_platforms = []
+        self._update_platforms_summary()
 
         # Connect entry changes to validation
         self.title_entry.connect("notify::text", self.validate_form)
@@ -199,43 +200,19 @@ class RunnerDialog(Adw.Window):
         # Listen to platform changes to show/hide launcher type combo
         self.platform_changed_handlers = []
 
-    def _init_platform_selection(self):
-        """Initialize the platform selection flowbox with all available platforms"""
-        # Get sorted list of all platforms for better user experience
-        platforms = sorted([p for p in Platforms], key=lambda p: p.value)
+    def _update_platforms_summary(self):
+        """Update the platforms summary label"""
+        if not self.selected_platforms:
+            self.platforms_summary_label.set_text("None selected")
+        elif len(self.selected_platforms) == 1:
+            self.platforms_summary_label.set_text(self.selected_platforms[0].value)
+        else:
+            self.platforms_summary_label.set_text(f"{len(self.selected_platforms)} platforms selected")
 
-        # Clear any existing children
-        while child := self.platform_flowbox.get_first_child():
-            self.platform_flowbox.remove(child)
-
-        # Create a checkbox for each platform
-        for platform in platforms:
-            # Create a checkbox with platform name
-            checkbox = Gtk.CheckButton(label=platform.value)
-            checkbox.set_name(platform.name)  # Use enum name as identifier
-
-            # Connect checkbox state change to validate form
-            checkbox.connect("toggled", self.validate_form)
-
-            # Wrap in a FlowBoxChild
-            flowbox_child = Gtk.FlowBoxChild()
-            flowbox_child.set_child(checkbox)
-
-            # Add to flowbox
-            self.platform_flowbox.append(flowbox_child)
-
-            # Connect to Windows platform checkbox toggle event
-            if platform == Platforms.PC_WINDOWS:
-                # Store a reference to the checkbox for Windows platform
-                self.windows_platform_check = checkbox
-                # Connect to toggled event to show/hide launcher type combo
-                handler_id = checkbox.connect("toggled", self._update_launcher_type_visibility)
-                self.platform_changed_handlers.append((checkbox, handler_id))
-
-    def _update_launcher_type_visibility(self, checkbox):
+    def _update_launcher_type_visibility(self):
         """Update visibility of launcher type combo based on Windows platform selection"""
         # Show launcher type combo only if Windows platform is selected
-        has_windows = checkbox.get_active()
+        has_windows = any(platform == Platforms.PC_WINDOWS for platform in self.selected_platforms)
         self.launcher_type_combo.set_visible(has_windows)
 
         # If Windows is deselected, reset the launcher type to None
@@ -245,6 +222,38 @@ class RunnerDialog(Adw.Window):
 
         # Update validation
         self.validate_form()
+
+    @Gtk.Template.Callback()
+    def on_select_platforms_clicked(self, row):
+        """Handle platforms selection button click"""
+        from controllers.metadata_selection_dialog import MetadataSelectionDialog
+
+        # Create platform selection dialog
+        dialog = MetadataSelectionDialog(
+            parent=self,
+            title="Select Platforms",
+            enum_class=Platforms,
+            current_selections=self.selected_platforms
+        )
+
+        dialog.connect('metadata-selected', self._on_platforms_selected)
+        dialog.show()
+
+    def _on_platforms_selected(self, dialog, selected_items):
+        """Handle platform selection confirmation"""
+        # selected_items is already a list of Platform enums
+        self.selected_platforms = list(selected_items)
+
+        # Update the summary label
+        self._update_platforms_summary()
+
+        # Update launcher type visibility
+        self._update_launcher_type_visibility()
+
+        # Update validation
+        self.validate_form()
+
+        dialog.close()
 
     @Gtk.Template.Callback()
     def on_launcher_type_changed(self, combo_row, gparam):
@@ -266,40 +275,15 @@ class RunnerDialog(Adw.Window):
         self.validate_form()
 
     def _get_selected_platforms(self):
-        """Get list of selected platforms from the flowbox"""
-        selected_platforms = []
-
-        # Iterate through all children
-        for i, child in enumerate(self.platform_flowbox):
-            # Get the checkbox from the flowbox child
-            checkbox = child.get_child()
-            if checkbox and checkbox.get_active():
-                # Get the platform enum from the checkbox name
-                platform_name = checkbox.get_name()
-                try:
-                    platform = getattr(Platforms, platform_name)
-                    selected_platforms.append(platform)
-                except (AttributeError, TypeError):
-                    logger.error(f"Platform {platform_name} not found in Platforms enum")
-
-        return selected_platforms
+        """Get list of selected platforms"""
+        return self.selected_platforms
 
     def _select_platforms(self, platforms):
-        """Select the specified platforms in the flowbox"""
-        if not platforms:
-            return
-
-        # Iterate through all children to find matching platforms
-        for i, child in enumerate(self.platform_flowbox):
-            checkbox = child.get_child()
-            if checkbox:
-                platform_name = checkbox.get_name()
-
-                # Check if this platform is in the list
-                for platform in platforms:
-                    if platform.name == platform_name:
-                        checkbox.set_active(True)
-                        break
+        """Select the specified platforms"""
+        if platforms:
+            self.selected_platforms = platforms.copy()
+            self._update_platforms_summary()
+            self._update_launcher_type_visibility()
 
     def set_runner(self, runner: Runner):
         """Set the runner to edit (only for edit mode)"""
@@ -340,17 +324,6 @@ class RunnerDialog(Adw.Window):
         # Select platforms if any
         if runner.platforms:
             self._select_platforms(runner.platforms)
-            self.selected_platforms = runner.platforms.copy()
-
-            # Check if Windows platform is selected to show/hide launcher type combo
-            has_windows = False
-            for platform in runner.platforms:
-                if platform == Platforms.PC_WINDOWS:
-                    has_windows = True
-                    break
-
-            # Update launcher type visibility
-            self.launcher_type_combo.set_visible(has_windows)
 
         # Enable the action button
         self.validate_form()
@@ -560,7 +533,7 @@ class RunnerDialog(Adw.Window):
         current_discord_enabled = self.discord_switch.get_active()
 
         # Get currently selected platforms
-        current_platforms = self._get_selected_platforms()
+        current_platforms = self.selected_platforms
 
         logger.debug(f"Runner dialog validate_form: title='{title}', command='{command}', platforms: {len(current_platforms)}, discord: {current_discord_enabled}")
         logger.debug(f"Edit mode: {self.edit_mode}, Has title: {has_title}, Has command: {has_command}")
@@ -597,7 +570,7 @@ class RunnerDialog(Adw.Window):
                 logger.debug(f"Image changed to '{self.selected_image_path}'")
 
             # Check platforms change - get currently selected platforms
-            current_platforms = self._get_selected_platforms()
+            current_platforms = self.selected_platforms
 
             if len(current_platforms) != len(self.runner.platforms):
                 has_changes = True
@@ -647,7 +620,7 @@ class RunnerDialog(Adw.Window):
         discord_enabled = self.discord_switch.get_active()
 
         # Get selected platforms
-        platforms = self._get_selected_platforms()
+        platforms = self.selected_platforms
 
         # Generate an ID based on the title
         runner_id = title.lower().replace(" ", "_")
@@ -689,7 +662,7 @@ class RunnerDialog(Adw.Window):
         discord_enabled = self.discord_switch.get_active()
 
         # Get selected platforms
-        platforms = self._get_selected_platforms()
+        platforms = self.selected_platforms
 
         # Update the runner object
         self.runner.title = title

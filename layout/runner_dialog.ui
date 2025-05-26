@@ -5,7 +5,7 @@
   <template class="RunnerDialog" parent="AdwWindow">
     <property name="title">Runner Dialog</property>
     <property name="default-width">500</property>
-    <property name="default-height">400</property>
+    <property name="default-height">500</property>
     <property name="modal">true</property>
     <property name="hide-on-close">true</property>
     
@@ -94,6 +94,28 @@
                       </object>
                     </child>
                     <child>
+                      <object class="AdwActionRow">
+                        <property name="title">Platforms</property>
+                        <property name="subtitle">Select the platforms this runner supports</property>
+                        <property name="activatable">true</property>
+                        <signal name="activated" handler="on_select_platforms_clicked"/>
+                        <child>
+                          <object class="GtkLabel" id="platforms_summary_label">
+                            <property name="label">None selected</property>
+                            <property name="xalign">1</property>
+                            <style>
+                              <class name="dim-label"/>
+                            </style>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkImage">
+                            <property name="icon-name">go-next-symbolic</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
                       <object class="GtkCheckButton" id="windows_platform_check">
                         <property name="visible">false</property>
                       </object>
@@ -156,33 +178,6 @@
                                 <signal name="clicked" handler="on_clear_image_clicked"/>
                               </object>
                             </child>
-                          </object>
-                        </child>
-                      </object>
-                    </child>
-                  </object>
-                </child>
-                
-                <!-- Platform Selection Section -->
-                <child>
-                  <object class="AdwPreferencesGroup">
-                    <property name="title">Supported Platforms</property>
-                    <property name="description">Select the platforms this runner can launch games for</property>
-                    
-                    <child>
-                      <object class="GtkScrolledWindow">
-                        <property name="min-content-height">150</property>
-                        <property name="max-content-height">300</property>
-                        <property name="hscrollbar-policy">never</property>
-                        <child>
-                          <object class="GtkFlowBox" id="platform_flowbox">
-                            <property name="selection-mode">none</property>
-                            <property name="homogeneous">true</property>
-                            <property name="min-children-per-line">3</property>
-                            <property name="max-children-per-line">5</property>
-                            <style>
-                              <class name="platform-selection"/>
-                            </style>
                           </object>
                         </child>
                       </object>
