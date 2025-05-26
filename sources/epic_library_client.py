@@ -222,10 +222,10 @@ class EpicLibraryClient(SourceScanner):
                             platforms = game_data['platforms']
                             if isinstance(platforms, list):
                                 for platform in platforms:
-                                    if 'Windows' in platform or 'windows' in platform or platform == 'PC':
-                                        platform_enums.append(Platforms.PC_WINDOWS)
-                                    elif 'Mac' in platform or 'mac' in platform or 'OSX' in platform:
-                                        platform_enums.append(Platforms.MAC)
+                                    # Use enum mapping infrastructure
+                                    mapped_platform = Platforms.try_from_string(platform)
+                                    if mapped_platform:
+                                        platform_enums.append(mapped_platform)
                             else:
                                 # Default to Windows if platform info is unexpected
                                 platform_enums.append(Platforms.PC_WINDOWS)

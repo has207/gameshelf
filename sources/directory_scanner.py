@@ -164,59 +164,35 @@ class DirectoryScanner(SourceScanner):
 
                             # Add genres if available and valid
                             if metadata_game.genres:
-                                # Only extract name strings, not trying to convert to enum values here
-                                genre_names = []
-                                for genre in metadata_game.genres:
-                                    if hasattr(genre, 'name'):
-                                        genre_names.append(genre.name)
-
+                                genre_names = [genre.name for genre in metadata_game.genres if hasattr(genre, 'name')]
                                 if genre_names:
                                     logger.info(f"Found genres for '{title}': {genre_names}")
-                                    # Don't assign directly to game.genres as it expects enum values
-                                    # Instead, we'll try to map these to our genre enum values
-                                    from data_mapping import Genres
-                                    mapped_genres = []
-                                    for genre_name in genre_names:
-                                        try:
-                                            # Try to find a matching genre in our enum
-                                            for genre_enum in Genres:
-                                                if genre_name.lower() in genre_enum.value.lower():
-                                                    mapped_genres.append(genre_enum)
-                                                    break
-                                        except Exception as genre_err:
-                                            logger.warning(f"Could not map genre '{genre_name}': {genre_err}")
 
-                                    if mapped_genres:
-                                        game.genres = mapped_genres
+                                # Use metadata provider's mapping method
+                                mapped_genres = self.metadata_provider.map_genres(metadata_game.genres)
+                                if mapped_genres:
+                                    game.genres = mapped_genres
+                                    logger.debug(f"Mapped {len(mapped_genres)} genres for '{title}'")
 
                             # Try to map age ratings if available
                             if hasattr(metadata_game, 'rating') and metadata_game.rating:
-                                from data_mapping import AgeRatings
-                                try:
-                                    rating_str = metadata_game.rating
-                                    # Attempt to map the rating string to our enum
-                                    for rating_enum in AgeRatings:
-                                        if rating_str.lower() in rating_enum.value.lower():
-                                            game.age_ratings = [rating_enum]
-                                            logger.info(f"Set age rating '{rating_enum.value}' for '{title}'")
-                                            break
-                                except Exception as rating_err:
-                                    logger.warning(f"Could not map age rating '{metadata_game.rating}': {rating_err}")
+                                rating_str = metadata_game.rating
+                                mapped_rating = self.metadata_provider.map_single_age_rating(rating_str)
+                                if mapped_rating:
+                                    game.age_ratings = [mapped_rating]
+                                    logger.info(f"Mapped metadata rating '{rating_str}' to {mapped_rating.value} for '{title}'")
+                                else:
+                                    logger.warning(f"Unable to map metadata age rating '{rating_str}' for '{title}'")
 
                             # Try to extract and map regions if available
-                            # This would be based on metadata about the game's region
                             if hasattr(metadata_game, 'region') and metadata_game.region:
-                                from data_mapping import Regions
-                                try:
-                                    region_str = metadata_game.region
-                                    # Attempt to map the region string to our enum
-                                    for region_enum in Regions:
-                                        if region_str.lower() in region_enum.value.lower():
-                                            game.regions = [region_enum]
-                                            logger.info(f"Set region '{region_enum.value}' for '{title}'")
-                                            break
-                                except Exception as region_err:
-                                    logger.warning(f"Could not map region '{metadata_game.region}': {region_err}")
+                                region_str = metadata_game.region
+                                mapped_region = self.metadata_provider.map_single_region(region_str)
+                                if mapped_region:
+                                    game.regions = [mapped_region]
+                                    logger.info(f"Mapped metadata region '{region_str}' to {mapped_region.value} for '{title}'")
+                                else:
+                                    logger.warning(f"Unable to map metadata region '{region_str}' for '{title}'")
 
                             # We already set the platform from source config, so we don't override it
                     except Exception as e:

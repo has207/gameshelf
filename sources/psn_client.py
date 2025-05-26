@@ -850,10 +850,9 @@ class PSNClient(SourceScanner):
 
                     try:
                         # Map platform string to our platform enum
-                        if platform_str == "PS5":
-                            platform_enums.append(Platforms.PLAYSTATION5)
-                        elif platform_str == "PS4":
-                            platform_enums.append(Platforms.PLAYSTATION4)
+                        mapped_platform = Platforms.try_from_string(platform_str)
+                        if mapped_platform:
+                            platform_enums.append(mapped_platform)
                         else:
                             logger.warning(f"Unable to map platform '{platform_str}'")
 
@@ -882,41 +881,15 @@ class PSNClient(SourceScanner):
                         for genre in genres_data:
                             # Convert genre to uppercase for comparison
                             genre_upper = genre.upper() if genre else ""
-                            logger.debug(f"Processing genre: '{genre}', uppercase: '{genre_upper}'")
-                            try:
-                                # Try to map common PSN genres to our genre enum
-                                if "ACTION" in genre_upper:
-                                    genre_enums.append(Genres.ACTION)
-                                elif "ADVENTURE" in genre_upper:
-                                    genre_enums.append(Genres.ADVENTURE)
-                                elif "PUZZLE" in genre_upper:
-                                    genre_enums.append(Genres.PUZZLE)
-                                elif "RPG" in genre_upper or "ROLE" in genre_upper:
-                                    genre_enums.append(Genres.ROLE_PLAYING_RPG)
-                                elif "STRATEGY" in genre_upper:
-                                    genre_enums.append(Genres.STRATEGY)
-                                elif "SPORTS" in genre_upper:
-                                    genre_enums.append(Genres.SPORTS)
-                                elif "RACING" in genre_upper:
-                                    genre_enums.append(Genres.RACING)
-                                elif "SIMULATION" in genre_upper or "SIMULATOR" in genre_upper:
-                                    genre_enums.append(Genres.SIMULATOR)
-                                elif "FIGHTING" in genre_upper:
-                                    genre_enums.append(Genres.FIGHTING)
-                                elif "PLATFORM" in genre_upper:
-                                    genre_enums.append(Genres.PLATFORMER)
-                                elif "SHOOTER" in genre_upper:
-                                    genre_enums.append(Genres.SHOOTER)
-                                elif "HORROR" in genre_upper:
-                                    genre_enums.append(Genres.HORROR)
-                                elif "MUSIC" in genre_upper:
-                                    genre_enums.append(Genres.MUSIC)
-                                elif "INDIE" in genre_upper:
-                                    genre_enums.append(Genres.INDIE)
-                                else:
-                                    logger.warning(f"Unable to map genre '{genre}'")
-                            except Exception as e:
-                                logger.warning(f"Could not map genre '{genre}': {e}")
+                            logger.debug(f"Processing genre: '{genre}'")
+
+                            # Use enhanced enum mapping
+                            mapped_genre = Genres.try_from_string(genre)
+                            if mapped_genre:
+                                genre_enums.append(mapped_genre)
+                                logger.debug(f"Mapped PSN genre '{genre}' to {mapped_genre.value}")
+                            else:
+                                logger.warning(f"Unable to map PSN genre '{genre}' for '{title}'")
 
                         # Set genres if we found any
                         if genre_enums:

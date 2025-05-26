@@ -708,32 +708,13 @@ class XboxLibrary(SourceScanner):
                         genres = detail.get('genres', [])
                         genre_enums = []
                         for genre in genres:
-                            # Map Xbox genres to our genre enum
-                            try:
-                                if "Action" in genre:
-                                    genre_enums.append(Genres.ACTION)
-                                elif "Adventure" in genre:
-                                    genre_enums.append(Genres.ADVENTURE)
-                                elif "Puzzle" in genre:
-                                    genre_enums.append(Genres.PUZZLE)
-                                elif "RPG" in genre or "Role" in genre:
-                                    genre_enums.append(Genres.ROLE_PLAYING_RPG)
-                                elif "Strategy" in genre:
-                                    genre_enums.append(Genres.STRATEGY)
-                                elif "Sports" in genre:
-                                    genre_enums.append(Genres.SPORTS)
-                                elif "Racing" in genre:
-                                    genre_enums.append(Genres.RACING)
-                                elif "Simulation" in genre:
-                                    genre_enums.append(Genres.SIMULATOR)
-                                elif "Fighting" in genre:
-                                    genre_enums.append(Genres.FIGHTING)
-                                elif "Platform" in genre:
-                                    genre_enums.append(Genres.PLATFORMER)
-                                elif "Shooter" in genre:
-                                    genre_enums.append(Genres.SHOOTER)
-                            except (AttributeError, ValueError) as e:
-                                logger.warning(f"Could not map genre '{genre}': {e}")
+                            # Use enhanced enum mapping
+                            mapped_genre = Genres.try_from_string(genre)
+                            if mapped_genre:
+                                genre_enums.append(mapped_genre)
+                                logger.debug(f"Mapped Xbox genre '{genre}' to {mapped_genre.value}")
+                            else:
+                                logger.warning(f"Unable to map Xbox genre '{genre}' for '{title}'")
 
                         # Use try-except to catch any errors when setting genres
                         try:

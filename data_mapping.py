@@ -1,6 +1,49 @@
 import enum
+import re
 
 from typing import Optional, List
+
+
+class BaseEnum(enum.Enum):
+    """Base class for all enums with common helper methods"""
+
+    def to_string(self) -> str:
+        """Return the string value of this enum"""
+        return self.value
+
+    @classmethod
+    def get_all_strings(cls) -> List[str]:
+        """Return a list of all string values for this enum"""
+        return [item.value for item in cls]
+
+    @classmethod
+    def try_from_string(cls, value_str: Optional[str]):
+        """
+        Try to convert a string to enum value, returning None if invalid
+
+        Args:
+            value_str: String representation of enum value
+
+        Returns:
+            Enum value or None if invalid
+        """
+        try:
+            return cls.from_string(value_str)
+        except Exception:
+            return None
+
+    @classmethod
+    def to_string_list(cls, items: List) -> List[str]:
+        """
+        Convert a list of enum values to string values
+
+        Args:
+            items: List of enum values
+
+        Returns:
+            List of string representations
+        """
+        return [item.value for item in items]
 
 
 class InvalidCompletionStatusError(Exception):
@@ -43,7 +86,7 @@ class InvalidLauncherTypeError(Exception):
     pass
 
 
-class CompletionStatus(enum.Enum):
+class CompletionStatus(BaseEnum):
     NOT_PLAYED = "Not Played"
     PLAN_TO_PLAY = "Plan to Play"
     PLAYING = "Playing"
@@ -84,7 +127,7 @@ class CompletionStatus(enum.Enum):
         raise InvalidCompletionStatusError(f"Invalid completion status: {status_str}")
 
 
-class Platforms(enum.Enum):
+class Platforms(BaseEnum):
     COMMODORE_64 = "Commodore 64"
     NINTENDO_64 = "Nintendo 64"
     COMMODORE_AMIGA_CD32 = "Commodore Amiga CD32"
@@ -154,6 +197,7 @@ class Platforms(enum.Enum):
     NEC_PCFX = "NEC PC-FX"
     PLAYSTATION2 = "Sony PlayStation 2"
     SEGA_SATURN = "Sega Saturn"
+    UNKNOWN = "Unknown"
 
     @classmethod
     def from_string(cls, platform_str: Optional[str]) -> 'Platforms':
@@ -172,6 +216,9 @@ class Platforms(enum.Enum):
         if not platform_str:
             raise InvalidPlatformError("Platform string cannot be empty")
 
+        # Normalize input
+        platform_lower = platform_str.lower().strip()
+
         # Try direct match first
         for platform in cls:
             if platform.value == platform_str:
@@ -179,8 +226,76 @@ class Platforms(enum.Enum):
 
         # Try case-insensitive match
         for platform in cls:
-            if platform.value.lower() == platform_str.lower():
+            if platform.value.lower() == platform_lower:
                 return platform
+
+        # Define alternative mappings for common variations
+        mappings = {
+            # PC variations
+            "pc": cls.PC_WINDOWS,
+            "windows": cls.PC_WINDOWS,
+            "win": cls.PC_WINDOWS,
+            "linux": cls.PC_LINUX,
+            "dos": cls.PC_DOS,
+            "mac": cls.MACINTOSH,
+            "macos": cls.MACINTOSH,
+
+            # PlayStation variations
+            "ps1": cls.PLAYSTATION,
+            "ps2": cls.PLAYSTATION2,
+            "ps3": cls.PLAYSTATION3,
+            "ps4": cls.PLAYSTATION4,
+            "ps5": cls.PLAYSTATION5,
+            "playstation": cls.PLAYSTATION,
+            "playstation 1": cls.PLAYSTATION,
+            "playstation 2": cls.PLAYSTATION2,
+            "playstation 3": cls.PLAYSTATION3,
+            "playstation 4": cls.PLAYSTATION4,
+            "playstation 5": cls.PLAYSTATION5,
+            "psp": cls.PSP,
+            "vita": cls.PLAYSTATION_VITA,
+            "ps vita": cls.PLAYSTATION_VITA,
+
+            # Xbox variations
+            "xbox": cls.XBOX,
+            "xbox 360": cls.XBOX360,
+            "xbox one": cls.XBOX_ONE,
+            "xbox series": cls.XBOX_SERIES,
+            "xbox series x": cls.XBOX_SERIES,
+            "xbox series s": cls.XBOX_SERIES,
+
+            # Nintendo variations
+            "nes": cls.NINTENDO_NES,
+            "snes": cls.NINTENDO_SNES,
+            "n64": cls.NINTENDO_64,
+            "gamecube": cls.NINTENDO_GAMECUBE,
+            "wii": cls.NINTENDO_WII,
+            "wii u": cls.NINTENDO_WIIU,
+            "switch": cls.NINTENDO_SWITCH,
+            "gameboy": cls.NINTENDO_GAMEBOY,
+            "gbc": cls.NINTENDO_GAMEBOY_COLOR,
+            "gba": cls.NINTENDO_GAMEBOY_ADVANCE,
+            "ds": cls.NINTENDO_DS,
+            "3ds": cls.NINTENDO_3DS,
+
+            # Epic-specific variations
+            "osx": cls.MACINTOSH,
+
+            # Other common variations
+            "arcade": cls.ARCADE,
+            "mac": cls.MACINTOSH,
+            "mobile": cls.WIRELESS,
+            "unknown": cls.UNKNOWN
+        }
+
+        # Check alternative mappings
+        if platform_lower in mappings:
+            return mappings[platform_lower]
+
+        # Try keyword matching for partial matches
+        for keyword, platform_enum in mappings.items():
+            if keyword in platform_lower:
+                return platform_enum
 
         # Raise exception if no match found
         raise InvalidPlatformError(f"Invalid platform: {platform_str}")
@@ -207,7 +322,7 @@ class Platforms(enum.Enum):
         return platforms
 
 
-class AgeRatings(enum.Enum):
+class AgeRatings(BaseEnum):
     CLASSIND_16 = "ClassInd 16"
     ACB_BLANK = "ACB "
     CERO_RP = "CERO RP"
@@ -302,7 +417,7 @@ class AgeRatings(enum.Enum):
         return ratings
 
 
-class Features(enum.Enum):
+class Features(BaseEnum):
     STEREO_SURROUND = "Stereo Surround"
     ONLINE_VERSUS_MULTIPLAYER = "Online Versus Multiplayer"
     MULTIPLAYER = "Multiplayer"
@@ -376,51 +491,60 @@ class Features(enum.Enum):
         return features
 
 
-class Genres(enum.Enum):
-    MOBA = "MOBA"
-    TACTICAL = "Tactical"
-    STRATEGY = "Strategy"
-    ARCADE = "Arcade"
-    PLATFORM = "Platform"
-    FLIGHT_SIMULATOR = "Flight Simulator"
-    TURN_BASED_STRATEGY = "Turn-based strategy (TBS)"
-    ROLE_PLAYING_RPG = "Role-playing (RPG)"
-    STEALTH = "Stealth"
-    SIMULATOR = "Simulator"
-    SHOOTER = "Shooter"
-    HACK_AND_SLASH = "Hack and slash/Beat 'em up"
-    PRODUCTIVITY = "Productivity"
+class Genres(BaseEnum):
     ACTION = "Action"
-    SPORTS = "Sports"
-    BEAT_EM_UP = "Beat 'em Up"
-    QUIZ_TRIVIA = "Quiz/Trivia"
-    REAL_TIME_STRATEGY = "Real Time Strategy (RTS)"
-    TURN_BASED = "Turn-based"
-    HORROR = "Horror"
-    SANDBOX = "Sandbox"
-    CARD_BOARD_GAME = "Card & Board Game"
-    MUSIC = "Music"
-    ROLE_PLAYING = "Role-Playing"
-    CONSTRUCTION_MANAGEMENT_SIMULATION = "Construction and Management Simulation"
-    VISUAL_NOVEL = "Visual Novel"
-    VEHICLE_SIMULATION = "Vehicle Simulation"
-    EDUCATION = "Education"
-    SCI_FI = "Sci-fi"
-    MMO = "MMO"
-    SPORT = "Sport"
-    INDIE = "Indie"
-    BOARD_GAME = "Board Game"
-    PLATFORMER = "Platformer"
-    PINBALL = "Pinball"
-    PUZZLE = "Puzzle"
-    LIFE_SIMULATION = "Life Simulation"
-    RACING = "Racing"
-    POINT_AND_CLICK = "Point-and-click"
-    PARTY = "Party"
-    CASINO = "Casino"
     ADVENTURE = "Adventure"
+    ARCADE = "Arcade"
+    AVATAR = "Avatar"
+    BEAT_EM_UP = "Beat 'em Up"
+    BOARD_GAME = "Board Game"
+    CARD_BOARD_GAME = "Card & Board Game"
+    CASINO = "Casino"
+    CLASSICS = "Classics"
+    CONSTRUCTION_MANAGEMENT_SIMULATION = "Construction and Management Simulation"
+    EDUCATION = "Education"
     FIGHTING = "Fighting"
+    FLYING = "Flying"
+    HACK_AND_SLASH = "Hack and slash/Beat 'em up"
+    HORROR = "Horror"
+    INDIE = "Indie"
+    KINECT = "Kinect"
+    LIFE_SIMULATION = "Life Simulation"
+    MMO = "MMO"
+    MOBA = "MOBA"
     MOBA_MULTIPLAYER_ONLINE_BATTLE_ARENA = "MOBA (Multiplayer Online Battle Arena)"
+    MUSIC = "Music"
+    OTHER = "Other"
+    PARTY = "Party"
+    PINBALL = "Pinball"
+    PLATFORM = "Platform"
+    PLATFORMER = "Platformer"
+    POINT_AND_CLICK = "Point-and-click"
+    PRODUCTIVITY = "Productivity"
+    PUZZLE = "Puzzle"
+    QUIZ_TRIVIA = "Quiz/Trivia"
+    RACING = "Racing"
+    REAL_TIME_STRATEGY = "Real Time Strategy (RTS)"
+    ROLE_PLAYING = "Role-Playing"
+    ROLE_PLAYING_RPG = "Role-playing (RPG)"
+    SANDBOX = "Sandbox"
+    SCI_FI = "Sci-fi"
+    SHOOTER = "Shooter"
+    SIMULATOR = "Simulator"
+    SPORT = "Sport"
+    SPORTS = "Sports"
+    STEALTH = "Stealth"
+    STRATEGY = "Strategy"
+    TACTICAL = "Tactical"
+    TOOLS = "Tools"
+    TURN_BASED = "Turn-based"
+    TURN_BASED_STRATEGY = "Turn-based strategy (TBS)"
+    UNIQUE = "Unique"
+    UNKNOWN = "Unknown"
+    VEHICLE_SIMULATION = "Vehicle Simulation"
+    VISUAL_NOVEL = "Visual Novel"
+    VR = "VR"
+    WORD = "Word"
 
     @classmethod
     def from_string(cls, genre_str: Optional[str]) -> 'Genres':
@@ -439,6 +563,9 @@ class Genres(enum.Enum):
         if not genre_str:
             raise InvalidGenreError("Genre string cannot be empty")
 
+        # Normalize input
+        genre_lower = genre_str.lower().strip()
+
         # Try direct match first
         for genre in cls:
             if genre.value == genre_str:
@@ -446,8 +573,100 @@ class Genres(enum.Enum):
 
         # Try case-insensitive match
         for genre in cls:
-            if genre.value.lower() == genre_str.lower():
+            if genre.value.lower() == genre_lower:
                 return genre
+
+        # Define alternative mappings for common variations
+        mappings = {
+            # RPG variations
+            "rpg": cls.ROLE_PLAYING_RPG,
+            "role playing": cls.ROLE_PLAYING_RPG,
+            "role-playing": cls.ROLE_PLAYING_RPG,
+            "roleplaying": cls.ROLE_PLAYING_RPG,
+            "role_playing_games": cls.ROLE_PLAYING_RPG,
+
+            # Platform variations
+            "platform": cls.PLATFORMER,
+            "platforming": cls.PLATFORMER,
+
+            # Simulation variations
+            "simulation": cls.SIMULATOR,
+            "sim": cls.SIMULATOR,
+
+            # Beat em up variations
+            "beat em up": cls.BEAT_EM_UP,
+            "beat 'em up": cls.BEAT_EM_UP,
+            "hack and slash": cls.HACK_AND_SLASH,
+
+            # Strategy variations
+            "rts": cls.REAL_TIME_STRATEGY,
+            "real time strategy": cls.REAL_TIME_STRATEGY,
+            "tbs": cls.TURN_BASED_STRATEGY,
+            "turn based strategy": cls.TURN_BASED_STRATEGY,
+            "turn-based": cls.TURN_BASED,
+
+            # Music/Rhythm variations
+            "music/rhythm": cls.MUSIC,
+            "rhythm": cls.MUSIC,
+
+            # Family/Casual games
+            "family": cls.PARTY,
+            "casual": cls.PARTY,
+
+            # Flying/Flight variations
+            "flight": cls.FLYING,
+            "flying": cls.FLYING,
+
+            # Quiz/Trivia variations
+            "quiz": cls.QUIZ_TRIVIA,
+            "trivia": cls.QUIZ_TRIVIA,
+
+            # Xbox-specific
+            "kinect": cls.KINECT,
+            "classics": cls.CLASSICS,
+            "other": cls.OTHER,
+            "card & board": cls.CARD_BOARD_GAME,
+            "avatar": cls.AVATAR,
+            "tools": cls.TOOLS,
+            "word": cls.WORD,
+            "multi-player online battle arena": cls.MOBA_MULTIPLAYER_ONLINE_BATTLE_ARENA,
+
+            # Unique/Other catch-all
+            "unique": cls.UNIQUE,
+
+            # Other common variations
+            "sci fi": cls.SCI_FI,
+            "science fiction": cls.SCI_FI,
+            "mmo": cls.MMO,
+            "massively multiplayer": cls.MMO,
+            "vr": cls.VR,
+            "virtual reality": cls.VR
+        }
+
+        # Check alternative mappings
+        if genre_lower in mappings:
+            return mappings[genre_lower]
+
+        # Try keyword matching for partial matches
+        for keyword, genre_enum in mappings.items():
+            if keyword in genre_lower:
+                return genre_enum
+
+        # Try splitting on delimiters and mapping individual parts
+        delimiters = r'[&/,\s]+|(\s+and\s+)'
+        parts = [part.strip().lower() for part in re.split(delimiters, genre_lower) if part and part.strip()]
+
+        if len(parts) > 1:
+            # Try to map each part
+            for part in parts:
+                # Try direct mapping first
+                for genre in cls:
+                    if genre.value.lower() == part:
+                        return genre
+
+                # Try alternative mappings
+                if part in mappings:
+                    return mappings[part]
 
         # Raise exception if no match found
         raise InvalidGenreError(f"Invalid genre: {genre_str}")
@@ -474,7 +693,7 @@ class Genres(enum.Enum):
         return genres
 
 
-class Regions(enum.Enum):
+class Regions(BaseEnum):
     ASIA = "Asia"
     WORLD = "World"
     USA = "USA"
@@ -533,7 +752,7 @@ class Regions(enum.Enum):
         return regions
 
 
-class LauncherType(enum.Enum):
+class LauncherType(BaseEnum):
     """Types of game launchers for external games"""
     EPIC = "Epic Games Store"
     GOG = "GOG Galaxy"
