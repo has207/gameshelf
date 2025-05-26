@@ -351,9 +351,7 @@ class JsonImporter:
 
             # Set the last played time if available
             if last_played_timestamp:
-                play_count_path = Path(game.get_play_count_path(self.data_handler.data_dir))
-                if play_count_path.exists():
-                    os.utime(play_count_path, (last_played_timestamp, last_played_timestamp))
+                self.data_handler.set_last_played_time(game, last_played_timestamp)
 
         # Update play time if needed
         if game.play_time > 0:

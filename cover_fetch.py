@@ -124,7 +124,7 @@ class CoverFetcher:
         media_path = self._get_media_path_for_url(url)
 
         if media_path.exists():
-            logger.info(f"Cover image already exists in media directory: {media_path}")
+            logger.debug(f"Cover image already exists in media directory: {media_path}")
             # Create symlink to existing image
             return self._create_game_symlink(game_id, media_path)
 

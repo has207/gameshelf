@@ -806,6 +806,29 @@ class PSNClient(SourceScanner):
                             except Exception as dt_err:
                                 logger.warning(f"Failed to parse last played date for {title}: {dt_err}")
 
+                        # Update first played time if available and not already set
+                        first_played_iso = game_data.get('firstPlayedDateTime')
+                        if first_played_iso and isinstance(first_played_iso, str):
+                            try:
+                                # Parse ISO 8601 datetime
+                                dt = datetime.fromisoformat(first_played_iso.replace('Z', '+00:00'))
+                                unix_timestamp = dt.timestamp()
+
+                                # Only update if not already set
+                                if existing_game.first_played is None:
+                                    logger.debug(f"Setting first played time for {title} to {unix_timestamp}")
+
+                                    # Set first played time
+                                    if self.data_handler.set_first_played_time(existing_game, unix_timestamp):
+                                        logger.debug(f"Set first played time for {title} to {dt.strftime('%Y-%m-%d %H:%M:%S')}")
+                                        game_updated = True
+                                    else:
+                                        logger.warning(f"Failed to set first played time for {title}")
+                                else:
+                                    logger.debug(f"First played time already set for {title}, skipping update")
+                            except Exception as dt_err:
+                                logger.warning(f"Failed to parse first played date for {title}: {dt_err}")
+
                         # If any updates were made to this game, increment the updated count
                         if game_updated:
                             updated_count += 1
@@ -1071,6 +1094,24 @@ class PSNClient(SourceScanner):
                                             logger.warning(f"Failed to set last played time for {game.title}")
                                     except Exception as dt_err:
                                         logger.warning(f"Failed to parse last played date for {game.title}: {dt_err}")
+
+                                # Handle first played datetime if available
+                                first_played_iso = game_data.get('firstPlayedDateTime')
+                                if first_played_iso:
+                                    logger.debug(f"First played timestamp from PSN for {game.title}: {first_played_iso}")
+                                    try:
+                                        # Parse the ISO 8601 datetime and convert to Unix timestamp
+                                        # Format example: "2018-06-16T15:00:01.520000Z"
+                                        dt = datetime.fromisoformat(first_played_iso.replace('Z', '+00:00'))
+                                        unix_timestamp = dt.timestamp()
+
+                                        # Use data_handler to set the first played time
+                                        if self.data_handler.set_first_played_time(game, unix_timestamp):
+                                            logger.debug(f"Set first played time for {game.title} to {dt.strftime('%Y-%m-%d %H:%M:%S')}")
+                                        else:
+                                            logger.warning(f"Failed to set first played time for {game.title}")
+                                    except Exception as dt_err:
+                                        logger.warning(f"Failed to parse first played date for {game.title}: {dt_err}")
 
                         # Download and save the cover image if URL is available
                         if hasattr(game, 'image') and game.image and source.config.get("download_images", True):

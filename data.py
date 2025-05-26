@@ -109,6 +109,8 @@ class Game:
         self.created = created
         self.play_count = 0
         self.play_time = 0  # Total play time in seconds
+        self.last_played = None  # Timestamp when game was last played
+        self.first_played = None  # Timestamp when game was first played
         self.hidden = hidden  # Whether the game is hidden from the main grid
         self.description = description  # Game description text
         self.platforms = []  # List of platforms the game is available on
@@ -248,9 +250,6 @@ class Game:
             return game_file.stat().st_mtime
         return None
 
-    def get_play_count_path(self, data_dir: Path) -> str:
-        return str(self._get_game_dir_path(data_dir) / "play_count.yaml")
-
     def get_play_time_path(self, data_dir: Path) -> str:
         return str(self._get_game_dir_path(data_dir) / "playtime.yaml")
 
@@ -270,10 +269,8 @@ class Game:
         return str(self._get_game_dir_path(data_dir) / "launcher.yaml")
 
     def get_last_played_time(self, data_dir: Path) -> Optional[float]:
-        play_count_file = Path(self.get_play_count_path(data_dir))
-        if play_count_file.exists():
-            return play_count_file.stat().st_mtime
-        return None
+        """Get the last played timestamp from playtime.yaml"""
+        return self.last_played
 
     def is_running(self, data_dir: Path) -> bool:
         """

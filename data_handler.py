@@ -157,27 +157,19 @@ class DataHandler:
                         source=game_data.get("source")
                     )
 
-                    # Load play count if exists
-                    play_count_file = game_file.parent / "play_count.yaml"
-                    if play_count_file.exists():
-                        try:
-                            with open(play_count_file, "r") as pc_file:
-                                play_data = yaml.safe_load(pc_file)
-                                if play_data and isinstance(play_data, dict):
-                                    game.play_count = play_data.get("count", 0)
-                        except Exception as pc_err:
-                            logger.error(f"Error loading play count for {game_id}: {pc_err}")
-
-                    # Load play time if exists
+                    # Load playtime data (consolidated format)
                     play_time_file = game_file.parent / "playtime.yaml"
                     if play_time_file.exists():
                         try:
                             with open(play_time_file, "r") as pt_file:
                                 play_time_data = yaml.safe_load(pt_file)
                                 if play_time_data and isinstance(play_time_data, dict):
-                                    game.play_time = play_time_data.get("seconds", 0)
+                                    game.play_count = play_time_data.get("play_count", 0)
+                                    game.play_time = play_time_data.get("play_time_seconds", 0)
+                                    game.last_played = play_time_data.get("last_played")
+                                    game.first_played = play_time_data.get("first_played")
                         except Exception as pt_err:
-                            logger.error(f"Error loading play time for {game_id}: {pt_err}")
+                            logger.error(f"Error loading playtime data for {game_id}: {pt_err}")
 
                     # Load description if exists
                     description_file = game_file.parent / "description.yaml"
@@ -604,8 +596,7 @@ class DataHandler:
 
     def update_play_count(self, game: Game, count: int) -> bool:
         """
-        Update the play count for a game and save it to the play_count.yaml file.
-        The file modification time will serve as the 'last played' timestamp.
+        Update the play count for a game and save it to playtime.yaml.
         Also manages the completion status based on play count:
         - If count is 0 and status is Playing/Played/Beaten/Completed, reset to Not Played
         - If count > 0 and status is Not Played, change to Played
@@ -617,9 +608,6 @@ class DataHandler:
         Returns:
             True if the play count was successfully updated, False otherwise
         """
-        game_dir = self._get_game_dir_from_id(game.id)
-        play_count_file = game_dir / "play_count.yaml"
-
         try:
             # Check if we need to update completion status based on play count
             status_updated = False
@@ -645,14 +633,19 @@ class DataHandler:
                 logger.info(f"Setting completion status for game {game.title} to PLAYED (play count = {count})")
 
             # Update the play count in the game object
+            old_count = game.play_count
             game.play_count = count
 
-            # Create the play count data
-            play_data = {"count": count}
+            # Set last_played timestamp when play count increases
+            if count > old_count:
+                game.last_played = time.time()
+                # Set first_played if this is the first time
+                if not hasattr(game, 'first_played') or game.first_played is None:
+                    game.first_played = game.last_played
 
-            # Write to the file (this also updates the modification time)
-            with open(play_count_file, "w") as f:
-                yaml.dump(play_data, f)
+            # Save consolidated playtime data
+            if not self._save_playtime_data(game):
+                return False
 
             # If the completion status changed, update the game.yaml file
             if status_updated:
@@ -681,6 +674,37 @@ class DataHandler:
         # the update_play_count method will handle changing NOT_PLAYED to PLAYED
         return self.update_play_count(game, game.play_count + 1)
 
+    def _save_playtime_data(self, game: Game) -> bool:
+        """
+        Save consolidated playtime data to playtime.yaml file.
+
+        Args:
+            game: The game to save playtime data for
+
+        Returns:
+            True if successfully saved, False otherwise
+        """
+        game_dir = self._get_game_dir_from_id(game.id)
+        play_time_file = game_dir / "playtime.yaml"
+
+        try:
+            # Create consolidated playtime data
+            playtime_data = {
+                "play_count": game.play_count,
+                "play_time_seconds": game.play_time,
+                "last_played": game.last_played,
+                "first_played": getattr(game, 'first_played', None)
+            }
+
+            # Write to the file
+            with open(play_time_file, "w") as f:
+                yaml.dump(playtime_data, f)
+
+            return True
+        except Exception as e:
+            logger.error(f"Error saving playtime data for {game.id}: {e}")
+            return False
+
     def update_play_time(self, game: Game, seconds: int) -> bool:
         """
         Update the play time for a game with a specific value.
@@ -692,21 +716,10 @@ class DataHandler:
         Returns:
             True if the play time was successfully updated, False otherwise
         """
-        game_dir = self._get_game_dir_from_id(game.id)
-        play_time_file = game_dir / "playtime.yaml"
-
         try:
             # Set the play time to the provided value
             game.play_time = seconds
-
-            # Create the play time data
-            play_time_data = {"seconds": game.play_time}
-
-            # Write to the file
-            with open(play_time_file, "w") as f:
-                yaml.dump(play_time_data, f)
-
-            return True
+            return self._save_playtime_data(game)
         except Exception as e:
             logger.error(f"Error updating play time for {game.id}: {e}")
             return False
@@ -944,8 +957,7 @@ class DataHandler:
 
     def set_last_played_time(self, game: Game, timestamp: float) -> bool:
         """
-        Set the last played time for a game by updating the play_count.yaml file's
-        modification time.
+        Set the last played time for a game by updating the playtime.yaml file.
 
         Args:
             game: The game to update the last played time for
@@ -954,23 +966,35 @@ class DataHandler:
         Returns:
             True if the last played time was successfully updated, False otherwise
         """
-        play_count_file = Path(game.get_play_count_path(self.data_dir))
-
         try:
-            # Ensure the play count file exists
-            if not play_count_file.exists():
-                # If it doesn't exist, create it with a default count of 0
-                # (this is appropriate since we're just setting the timestamp)
-                play_data = {"count": game.play_count or 0}
-                with open(play_count_file, "w") as f:
-                    yaml.dump(play_data, f)
+            # Set the last played timestamp in the game object
+            game.last_played = timestamp
 
-            # Set the access and modification times of the file
-            os.utime(play_count_file, (timestamp, timestamp))
-
-            return True
+            # Save the consolidated playtime data
+            return self._save_playtime_data(game)
         except Exception as e:
             logger.error(f"Error setting last played time for {game.id}: {e}")
+            return False
+
+    def set_first_played_time(self, game: Game, timestamp: float) -> bool:
+        """
+        Set the first played time for a game by updating the playtime.yaml file.
+
+        Args:
+            game: The game to update the first played time for
+            timestamp: Unix timestamp (seconds since epoch) to set as the first played time
+
+        Returns:
+            True if the first played time was successfully updated, False otherwise
+        """
+        try:
+            # Set the first played timestamp in the game object
+            game.first_played = timestamp
+
+            # Save the consolidated playtime data
+            return self._save_playtime_data(game)
+        except Exception as e:
+            logger.error(f"Error setting first played time for {game.id}: {e}")
             return False
 
     def save_game_pid(self, game: Game, pid: int) -> bool:
