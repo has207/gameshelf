@@ -648,7 +648,7 @@ class PSNClient(SourceScanner):
                     game_id = game_data.get('titleId', '')
 
                     # Add debug logging
-                    logger.info(f"Processing PSN game: {title} (ID: {game_id})")
+                    logger.debug(f"Processing PSN game: {title} (ID: {game_id})")
 
                     # Check if game already exists
                     if title.lower() in existing_games_by_title:

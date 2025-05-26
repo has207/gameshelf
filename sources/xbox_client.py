@@ -657,7 +657,7 @@ class XboxLibrary(SourceScanner):
                     title_id = game_data.get('titleId', '')
 
                     # Add debug logging
-                    logger.info(f"Processing Xbox game: {title} (ID: {title_id})")
+                    logger.debug(f"Processing Xbox game: {title} (ID: {title_id})")
 
                     # Generate unique ID for the game based on Xbox title ID
                     game_key = f"xbox_{title_id}"

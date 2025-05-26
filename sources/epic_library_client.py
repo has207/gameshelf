@@ -195,7 +195,7 @@ class EpicLibraryClient(SourceScanner):
                     catalog_item_id = game_data.get('catalog_item_id', '')
 
                     # Add debug logging
-                    logger.info(f"Processing Epic game: {title} (ID: {app_id}, Namespace: {namespace})")
+                    logger.debug(f"Processing Epic game: {title} (ID: {app_id}, Namespace: {namespace})")
 
                     # Generate unique ID for the game based on Epic app ID
                     game_key = f"epic_{namespace}_{app_id}"
