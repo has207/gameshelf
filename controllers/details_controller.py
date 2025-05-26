@@ -169,13 +169,10 @@ class GameDetailsContent(Gtk.Box):
                     # Runner with matching platform but no launcher type
                     generic_runners.append(runner)
             else:
-                # For games without launcher type, add platform-compatible runners
-                # Prioritize runners without launcher type for non-launcher games
+                # For games without launcher type, only add runners that also don't have launcher type
                 if not hasattr(runner, 'launcher_type') or not runner.launcher_type:
                     compatible.append(runner)
-                else:
-                    # Add launcher-type runners at the end for non-launcher games
-                    generic_runners.append(runner)
+                # Skip runners with launcher_type for non-launcher games
 
         # If we have matched launcher-type runners, return only those
         if game_launcher_type and compatible:
