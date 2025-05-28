@@ -1,3 +1,4 @@
+import logging
 import re
 import html
 
@@ -11,6 +12,10 @@ from process_tracking import ProcessTracker
 
 from controllers.sidebar_controller import get_friendly_time, format_play_time
 from controllers.common import show_error_dialog, get_template_path
+
+# Set up logger
+logger = logging.getLogger(__name__)
+
 
 def format_description_markup(description: str) -> str:
     """

@@ -283,17 +283,17 @@ class DiscordPresence:
         """Clear presence when a game is stopped."""
         logger.info("Game stopped - clearing Discord presence")
 
+        # Reset internal state FIRST to prevent race conditions
+        self.current_game = None
+        self.current_platform = None
+        self.start_time = None
+
         # Signal the thread to stop
         if self._presence_thread and self._presence_thread.is_alive():
             logger.info("Stopping presence update thread")
             self._stop_event.set()
             self._presence_thread.join(timeout=2.0)
             logger.info("Presence update thread stopped")
-
-        # Reset internal state
-        self.current_game = None
-        self.current_platform = None
-        self.start_time = None
 
         # Clear presence completely - completely disconnect from Discord
         try:
@@ -317,8 +317,27 @@ class DiscordPresence:
                     logger.warning(f"Error clearing presence: {e}")
 
                 try:
-                    # Then close the connection
+                    # Flush the socket writer before closing
                     logger.info("Closing Discord connection")
+                    if hasattr(self.client, 'sock_writer') and self.client.sock_writer:
+                        try:
+                            # Flush any pending data
+                            await_drain = getattr(self.client.sock_writer, 'drain', None)
+                            if await_drain and callable(await_drain):
+                                # For asyncio writers, we need to use the event loop
+                                if hasattr(self.client, 'loop') and self.client.loop:
+                                    try:
+                                        self.client.loop.run_until_complete(self.client.sock_writer.drain())
+                                        logger.debug("Flushed socket writer")
+                                    except Exception as e:
+                                        logger.debug(f"Error draining socket: {e}")
+
+                            # Close the writer
+                            self.client.sock_writer.close()
+                            logger.debug("Closed socket writer")
+                        except Exception as e:
+                            logger.warning(f"Error flushing/closing socket: {e}")
+
                     self.client.close()
                     logger.info("Disconnected from Discord")
                 except Exception as e:
@@ -356,29 +375,37 @@ class DiscordPresence:
                     self._stop_event.wait(15)  # Still wait between checks
                     continue
 
+                # Early exit check - if stop is set, break immediately
+                if self._stop_event.is_set():
+                    logger.debug("Stop event set - exiting presence thread")
+                    break
+
                 if not self.connected and self.current_game:
                     # Try to reconnect
                     logger.info("Connection lost - attempting to reconnect")
                     if self.connect():
-                        # Restore the game presence
-                        details = f"Playing {self.current_game}"
-                        if self.current_platform:
-                            state = f"on {self.current_platform}"
-                        else:
-                            state = "Playing"
-                        self.update_presence(state, details, None, self.start_time)
-                        logger.info("Reconnected and restored game presence")
+                        # Restore the game presence only if we still have a current game
+                        if self.current_game:  # Double-check since connect() might take time
+                            details = f"Playing {self.current_game}"
+                            if self.current_platform:
+                                state = f"on {self.current_platform}"
+                            else:
+                                state = "Playing"
+                            self.update_presence(state, details, None, self.start_time)
+                            logger.info("Reconnected and restored game presence")
 
-                # Sleep for a while before checking again
-                self._stop_event.wait(15)  # Check every 15 seconds
+                # Sleep for a while before checking again, but check for stop event
+                if self._stop_event.wait(15):  # Returns True if stop event was set
+                    logger.debug("Stop event set during wait - exiting presence thread")
+                    break
 
-                # Double-check we still have a current game - it may have been cleared during the wait
-                if not self.current_game:
-                    logger.debug("Game no longer active - skipping presence update")
-                    continue
+                # Final check - if stop is set or no current game, exit
+                if self._stop_event.is_set() or not self.current_game:
+                    logger.debug("Game no longer active or stop requested - exiting presence thread")
+                    break
 
                 # Ensure presence is still active with the current game
-                if self.connected and self.current_game:
+                if self.connected and self.current_game and not self._stop_event.is_set():
                     details = f"Playing {self.current_game}"
                     if self.current_platform:
                         state = f"on {self.current_platform}"
@@ -391,22 +418,28 @@ class DiscordPresence:
                         # Force a reconnect to ensure presence stays updated
                         self.connected = False
                         self.client = None
-                        if self.connect():
+                        if self.connect() and self.current_game:  # Check game still exists after reconnect
                             logger.info("Periodic reconnect successful")
 
-                    success = self.update_presence(state, details, "gameshelf", self.start_time)
-                    if success:
-                        logger.debug(f"Thread refresh #{refresh_count}: Successfully refreshed presence")
-                    else:
-                        logger.warning(f"Thread refresh #{refresh_count}: Failed to refresh presence")
+                    # Only send presence update if we still have a game and aren't stopping
+                    if self.current_game and not self._stop_event.is_set():
+                        success = self.update_presence(state, details, "gameshelf", self.start_time)
+                        if success:
+                            logger.debug(f"Thread refresh #{refresh_count}: Successfully refreshed presence")
+                        else:
+                            logger.warning(f"Thread refresh #{refresh_count}: Failed to refresh presence")
             except Exception as e:
                 logger.error(f"Error in presence update thread: {e}")
-                # Don't let the thread die on error
+                # Don't let the thread die on error unless stop is requested
+                if self._stop_event.is_set():
+                    break
                 try:
                     import traceback
                     logger.debug(traceback.format_exc())
                 except:
                     pass
+
+        logger.info("Presence update thread exiting")
 
 
 # Singleton instance
