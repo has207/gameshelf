@@ -113,6 +113,18 @@
                 <signal name="clicked" handler="on_edit_button_clicked"/>
               </object>
             </child>
+            
+            <!-- Trailer Button -->
+            <child>
+              <object class="GtkButton" id="trailer_button">
+                <property name="tooltip-text">Watch Trailer</property>
+                <property name="icon-name">video-display-symbolic</property>
+                <style>
+                  <class name="circular"/>
+                </style>
+                <signal name="clicked" handler="on_trailer_button_clicked"/>
+              </object>
+            </child>
           </object>
         </child>
         

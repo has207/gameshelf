@@ -1,5 +1,6 @@
 from typing import Dict, List, Optional
 import logging
+import os
 
 from gi.repository import Gtk, Adw, Gio, GdkPixbuf, GLib
 from data_handler import DataHandler, Game, Runner
@@ -208,6 +209,18 @@ class GameShelfWindow(Adw.ApplicationWindow):
         self.current_selected_game = None
         # Flag to control minimize to tray behavior
         self.minimize_to_tray = True
+
+        # Set window icon
+        try:
+            # Try using the icon path from the app
+            if hasattr(app, 'app_icon_path') and app.app_icon_path:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file(app.app_icon_path)
+                # GTK 4 doesn't have set_icon, but we can set it through the display
+                self.set_icon_name(os.path.splitext(os.path.basename(app.app_icon_path))[0])
+            else:
+                self.set_icon_name("application-x-executable")
+        except Exception as e:
+            logger.warning(f"Could not set window icon: {e}")
 
         # Initialize notification system
         self.notifications = []

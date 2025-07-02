@@ -20,10 +20,25 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 class GameShelfApp(Adw.Application):
     def __init__(self):
-        super().__init__(application_id="com.example.GameShelf")
+        super().__init__(application_id="com.gameshelf.app")
         self.win = None
         self.splash = None
         self.tray_icon = None
+
+        # Set application icon
+        icon_path = os.path.join(os.path.dirname(__file__), "gameshelf-gray.png")
+        if os.path.exists(icon_path):
+            try:
+                # For GTK 4, set the icon name instead of file
+                from gi.repository import GdkPixbuf
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file(icon_path)
+                # GTK 4 doesn't have set_default_icon_from_file, handle in window
+                self.app_icon_path = icon_path
+            except Exception as e:
+                logging.warning(f"Could not load application icon: {e}")
+                self.app_icon_path = None
+        else:
+            self.app_icon_path = None
 
         # Load CSS
         css = Gtk.CssProvider()
@@ -216,6 +231,13 @@ class GameShelfApp(Adw.Application):
 
 
 if __name__ == "__main__":
+    # Try to set process title for better dock integration
+    try:
+        import setproctitle
+        setproctitle.setproctitle("gameshelf")
+    except ImportError:
+        pass
+
     app = GameShelfApp()
 
     # Set up signal handler for Ctrl+C (SIGINT)

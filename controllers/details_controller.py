@@ -1,11 +1,18 @@
 import logging
 import re
 import html
+import urllib.parse
+import subprocess
+import sys
+import os
 
 from datetime import datetime
 from typing import Optional
 
 from gi.repository import Gtk, GLib, Gdk
+
+# WebKit2GTK-6.0 not available, use subprocess approach
+WEBKIT_AVAILABLE = False
 from data import Game, Runner
 from data_mapping import CompletionStatus, Platforms, LauncherType
 from process_tracking import ProcessTracker
@@ -84,6 +91,7 @@ class GameDetailsContent(Gtk.Box):
     edit_button: Gtk.Button = Gtk.Template.Child()
     toggle_hidden_button: Gtk.Button = Gtk.Template.Child()
     info_button: Gtk.Button = Gtk.Template.Child()
+    trailer_button: Gtk.Button = Gtk.Template.Child()
     created_label: Gtk.Label = Gtk.Template.Child()
     modified_label: Gtk.Label = Gtk.Template.Child()
     play_count_label: Gtk.Label = Gtk.Template.Child()
@@ -670,6 +678,209 @@ class GameDetailsContent(Gtk.Box):
                 "Failed to open directory",
                 f"Could not open the game directory: {e}"
             )
+
+    @Gtk.Template.Callback()
+    def on_trailer_button_clicked(self, button):
+        if not self.game:
+            return
+
+        # Create YouTube search URL
+        search_query = f"{self.game.title} game trailer"
+        encoded_query = urllib.parse.quote(search_query)
+        youtube_url = f"https://www.youtube.com/results?search_query={encoded_query}"
+
+        # Launch webview helper in subprocess
+        self._launch_trailer_webview(youtube_url)
+
+    def _launch_trailer_webview(self, url: str):
+        """Extract video URL and create embedded player"""
+        try:
+            # Get the directory where this script is located
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            # Go up one level to the project root
+            project_root = os.path.dirname(script_dir)
+            # Construct path to the trailer helper script
+            helper_script = os.path.join(project_root, "trailer_webview_helper.py")
+
+            # Launch the helper script to extract video URL
+            result = subprocess.run([
+                sys.executable,
+                helper_script,
+                "extract",
+                url
+            ], capture_output=True, text=True, timeout=15)
+
+            if result.returncode == 0 and result.stdout.strip():
+                video_url = result.stdout.strip()
+                if video_url.startswith("ERROR:"):
+                    logger.error(f"Helper script error: {video_url}")
+                    show_error_dialog(
+                        self.get_ancestor(Gtk.Window),
+                        "No trailer found",
+                        "Could not find a trailer for this game"
+                    )
+                else:
+                    logger.info(f"Got video URL: {video_url}")
+                    self._show_embedded_video(video_url)
+            else:
+                logger.error(f"Helper script failed: {result.stderr}")
+                show_error_dialog(
+                    self.get_ancestor(Gtk.Window),
+                    "Failed to extract trailer",
+                    "Could not extract trailer URL from search results"
+                )
+
+        except subprocess.TimeoutExpired:
+            logger.error("Helper script timed out")
+            show_error_dialog(
+                self.get_ancestor(Gtk.Window),
+                "Timeout",
+                "Trailer search timed out"
+            )
+        except Exception as e:
+            logger.error(f"Failed to launch trailer extraction: {e}")
+            show_error_dialog(
+                self.get_ancestor(Gtk.Window),
+                "Failed to open trailer",
+                f"Could not extract trailer URL: {e}"
+            )
+
+    def _show_embedded_video(self, video_url: str):
+        """Show embedded video player in a dialog"""
+        # Extract video ID from YouTube URL
+        video_id = None
+        if "watch?v=" in video_url:
+            video_id = video_url.split("watch?v=")[1].split("&")[0]
+        elif "youtu.be/" in video_url:
+            video_id = video_url.split("youtu.be/")[1].split("?")[0]
+
+        if not video_id:
+            show_error_dialog(
+                self.get_ancestor(Gtk.Window),
+                "Invalid video URL",
+                "Could not extract video ID from URL"
+            )
+            return
+
+        # Create embed URL
+        embed_url = f"https://www.youtube.com/embed/{video_id}?autoplay=1&rel=0&modestbranding=1"
+
+        # Create embedded video dialog
+        self._create_video_dialog(embed_url, f"{self.game.title} - Trailer")
+
+    def _create_video_dialog(self, embed_url: str, title: str):
+        """Create embedded video player dialog with WebKit"""
+        if WEBKIT_AVAILABLE:
+            try:
+                # Create dialog
+                dialog = Gtk.Dialog()
+                dialog.set_title(title)
+                dialog.set_default_size(854, 480)  # 480p aspect ratio
+                dialog.set_transient_for(self.get_ancestor(Gtk.Window))
+                dialog.set_modal(True)
+
+                # Add close button
+                dialog.add_button("Close", Gtk.ResponseType.CLOSE)
+
+                # Create webview
+                webview = WebKit.WebView()
+
+                # Configure webview settings for optimal video playback
+                settings = webview.get_settings()
+                settings.set_enable_javascript(True)
+                settings.set_enable_media_stream(True)
+                settings.set_enable_webaudio(True)
+
+                # Load the embed URL
+                webview.load_uri(embed_url)
+
+                # Add click simulation after page loads
+                webview.connect("load-changed", self._on_video_load_changed)
+
+                # Create scrolled window for webview
+                scrolled = Gtk.ScrolledWindow()
+                scrolled.set_child(webview)
+                scrolled.set_vexpand(True)
+                scrolled.set_hexpand(True)
+
+                # Add to dialog content
+                content_area = dialog.get_content_area()
+                content_area.append(scrolled)
+
+                # Connect response signal
+                dialog.connect("response", lambda d, r: d.destroy())
+
+                # Show dialog
+                dialog.present()
+                return
+
+            except Exception as e:
+                logger.error(f"Failed to create WebKit video dialog: {e}")
+
+        # Fallback to subprocess approach
+        self._create_video_dialog_subprocess(embed_url, title)
+
+    def _on_video_load_changed(self, webview, load_event):
+        """Handle video page load to simulate click for autoplay"""
+        if load_event == WebKit.LoadEvent.FINISHED:
+            logger.info("Video page loaded, simulating click in 2 seconds")
+            GLib.timeout_add(2000, lambda: self._simulate_video_click(webview))
+
+    def _simulate_video_click(self, webview):
+        """Simulate click to start video playback"""
+        click_js = """
+        console.log('Simulating click to start video');
+
+        // Create and dispatch click event at center of page
+        const clickEvent = new MouseEvent('click', {
+            view: window,
+            bubbles: true,
+            cancelable: true,
+            clientX: window.innerWidth / 2,
+            clientY: window.innerHeight / 2
+        });
+
+        document.body.dispatchEvent(clickEvent);
+
+        // Also try clicking on any video elements directly
+        const videos = document.querySelectorAll('video');
+        videos.forEach(video => video.dispatchEvent(clickEvent));
+        """
+
+        webview.run_javascript(click_js)
+        return False  # Don't repeat
+
+    def _create_video_dialog_subprocess(self, embed_url: str, title: str):
+        """Fallback to subprocess video player"""
+        try:
+            # Get the directory where this script is located
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            # Go up one level to the project root
+            project_root = os.path.dirname(script_dir)
+            # Construct path to the trailer helper script
+            helper_script = os.path.join(project_root, "trailer_webview_helper.py")
+
+            # Launch the video player helper as a subprocess
+            subprocess.Popen([
+                sys.executable,
+                helper_script,
+                "play",
+                embed_url,
+                title
+            ])
+
+        except Exception as e:
+            logger.error(f"Failed to launch video player subprocess: {e}")
+            # Final fallback to browser
+            try:
+                subprocess.Popen(['xdg-open', embed_url])
+            except Exception as fallback_e:
+                logger.error(f"All fallbacks failed: {fallback_e}")
+                show_error_dialog(
+                    self.get_ancestor(Gtk.Window),
+                    "Failed to open video",
+                    f"Could not open video: {e}"
+                )
 
     def _update_compatible_runners(self):
         """
