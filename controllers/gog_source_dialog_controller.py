@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-from sources.gog_library import GogLibraryClient
+from sources.gog_library_client import GogLibraryClient
 from data import Source, SourceType
 
 # Set up logger
@@ -113,7 +113,7 @@ class GogSourceDialog(Gtk.Dialog):
             tokens_dir = self.source_handler.ensure_secure_token_storage(self.source.id)
 
         # Launch authentication
-        gog_client = GogLibraryClient(token_dir=tokens_dir)
+        gog_client = GogLibraryClient(data_dir=tokens_dir)
         if gog_client.authenticate():
             self.auth_status_label.set_text("Authentication: Connected")
             self.auth_token = "gog_authenticated"  # Just a marker value
@@ -175,7 +175,7 @@ class GogSourceDialog(Gtk.Dialog):
         tokens_dir = self.source_handler.ensure_secure_token_storage(self.source.id)
 
         # Create a GOG Library instance with this token directory
-        gog_client = GogLibraryClient(token_dir=tokens_dir)
+        gog_client = GogLibraryClient(data_dir=tokens_dir)
 
         # Check if the tokens are valid
         is_authenticated = gog_client.is_authenticated()

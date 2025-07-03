@@ -18,7 +18,7 @@ from data_handler import DataHandler
 from data_mapping import Platforms, Genres, CompletionStatus
 from sources.xbox_client import XboxLibrary
 from sources.psn_client import PSNClient
-from sources.gog_library import GogLibraryClient
+from sources.gog_library_client import GogLibraryClient
 from sources.directory_scanner import DirectoryScanner
 from sources.scanner_base import SourceScanner
 from sources.epic_library_client import EpicLibraryClient
@@ -292,6 +292,6 @@ class SourceHandler:
             token_dir = None
             if source_id:
                 token_dir = self.ensure_secure_token_storage(source_id)
-            return GogLibraryClient(self.data_handler, token_dir=token_dir)
+            return GogLibraryClient(self.data_handler, data_dir=token_dir)
         else:
             raise ValueError(f"Unsupported source type: {source_type}")
