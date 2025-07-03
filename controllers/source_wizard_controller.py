@@ -8,6 +8,7 @@ from controllers.rom_directory_source_dialog_controller import RomDirectorySourc
 from controllers.xbox_source_dialog_controller import XboxSourceDialog
 from controllers.psn_source_dialog_controller import PSNSourceDialog
 from controllers.epic_source_dialog_controller import EpicSourceDialog
+from controllers.gog_source_dialog_controller import GogSourceDialog
 from controllers.steam_source_dialog_controller import SteamSourceDialog
 
 class SourceWizard:
@@ -104,6 +105,13 @@ class SourceWizard:
             dialog = SteamSourceDialog(parent=self.parent, source=self.source)
             dialog.connect("response", lambda dialog, response_id: self._on_steam_dialog_response(dialog, response_id))
             dialog.present()
+        elif source_type == SourceType.GOG:
+            GogSourceDialog.show_dialog(
+                source=self.source,
+                source_handler=self.source_handler,
+                parent=self.parent,
+                callback=self._on_source_saved
+            )
 
     def _on_source_saved(self, source):
         """

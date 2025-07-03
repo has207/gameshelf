@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <template class="GogSourceDialog" parent="GtkDialog">
+    <property name="title">GOG Source</property>
+    <property name="modal">True</property>
+    <property name="default-width">500</property>
+    <property name="default-height">500</property>
+    <property name="use-header-bar">1</property>
+    
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">12</property>
+        <property name="margin-start">12</property>
+        <property name="margin-end">12</property>
+        <property name="margin-top">12</property>
+        <property name="margin-bottom">12</property>
+        
+        <child>
+          <object class="GtkGrid">
+            <property name="row-spacing">8</property>
+            <property name="column-spacing">12</property>
+            <property name="hexpand">True</property>
+            
+            <child>
+              <object class="GtkLabel">
+                <property name="label">Name:</property>
+                <property name="xalign">1</property>
+                <layout>
+                  <property name="column">0</property>
+                  <property name="row">0</property>
+                </layout>
+              </object>
+            </child>
+            
+            <child>
+              <object class="GtkEntry" id="name_entry">
+                <property name="hexpand">True</property>
+                <layout>
+                  <property name="column">1</property>
+                  <property name="row">0</property>
+                </layout>
+              </object>
+            </child>
+            
+            <child>
+              <object class="GtkLabel">
+                <property name="label">Download Images:</property>
+                <property name="xalign">1</property>
+                <layout>
+                  <property name="column">0</property>
+                  <property name="row">2</property>
+                </layout>
+              </object>
+            </child>
+            
+            <child>
+              <object class="GtkSwitch" id="download_images_switch">
+                <property name="halign">start</property>
+                <layout>
+                  <property name="column">1</property>
+                  <property name="row">2</property>
+                </layout>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <child>
+          <object class="GtkSeparator">
+            <property name="orientation">horizontal</property>
+          </object>
+        </child>
+        
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">8</property>
+            
+            <child>
+              <object class="GtkLabel">
+                <property name="label">Authentication</property>
+                <property name="xalign">0</property>
+                <attributes>
+                  <attribute name="weight" value="bold"/>
+                </attributes>
+              </object>
+            </child>
+            
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">horizontal</property>
+                <property name="spacing">12</property>
+                
+                <child>
+                  <object class="GtkButton" id="auth_button">
+                    <property name="label">Authenticate</property>
+                  </object>
+                </child>
+                
+                <child>
+                  <object class="GtkLabel" id="auth_status_label">
+                    <property name="label">Not authenticated</property>
+                    <property name="hexpand">True</property>
+                    <property name="xalign">0</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            
+            <child>
+              <object class="GtkLabel">
+                <property name="label">You need to authenticate with your GOG account to access your game library.</property>
+                <property name="wrap">True</property>
+                <property name="xalign">0</property>
+                <style>
+                  <class name="dim-label"/>
+                </style>
+              </object>
+            </child>
+          </object>
+        </child>
+        
+        <child>
+          <object class="GtkBox">
+            <property name="spacing">12</property>
+            <property name="halign">end</property>
+            <property name="margin-top">12</property>
+            
+            <child>
+              <object class="GtkButton" id="cancel_button">
+                <property name="label">Cancel</property>
+              </object>
+            </child>
+            
+            <child>
+              <object class="GtkButton" id="save_button">
+                <property name="label">Save</property>
+                <style>
+                  <class name="suggested-action"/>
+                </style>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

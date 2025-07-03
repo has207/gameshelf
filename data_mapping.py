@@ -155,6 +155,7 @@ class Platforms(BaseEnum):
     ARCADE = "Arcade"
     BANDAI_WONDERSWAN_COLOR = "Bandai WonderSwan Color"
     PC_WINDOWS = "PC (Windows)"
+    PC_MAC = "PC (Mac)"
     ATARI_8BIT = "Atari 8-bit"
     SNK_NEOGEOPOCKET_COLOR = "SNK Neo Geo Pocket Color"
     NINTENDO_GAMEBOY = "Nintendo Game Boy"
