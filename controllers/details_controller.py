@@ -171,11 +171,11 @@ class GameDetailsContent(Gtk.Box):
             if game_launcher_type:
                 # Check if runner has launcher type that matches the game
                 if hasattr(runner, 'launcher_type') and runner.launcher_type:
-                    # If runner launcher type matches game launcher type, add to compatible list
-                    if runner.launcher_type == game_launcher_type:
+                    # If runner launcher type list contains game launcher type, add to compatible list
+                    if game_launcher_type in runner.launcher_type:
                         compatible.append(runner)
                     else:
-                        # Runner has launcher type but doesn't match the game's launcher type
+                        # Runner has launcher types but doesn't match the game's launcher type
                         # Skip this runner entirely for launcher-specific games
                         continue
                 else:
@@ -431,7 +431,7 @@ class GameDetailsContent(Gtk.Box):
             game_launcher_type = getattr(self.game, 'launcher_type', None)
             install_runners = []
             for runner in compatible_runners:
-                if (hasattr(runner, 'launcher_type') and runner.launcher_type == game_launcher_type and
+                if (hasattr(runner, 'launcher_type') and game_launcher_type in runner.launcher_type and
                     hasattr(runner, 'install_command') and runner.install_command):
                     install_runners.append(runner)
 
@@ -596,7 +596,7 @@ class GameDetailsContent(Gtk.Box):
                 # Check if any compatible runner has an install command
                 install_runners = []
                 for runner in compatible_runners:
-                    if (hasattr(runner, 'launcher_type') and runner.launcher_type == game_launcher_type and
+                    if (hasattr(runner, 'launcher_type') and game_launcher_type in runner.launcher_type and
                         hasattr(runner, 'install_command') and runner.install_command):
                         install_runners.append(runner)
 
@@ -915,8 +915,18 @@ class GameDetailsContent(Gtk.Box):
         for runner in self.compatible_runners:
             # Add launcher type indicator to the button if present
             if hasattr(runner, 'launcher_type') and runner.launcher_type:
-                # Add runner with launcher type indicator
-                self._add_runner_to_flowbox(runner, launcher_type=runner.launcher_type)
+                # Only show launcher type info if the runner supports multiple types
+                if len(runner.launcher_type) > 1:
+                    # Show the specific launcher type that matches this game, or fallback to summary
+                    if game_launcher_type and game_launcher_type in runner.launcher_type:
+                        # Show the matching launcher type for this game
+                        display_launcher_type = game_launcher_type
+                    else:
+                        display_launcher_type = f"{len(runner.launcher_type)} launcher types"
+                    self._add_runner_to_flowbox(runner, launcher_type=display_launcher_type)
+                else:
+                    # Single launcher type - don't show redundant info
+                    self._add_runner_to_flowbox(runner)
             else:
                 # Add regular runner
                 self._add_runner_to_flowbox(runner)

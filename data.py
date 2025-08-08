@@ -65,14 +65,14 @@ class Source:
 class Runner:
     def __init__(self, id: str, title: str, image: Optional[str] = None, command: Optional[str] = None,
                  platforms: Optional[List[Union[Platforms, str]]] = None, discord_enabled: bool = True,
-                 launcher_type: Optional[str] = None, install_command: Optional[str] = None,
+                 launcher_type: Optional[List[str]] = None, install_command: Optional[str] = None,
                  uninstall_command: Optional[str] = None):
         self.id = id.lower()
         self.title = title
         self.image = image
         self.command = command
         self.discord_enabled = discord_enabled
-        self.launcher_type = launcher_type
+        self.launcher_type = launcher_type or []
         self.install_command = install_command
         self.uninstall_command = uninstall_command
         self.platforms = []  # List of platforms this runner supports

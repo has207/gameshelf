@@ -257,7 +257,7 @@ class DataHandler:
                         id=runner_file.stem,
                         platforms=platforms,
                         discord_enabled=discord_enabled,
-                        launcher_type=runner_data.get("launcher_type"),
+                        launcher_type=runner_data.get("launcher_type", []),
                         install_command=runner_data.get("install_command"),
                         uninstall_command=runner_data.get("uninstall_command")
                     )
