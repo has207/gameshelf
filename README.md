@@ -16,9 +16,6 @@ GameShelf requires the following Python packages:
 * pyyaml
 * requests (for API calls)
 * vdf (for Steam library support)
+* isodate
 
-Install dependencies with:
-
-```bash
-pip install PyGObject pyyaml requests vdf
-```
+System tray requires AyatanaAppIndicator3 (libayatana-appindicator on Arch and gir1.2-ayatanaappindicator3-0.1 on Ubuntu)
