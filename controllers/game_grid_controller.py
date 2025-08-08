@@ -206,7 +206,13 @@ class GameGridController:
                 runner_icon = self.main_controller.data_handler.get_runner_icon(primary_runner.id)
 
                 # Set the badge icon and make it visible
-                box.runner_badge.set_from_icon_name(runner_icon)
+                # Check if image is a file path or icon name
+                if primary_runner.image.startswith('/'):
+                    # File path - use set_from_file
+                    box.runner_badge.set_from_file(primary_runner.image)
+                else:
+                    # Icon name - use set_from_icon_name
+                    box.runner_badge.set_from_icon_name(runner_icon)
                 box.runner_badge.set_visible(True)
                 box.runner_badge.set_tooltip_text(f"Runner: {primary_runner.title}")
             else:
