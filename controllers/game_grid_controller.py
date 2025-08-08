@@ -32,9 +32,25 @@ class GameItem(Gtk.Box):
 
     def __init__(self, game: Game, controller):
         super().__init__()
+        logger.info(f"Creating GameItem for: {game.title}")
         self.game = game
         self.controller = controller
         self.label.set_label(game.title)
+
+        # Manually find the runner_badge widget
+        self.runner_badge = None
+        try:
+            # Try to find the runner_badge widget by ID
+            template_child = self.get_template_child(GameItem, "runner_badge")
+            if template_child:
+                self.runner_badge = template_child
+                logger.info(f"Found runner_badge widget: {self.runner_badge}")
+            else:
+                logger.error(f"Could not find runner_badge template child")
+        except Exception as e:
+            logger.error(f"Error finding runner_badge widget: {e}")
+
+        logger.info(f"GameItem widgets - image: {self.image}, label: {self.label}, runner_badge: {self.runner_badge}")
 
         # Try to load the game image
         pixbuf = controller.get_game_pixbuf(game)
@@ -45,10 +61,49 @@ class GameItem(Gtk.Box):
             icon_paintable = controller.data_handler.get_default_icon_paintable("applications-games-symbolic")
             self.image.set_paintable(icon_paintable)
 
+        # Set up runner badge
+        self._setup_runner_badge()
+
         # Add left-click gesture for showing details panel
         click_gesture = Gtk.GestureClick.new()
         click_gesture.connect("released", self._on_clicked)
         self.add_controller(click_gesture)
+
+    def _setup_runner_badge(self):
+        """Set up the runner badge overlay icon"""
+        try:
+            logger.info(f"Setting up runner badge for: {self.game.title}")
+            logger.info(f"Runner badge widget: {self.runner_badge}")
+
+            if not self.runner_badge:
+                logger.error(f"Runner badge widget not found for {self.game.title}")
+                return
+
+            # Get all runners
+            all_runners = self.controller.get_runners()
+            logger.info(f"Found {len(all_runners)} runners")
+
+            # Get the primary runner for this game
+            primary_runner = self.controller.data_handler.get_primary_runner_for_game(self.game, all_runners)
+
+            if primary_runner:
+                # Get the runner's icon name
+                runner_icon = self.controller.data_handler.get_runner_icon(primary_runner.id)
+                logger.info(f"Game {self.game.title} -> Runner {primary_runner.title} -> Icon {runner_icon}")
+
+                # Set the badge icon and make it visible
+                self.runner_badge.set_from_icon_name(runner_icon)
+                self.runner_badge.set_visible(True)
+                self.runner_badge.set_tooltip_text(f"Runner: {primary_runner.title}")
+                logger.info(f"Badge set for {self.game.title}")
+            else:
+                # No compatible runner - hide the badge
+                logger.info(f"No compatible runner found for {self.game.title}")
+                self.runner_badge.set_visible(False)
+        except Exception as e:
+            logger.error(f"Error setting up runner badge for {self.game.title}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 
         # Add right-click gesture for context menu
         right_click = Gtk.GestureClick.new()
@@ -265,9 +320,26 @@ class GameGridController:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         box.add_css_class("game-item-container")
 
+        # Create overlay for image and badge
+        overlay = Gtk.Overlay()
+
         # Create the game UI elements that will be reused
         image = Gtk.Picture()
         image.set_size_request(180, 240)  # Maintain consistent image size
+
+        # Create runner badge
+        runner_badge = Gtk.Image()
+        runner_badge.set_visible(False)
+        runner_badge.set_halign(Gtk.Align.END)
+        runner_badge.set_valign(Gtk.Align.START)
+        runner_badge.set_margin_end(8)
+        runner_badge.set_margin_top(8)
+        runner_badge.set_pixel_size(48)
+        runner_badge.add_css_class("runner-badge")
+
+        # Add image as main child and badge as overlay
+        overlay.set_child(image)
+        overlay.add_overlay(runner_badge)
 
         label = Gtk.Label()
         label.set_ellipsize(3)  # PANGO_ELLIPSIZE_END = 3
@@ -278,9 +350,10 @@ class GameGridController:
         # Store references to the UI elements
         box.image = image
         box.label = label
+        box.runner_badge = runner_badge
 
         # Add the UI elements to the box
-        box.append(image)
+        box.append(overlay)
         box.append(label)
 
         # Add gestures for interactions
@@ -336,6 +409,35 @@ class GameGridController:
                 else:
                     # Add to queue for loading when scrolling stops
                     self.pending_image_loads.append((box, game))
+
+            # Set up runner badge
+            self._setup_runner_badge_for_item(box, game)
+
+    def _setup_runner_badge_for_item(self, box, game):
+        """Set up the runner badge for a specific game item"""
+        try:
+            if not hasattr(box, 'runner_badge') or not box.runner_badge:
+                return
+
+            # Get all runners
+            all_runners = self.main_controller.get_runners()
+
+            # Get the primary runner for this game
+            primary_runner = self.main_controller.data_handler.get_primary_runner_for_game(game, all_runners)
+
+            if primary_runner and primary_runner.image is not None:
+                # Get the runner's icon name
+                runner_icon = self.main_controller.data_handler.get_runner_icon(primary_runner.id)
+
+                # Set the badge icon and make it visible
+                box.runner_badge.set_from_icon_name(runner_icon)
+                box.runner_badge.set_visible(True)
+                box.runner_badge.set_tooltip_text(f"Runner: {primary_runner.title}")
+            else:
+                # No compatible runner or runner has no icon - hide the badge
+                box.runner_badge.set_visible(False)
+        except Exception as e:
+            logger.error(f"Error setting up runner badge for {game.title}: {e}")
 
     def _on_factory_unbind(self, factory, list_item):
         """Clean up when item scrolls out of view"""

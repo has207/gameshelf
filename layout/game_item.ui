@@ -11,12 +11,13 @@
     </style>
 
     <child>
-      <object class="GtkBox">
+      <object class="GtkOverlay">
+        <property name="width-request">200</property>
+        <property name="height-request">260</property>
         <style>
           <class name="game-image-container"/>
         </style>
-        <property name="width-request">200</property>
-        <property name="height-request">260</property>
+        
         <child>
           <object class="GtkPicture" id="image">
             <property name="content-fit">cover</property>
@@ -25,6 +26,21 @@
             <property name="vexpand">true</property>
           </object>
         </child>
+        
+        <child type="overlay">
+          <object class="GtkImage" id="runner_badge">
+            <property name="visible">false</property>
+            <property name="halign">end</property>
+            <property name="valign">end</property>
+            <property name="margin-end">8</property>
+            <property name="margin-bottom">8</property>
+            <property name="pixel-size">24</property>
+            <style>
+              <class name="runner-badge"/>
+            </style>
+          </object>
+        </child>
+        
       </object>
     </child>
 

@@ -522,3 +522,8 @@ searchentry:focus {
 .notification-level.warning {
   background-color: @warning_color;
 }
+
+/* Runner badge overlay */
+.runner-badge {
+  background-color: transparent;
+}

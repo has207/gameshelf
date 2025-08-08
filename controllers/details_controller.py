@@ -135,64 +135,14 @@ class GameDetailsContent(Gtk.Box):
         Returns:
             List of compatible Runner objects
         """
-        if not self.controller or not game.platforms:
+        if not self.controller:
             return []
 
         # Get all runners
         all_runners = self.controller.get_runners()
 
-        # Get launcher type from the game object
-        game_launcher_type = None
-        if hasattr(game, 'launcher_type') and game.launcher_type:
-            game_launcher_type = game.launcher_type
-
-        # Filter to runners that support at least one of the game's platforms
-        compatible = []
-        generic_runners = []  # Runners with matching platforms but no launcher type
-
-        for runner in all_runners:
-            if not runner.platforms:
-                continue
-
-            # Track if this runner is platform-compatible
-            platform_compatible = False
-
-            # Check if any of the game's platforms are supported by this runner
-            for platform in game.platforms:
-                if platform in runner.platforms:
-                    platform_compatible = True
-                    break
-
-            # If not platform compatible, skip this runner
-            if not platform_compatible:
-                continue
-
-            # For games with launcher type, check for matching runners
-            if game_launcher_type:
-                # Check if runner has launcher type that matches the game
-                if hasattr(runner, 'launcher_type') and runner.launcher_type:
-                    # If runner launcher type list contains game launcher type, add to compatible list
-                    if game_launcher_type in runner.launcher_type:
-                        compatible.append(runner)
-                    else:
-                        # Runner has launcher types but doesn't match the game's launcher type
-                        # Skip this runner entirely for launcher-specific games
-                        continue
-                else:
-                    # Runner with matching platform but no launcher type
-                    generic_runners.append(runner)
-            else:
-                # For games without launcher type, only add runners that also don't have launcher type
-                if not hasattr(runner, 'launcher_type') or not runner.launcher_type:
-                    compatible.append(runner)
-                # Skip runners with launcher_type for non-launcher games
-
-        # If we have matched launcher-type runners, return only those
-        if game_launcher_type and compatible:
-            return compatible
-
-        # Otherwise, return generic runners
-        return compatible + generic_runners
+        # Use the data handler's compatibility logic
+        return self.controller.data_handler.get_compatible_runners(game, all_runners)
 
     def _add_runner_to_flowbox(self, runner: Runner, launcher_type: Optional[str] = None):
         """

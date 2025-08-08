@@ -597,6 +597,86 @@ class DataHandler:
 
         return None
 
+    def get_compatible_runners(self, game: Game, all_runners: List[Runner]) -> List[Runner]:
+        """
+        Find runners that are compatible with the game's platforms and launcher type.
+
+        Args:
+            game: The game to find compatible runners for
+            all_runners: List of all available runners
+
+        Returns:
+            List of compatible Runner objects, prioritized by exact matches first
+        """
+        if not game.platforms:
+            return []
+
+        game_launcher_type = None
+        if hasattr(game, 'launcher_type') and game.launcher_type:
+            game_launcher_type = game.launcher_type
+
+        # Filter to runners that support at least one of the game's platforms
+        compatible = []
+        generic_runners = []  # Runners with matching platforms but no launcher type
+
+        for runner in all_runners:
+            if not runner.platforms:
+                continue
+
+            # Track if this runner is platform-compatible
+            platform_compatible = False
+
+            # Check if any of the game's platforms are supported by this runner
+            for platform in game.platforms:
+                if platform in runner.platforms:
+                    platform_compatible = True
+                    break
+
+            # If not platform compatible, skip this runner
+            if not platform_compatible:
+                continue
+
+            # For games with launcher type, check for matching runners
+            if game_launcher_type:
+                # Check if runner has launcher type that matches the game
+                if hasattr(runner, 'launcher_type') and runner.launcher_type:
+                    # If runner launcher type list contains game launcher type, add to compatible list
+                    if game_launcher_type in runner.launcher_type:
+                        compatible.append(runner)
+                    else:
+                        # Runner has launcher types but doesn't match the game's launcher type
+                        # Skip this runner entirely for launcher-specific games
+                        continue
+                else:
+                    # Runner with matching platform but no launcher type
+                    generic_runners.append(runner)
+            else:
+                # For games without launcher type, only add runners that also don't have launcher type
+                if not hasattr(runner, 'launcher_type') or not runner.launcher_type:
+                    compatible.append(runner)
+                # Skip runners with launcher_type for non-launcher games
+
+        # If we have matched launcher-type runners, return only those
+        if game_launcher_type and compatible:
+            return compatible
+
+        # Otherwise, return generic runners
+        return compatible + generic_runners
+
+    def get_primary_runner_for_game(self, game: Game, all_runners: List[Runner]) -> Optional[Runner]:
+        """
+        Get the primary (best match) runner for a game.
+
+        Args:
+            game: The game to find a runner for
+            all_runners: List of all available runners
+
+        Returns:
+            The primary runner for the game, or None if no compatible runners
+        """
+        compatible_runners = self.get_compatible_runners(game, all_runners)
+        return compatible_runners[0] if compatible_runners else None
+
     def load_game_image(self, game: Game, width: int = 200, height: int = 260) -> Optional[GdkPixbuf.Pixbuf]:
         """
         Load a game's image as a pixbuf, scaled to the specified dimensions.
