@@ -150,8 +150,6 @@ class VideoPlayerWindow(Gtk.Window):
         except:
             pass
 
-        logger.info(f"Creating VideoPlayerWindow with URL: {embed_url}")
-        logger.info(f"Window title: {title}")
 
         # Create WebView
         self.webview = WebKit2.WebView()
@@ -161,8 +159,18 @@ class VideoPlayerWindow(Gtk.Window):
         settings.set_enable_javascript(True)
         settings.set_enable_media_stream(True)
         settings.set_enable_webaudio(True)
-        settings.set_enable_accelerated_2d_canvas(True)
-        settings.set_enable_webgl(True)
+        # Disable hardware acceleration to fix GBM buffer issues
+        settings.set_enable_accelerated_2d_canvas(False)
+        settings.set_enable_webgl(False)
+        settings.set_hardware_acceleration_policy(WebKit2.HardwareAccelerationPolicy.NEVER)
+        settings.set_enable_media(True)
+        settings.set_media_playback_requires_user_gesture(False)
+        settings.set_allow_modal_dialogs(True)
+        settings.set_allow_file_access_from_file_urls(True)
+        settings.set_allow_universal_access_from_file_urls(True)
+
+        # Set user agent to help with YouTube compatibility
+        settings.set_user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 
         # Create scrolled window
         scrolled_window = Gtk.ScrolledWindow()
@@ -173,22 +181,25 @@ class VideoPlayerWindow(Gtk.Window):
         self.add(scrolled_window)
 
         # Load the embed URL
-        logger.info(f"Loading embed URL: {embed_url}")
         self.webview.load_uri(embed_url)
 
         # Connect to load events to trigger autoplay
         self.webview.connect("load-changed", self.on_video_load_changed)
+        self.webview.connect("load-failed", self.on_load_failed)
 
         # Connect window close event
         self.connect("delete-event", self.on_window_close)
-
-        logger.info("Video player window initialization complete")
 
     def on_video_load_changed(self, webview, load_event):
         """Handle page load events to trigger autoplay"""
         if load_event == WebKit2.LoadEvent.FINISHED:
             logger.info("Page finished loading, will click center of screen in 2 seconds")
             GLib.timeout_add(2000, self.click_center)
+
+    def on_load_failed(self, webview, load_event, failing_uri, error):
+        """Handle load failures"""
+        logger.error(f"Load failed: {load_event}, URI: {failing_uri}, Error: {error}")
+        return False
 
     def click_center(self):
         """Simulate a click via JavaScript to start video"""
@@ -221,6 +232,7 @@ class VideoPlayerWindow(Gtk.Window):
         logger.info("Video player window closing")
         Gtk.main_quit()
         return False
+
 
 
 class VideoPlayerApp(Gtk.Application):
