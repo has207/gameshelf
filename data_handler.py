@@ -245,18 +245,12 @@ class DataHandler:
                                 # Skip invalid platforms
                                 logger.warning(f"Skipping invalid platform '{platform_str}' for runner {runner_file.stem}")
 
-                    # Get discord_enabled value (default to True if not present for backward compatibility)
-                    # Log the value to debug if it's loading correctly
-                    discord_enabled = runner_data.get("discord_enabled", True)
-                    logger.debug(f"Loading runner {runner_file.stem} with discord_enabled={discord_enabled}")
-
                     runner = Runner(
                         title=runner_data.get("title", "Unknown Runner"),
                         image=runner_data.get("image", ""),
                         command=runner_data.get("command", ""),
                         id=runner_file.stem,
                         platforms=platforms,
-                        discord_enabled=discord_enabled,
                         launcher_type=runner_data.get("launcher_type", []),
                         install_command=runner_data.get("install_command"),
                         uninstall_command=runner_data.get("uninstall_command")
@@ -363,7 +357,6 @@ class DataHandler:
             "title": runner.title,
             "image": runner.image,
             "command": runner.command,
-            "discord_enabled": runner.discord_enabled if hasattr(runner, 'discord_enabled') else True
         }
 
         # Save launcher type if it exists

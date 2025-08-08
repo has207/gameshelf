@@ -117,7 +117,6 @@ class RunnerDialog(Adw.Window):
     dialog_title: Adw.WindowTitle = Gtk.Template.Child()
     title_entry: Adw.EntryRow = Gtk.Template.Child()
     command_entry: Adw.EntryRow = Gtk.Template.Child()
-    discord_switch: Adw.SwitchRow = Gtk.Template.Child()
     launcher_types_summary_label: Gtk.Label = Gtk.Template.Child()
     install_command_entry: Adw.EntryRow = Gtk.Template.Child()
     uninstall_command_entry: Adw.EntryRow = Gtk.Template.Child()
@@ -142,7 +141,6 @@ class RunnerDialog(Adw.Window):
         self.original_image_path = None
         self.runner = None
         self.selected_platforms = []  # Track selected platforms
-        self.discord_enabled = True  # Default value for Discord presence
         self.selected_launcher_types = []  # Track selected launcher types
 
         # Configure UI based on mode (add or edit)
@@ -314,8 +312,6 @@ class RunnerDialog(Adw.Window):
         self.command_entry.set_text(runner.command or "")
         self.install_command_entry.set_text(runner.install_command or "")
         self.uninstall_command_entry.set_text(runner.uninstall_command or "")
-        self.discord_switch.set_active(runner.discord_enabled if hasattr(runner, 'discord_enabled') else True)
-        self.discord_enabled = runner.discord_enabled if hasattr(runner, 'discord_enabled') else True
         self.selected_image_path = None
         self.original_image_path = runner.image
 
@@ -347,9 +343,6 @@ class RunnerDialog(Adw.Window):
     def on_entry_changed(self, entry, *args):
         self.validate_form()
 
-    @Gtk.Template.Callback()
-    def on_discord_toggled(self, switch, *args):
-        self.discord_enabled = switch.get_active()
         self.validate_form()
 
     @Gtk.Template.Callback()
@@ -545,12 +538,11 @@ class RunnerDialog(Adw.Window):
         command = self.command_entry.get_text().strip()
         has_title = len(title) > 0
         has_command = len(command) > 0
-        current_discord_enabled = self.discord_switch.get_active()
 
         # Get currently selected platforms
         current_platforms = self.selected_platforms
 
-        logger.debug(f"Runner dialog validate_form: title='{title}', command='{command}', platforms: {len(current_platforms)}, discord: {current_discord_enabled}")
+        logger.debug(f"Runner dialog validate_form: title='{title}', command='{command}', platforms: {len(current_platforms)}")
         logger.debug(f"Edit mode: {self.edit_mode}, Has title: {has_title}, Has command: {has_command}")
 
         if self.edit_mode and self.runner:
@@ -567,11 +559,6 @@ class RunnerDialog(Adw.Window):
                 has_changes = True
                 logger.debug(f"Command changed from '{self.runner.command}' to '{command}'")
 
-            # Check Discord enabled change
-            original_discord_enabled = getattr(self.runner, 'discord_enabled', True)
-            if current_discord_enabled != original_discord_enabled:
-                has_changes = True
-                logger.debug(f"Discord enabled changed from {original_discord_enabled} to {current_discord_enabled}")
 
             # Check launcher types change
             original_launcher_types = getattr(self.runner, 'launcher_type', [])
@@ -648,7 +635,6 @@ class RunnerDialog(Adw.Window):
         command = self.command_entry.get_text().strip()
         install_command = self.install_command_entry.get_text().strip()
         uninstall_command = self.uninstall_command_entry.get_text().strip()
-        discord_enabled = self.discord_switch.get_active()
 
         # Get selected platforms
         platforms = self.selected_platforms
@@ -663,7 +649,6 @@ class RunnerDialog(Adw.Window):
             command=command,
             image=self.selected_image_path,
             platforms=platforms,
-            discord_enabled=discord_enabled,
             launcher_type=self.selected_launcher_types,
             install_command=install_command if install_command else None,
             uninstall_command=uninstall_command if uninstall_command else None
@@ -694,7 +679,6 @@ class RunnerDialog(Adw.Window):
         command = self.command_entry.get_text().strip()
         install_command = self.install_command_entry.get_text().strip()
         uninstall_command = self.uninstall_command_entry.get_text().strip()
-        discord_enabled = self.discord_switch.get_active()
 
         # Get selected platforms
         platforms = self.selected_platforms
@@ -705,7 +689,6 @@ class RunnerDialog(Adw.Window):
         self.runner.install_command = install_command if install_command else None
         self.runner.uninstall_command = uninstall_command if uninstall_command else None
         self.runner.platforms = platforms
-        self.runner.discord_enabled = discord_enabled
         self.runner.launcher_type = self.selected_launcher_types
 
         # Update image

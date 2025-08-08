@@ -10,8 +10,6 @@ from typing import Optional, Callable, Set
 from gi.repository import GLib
 from data import Game
 
-# Import Discord integration
-from discord_integration import discord_presence
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -20,17 +18,15 @@ logger = logging.getLogger(__name__)
 class ProcessTracker:
     """
     Manages game process launching, monitoring, and tracking play time.
-    Also handles Discord Rich Presence integration.
     """
     def __init__(self, data_handler):
         self.data_handler = data_handler
-        self.current_game_discord_enabled = True  # Default value for Discord integration
         self.app_window = None  # Reference to main application window
         self.minimize_to_tray_on_game_launch = True  # Whether to minimize to tray when launching games
         self.directory_monitors = {}  # Track directory monitoring threads
 
     def launch_game(self, game: Game, runner_command: str, file_path: Optional[str] = None,
-                on_exit_callback: Optional[Callable] = None, discord_enabled: bool = True,
+                on_exit_callback: Optional[Callable] = None,
                 launcher_id: Optional[str] = None) -> bool:
         """
         Launch a game with the specified runner command and optional file path or launcher ID.
@@ -40,7 +36,6 @@ class ProcessTracker:
             runner_command: The command to run
             file_path: Optional path to the game file to launch
             on_exit_callback: Optional callback function to call when the game exits
-            discord_enabled: Whether to enable Discord rich presence for this runner
             launcher_id: Optional launcher-specific ID for the game
 
         Returns:
@@ -136,38 +131,10 @@ class ProcessTracker:
                 hasattr(game, 'installation_directory') and game.installation_directory):
                 # Use directory monitoring for Steam games
                 logger.info(f"Using directory monitoring for Steam game: {game.title}")
-                self.start_directory_monitoring(game, game.installation_directory, on_exit_callback, discord_enabled)
+                self.start_directory_monitoring(game, game.installation_directory, on_exit_callback)
             else:
                 # Use traditional PID monitoring for other games
                 self.monitor_game_process(process.pid, game, on_exit_callback)
-
-            # Store discord_enabled in a class variable for later use when game exits
-            self.current_game_discord_enabled = discord_enabled
-
-            # Try to update Discord Rich Presence, but don't let it fail the game launch
-            try:
-                # Get platform information if enabled
-                platform = None
-                from discord_integration import SHOW_PLATFORM_INFO
-                if SHOW_PLATFORM_INFO and hasattr(game, 'platforms') and game.platforms:
-                    # Use the first platform's human-readable name
-                    if game.platforms:
-                        # Get the enum value's human-readable name
-                        platform = game.platforms[0].value
-                    else:
-                        platform = None
-
-                # Log whether Discord integration is enabled for this launch
-                if discord_enabled:
-                    logger.info(f"Discord integration enabled for this game launch")
-                    # Only update Discord presence if it's enabled for this runner
-                    discord_presence.game_started(game.title, platform, discord_enabled)
-                else:
-                    logger.info(f"Discord integration disabled for this game launch")
-                    # Skip Discord integration entirely for this game
-            except Exception as e:
-                # Just log the error but don't let it affect game launch
-                logger.error(f"Discord integration error (game will still launch): {e}")
 
             # Minimize the main window to tray if enabled
             if self.minimize_to_tray_on_game_launch and self.app_window:
@@ -252,17 +219,6 @@ class ProcessTracker:
             # Remove the PID file since the process has exited
             self.data_handler.clear_game_pid(game)
 
-            # Only clear Discord Rich Presence if it was enabled for this game
-            if hasattr(self, 'current_game_discord_enabled') and self.current_game_discord_enabled:
-                try:
-                    logger.info(f"Game {game.title} exited - clearing Discord Rich Presence")
-                    # Force disconnect from Discord to ensure status gets cleared
-                    discord_presence.game_stopped()
-                except Exception as e:
-                    # Just log the error but don't let it affect game tracking
-                    logger.error(f"Discord integration error on game exit: {e}")
-            else:
-                logger.info(f"Game {game.title} exited - Discord integration was disabled for this game")
 
             # Restore the main window from tray if it was minimized
             if self.minimize_to_tray_on_game_launch and self.app_window:
@@ -329,9 +285,6 @@ class ProcessTracker:
                 # Schedule window restore with notification on the main thread
                 GLib.idle_add(restore_window_with_error)
 
-            # Update Discord Rich Presence in case of error
-            if hasattr(self, 'app_state_manager') and self.app_state_manager and self.app_state_manager.get_discord_enabled():
-                discord_presence.game_stopped()
 
     def is_game_running(self, game: Game) -> bool:
         """
@@ -381,24 +334,13 @@ class ProcessTracker:
             # Process already terminated
             self.data_handler.clear_game_pid(game)
 
-            # Only clear Discord Rich Presence if it was enabled for this game
-            if hasattr(self, 'current_game_discord_enabled') and self.current_game_discord_enabled:
-                try:
-                    logger.info(f"Game {game.title} was killed - clearing Discord Rich Presence")
-                    # Force disconnect from Discord to ensure status gets cleared
-                    discord_presence.game_stopped()
-                except Exception as e:
-                    # Just log the error but don't let it affect game tracking
-                    logger.error(f"Discord integration error on game exit: {e}")
-            else:
-                logger.info(f"Game {game.title} was killed - Discord integration was disabled for this game")
 
             return True
         except Exception as e:
             logger.error(f"Error killing process for game {game.title}: {e}")
             return False
 
-    def start_directory_monitoring(self, game: Game, install_directory: str, on_exit_callback: Optional[Callable] = None, discord_enabled: bool = True) -> bool:
+    def start_directory_monitoring(self, game: Game, install_directory: str, on_exit_callback: Optional[Callable] = None) -> bool:
         """
         Start monitoring processes in a game's installation directory for Steam/Epic games.
 
@@ -406,7 +348,6 @@ class ProcessTracker:
             game: The game to monitor
             install_directory: Path to the game's installation directory
             on_exit_callback: Optional callback function to call when the game exits
-            discord_enabled: Whether to enable Discord rich presence
 
         Returns:
             True if monitoring started successfully, False otherwise
@@ -426,8 +367,6 @@ class ProcessTracker:
             # Save a marker file to indicate the game is being monitored
             self.data_handler.save_game_pid(game, -1)  # Use -1 to indicate directory monitoring
 
-            # Store discord_enabled for later use
-            self.current_game_discord_enabled = discord_enabled
 
             # Start tracking thread
             monitor_thread = threading.Thread(
@@ -441,21 +380,6 @@ class ProcessTracker:
             # Only increment play count if monitoring started successfully
             self.data_handler.increment_play_count(game)
 
-            # Try to update Discord Rich Presence
-            try:
-                platform = None
-                from discord_integration import SHOW_PLATFORM_INFO
-                if SHOW_PLATFORM_INFO and hasattr(game, 'platforms') and game.platforms:
-                    if game.platforms:
-                        platform = game.platforms[0].value
-
-                if discord_enabled:
-                    logger.info(f"Discord integration enabled for directory monitoring")
-                    discord_presence.game_started(game.title, platform, discord_enabled)
-                else:
-                    logger.info(f"Discord integration disabled for directory monitoring")
-            except Exception as e:
-                logger.error(f"Discord integration error: {e}")
 
             # Minimize window if enabled
             if self.minimize_to_tray_on_game_launch and self.app_window:
@@ -549,13 +473,6 @@ class ProcessTracker:
             if game.id in self.directory_monitors:
                 del self.directory_monitors[game.id]
 
-            # Clear Discord presence if enabled
-            if hasattr(self, 'current_game_discord_enabled') and self.current_game_discord_enabled:
-                try:
-                    logger.info(f"Directory monitoring ended for {game.title} - clearing Discord Rich Presence")
-                    discord_presence.game_stopped()
-                except Exception as e:
-                    logger.error(f"Discord integration error on monitoring end: {e}")
 
             # Restore window
             if self.minimize_to_tray_on_game_launch and self.app_window:

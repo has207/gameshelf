@@ -318,17 +318,13 @@ class GameDetailsContent(Gtk.Box):
             file_path: Optional file path to launch
             launcher_id: Optional launcher-specific ID for the game
         """
-        # Get the discord_enabled setting from the runner (default to True if not present)
-        discord_enabled = getattr(runner, 'discord_enabled', True)
-
-        # Launch the game with this runner, passing the discord_enabled setting
+        # Launch the game with this runner
         # If launcher_id is provided, use that instead of file_path
         launch_success = self.controller.process_tracker.launch_game(
             self.game,
             runner.command,
             file_path,
             self._update_playtime_ui,  # Callback when game exits
-            discord_enabled,  # Pass the Discord setting from the runner
             launcher_id  # Pass launcher ID if available
         )
 
@@ -519,7 +515,6 @@ class GameDetailsContent(Gtk.Box):
             install_command,
             None,  # No file path for install
             self._update_playtime_ui,  # Callback when install completes
-            True,  # Discord enabled (can be configurable later)
             launcher_id  # Pass launcher ID
         )
 
