@@ -369,7 +369,7 @@ class GameDetailsContent(Gtk.Box):
             show_error_dialog(
                 self.get_ancestor(Gtk.Window),
                 "Failed to launch game",
-                "Could not start the game process"
+                f"Could not start '{self.game.title}' with runner '{runner.title}'.\n\nCheck error log for details."
             )
 
     @Gtk.Template.Callback()

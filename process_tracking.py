@@ -90,7 +90,40 @@ class ProcessTracker:
                 logger.info(f"Launching game: {game.title} with command: {runner_command}")
 
             # Launch the game
-            process = subprocess.Popen(cmd)
+            try:
+                process = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            except FileNotFoundError as e:
+                logger.error(f"Runner command not found: {cmd[0]} - {e}")
+                logger.error(f"Make sure the runner '{cmd[0]}' is installed and accessible in PATH")
+                return False
+            except PermissionError as e:
+                logger.error(f"Permission denied launching: {' '.join(cmd)} - {e}")
+                return False
+            except Exception as e:
+                logger.error(f"Failed to launch command: {' '.join(cmd)} - {e}")
+                return False
+
+            # Check if the process started successfully
+            try:
+                # Give the process a moment to initialize
+                time.sleep(0.1)
+
+                # Check if the process is still running (poll returns None if running)
+                if process.poll() is not None:
+                    # Process has already exited, likely due to an error
+                    stdout, stderr = process.communicate()
+                    exit_code = process.returncode
+
+                    # Log only the stderr output if available
+                    if stderr:
+                        logger.error(f"Error output: {stderr.decode().strip()}")
+                    else:
+                        logger.error(f"Game launch failed immediately - command: {' '.join(cmd)}")
+
+                    return False
+            except Exception as e:
+                logger.error(f"Error checking process status: {e}")
+                return False
 
             # Save the PID to the PID file
             self.data_handler.save_game_pid(game, process.pid)
