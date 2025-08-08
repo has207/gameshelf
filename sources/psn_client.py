@@ -672,8 +672,9 @@ class PSNClient(SourceScanner):
 
                                 if total_seconds > 0:
                                     # Only update if the new value is greater than the existing one
-                                    if total_seconds > existing_game.play_time:
-                                        logger.debug(f"Updating play time for {title} from {existing_game.play_time} to {total_seconds} seconds")
+                                    existing_play_time = existing_game.play_time if existing_game.play_time is not None else 0
+                                    if total_seconds > existing_play_time:
+                                        logger.debug(f"Updating play time for {title} from {existing_play_time} to {total_seconds} seconds")
 
                                         # Update play time
                                         if self.data_handler.update_play_time(existing_game, total_seconds):
@@ -683,7 +684,7 @@ class PSNClient(SourceScanner):
                                         else:
                                             logger.warning(f"Failed to update play time for {title}")
                                     else:
-                                        logger.debug(f"PSN play time ({total_seconds}s) not greater than existing play time ({existing_game.play_time}s), skipping update")
+                                        logger.debug(f"PSN play time ({total_seconds}s) not greater than existing play time ({existing_play_time}s), skipping update")
                             except Exception as duration_err:
                                 logger.warning(f"Failed to parse play duration for {title}: {duration_err}")
 
