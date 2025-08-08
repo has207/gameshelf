@@ -65,7 +65,18 @@ class SourceManager(Gtk.Box):
         sources = self.source_handler.load_sources()
         logger.debug(f"Loaded {len(sources)} sources from disk")
 
-        for source in sources:
+        # Sort sources: non-ROM sources first (alphabetical), then ROM sources (alphabetical)
+        non_rom_sources = [s for s in sources if s.source_type != SourceType.ROM_DIRECTORY]
+        rom_sources = [s for s in sources if s.source_type == SourceType.ROM_DIRECTORY]
+
+        # Sort each group alphabetically by name
+        non_rom_sources.sort(key=lambda s: s.name.lower())
+        rom_sources.sort(key=lambda s: s.name.lower())
+
+        # Combine in the desired order
+        sorted_sources = non_rom_sources + rom_sources
+
+        for source in sorted_sources:
             logger.debug(f"Adding source to list: {source.name} (ID: {source.id})")
             self.list_store.append(SourceListModel(source))
 

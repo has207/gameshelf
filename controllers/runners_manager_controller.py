@@ -50,8 +50,11 @@ class RunnersManagerDialog(Adw.Window):
         self.empty_state.set_visible(False)
         self.runners_listbox.set_visible(True)
 
+        # Sort runners alphabetically by title
+        sorted_runners = sorted(runners, key=lambda r: r.title.lower())
+
         # Add each runner to the list
-        for runner in runners:
+        for runner in sorted_runners:
             row = RunnerListRow(runner, self.controller, self)
             self.runners_listbox.append(row)
 
