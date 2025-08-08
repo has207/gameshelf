@@ -645,12 +645,20 @@ class RunnerDialog(Adw.Window):
         # Generate an ID based on the title
         runner_id = title.lower().replace(" ", "_")
 
+        # Determine image/icon to store
+        image_to_store = self.selected_image_path
+        if not image_to_store:
+            # Auto-detect icon from command if no custom image selected
+            detected_icon = self.controller.data_handler._get_icon_from_command(command)
+            if detected_icon:
+                image_to_store = detected_icon
+
         # Create the runner
         runner = Runner(
             id=runner_id,
             title=title,
             command=command,
-            image=self.selected_image_path,
+            image=image_to_store,
             platforms=platforms,
             launcher_type=self.selected_launcher_types,
             install_command=install_command if install_command else None,
@@ -698,8 +706,9 @@ class RunnerDialog(Adw.Window):
         if self.selected_image_path is not None:  # Image was changed
             if self.selected_image_path:  # New image selected
                 self.runner.image = self.selected_image_path
-            else:  # Image was cleared
-                self.runner.image = None
+            else:  # Image was cleared - try to auto-detect icon from command
+                detected_icon = self.controller.data_handler._get_icon_from_command(command)
+                self.runner.image = detected_icon  # Will be None if no icon detected
 
         # Save the updated runner
         if self.controller.add_runner(self.runner):

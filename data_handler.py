@@ -9,6 +9,11 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Tuple, Union
 
+import gi
+gi.require_version('Gtk', '4.0')
+gi.require_version('Gdk', '4.0')
+from gi.repository import Gtk, Gdk
+
 from data import Game, Runner, Source, SourceType, RomPath
 from data_mapping import (
     CompletionStatus, InvalidCompletionStatusError,
@@ -498,6 +503,24 @@ class DataHandler:
         if not runner_id:
             return "application-x-executable-symbolic"
 
+        # Try to get stored icon from runner data first
+        runner = self._get_runner_by_id(runner_id)
+        if runner and runner.image:
+            # Check if image field contains an icon name (not a file path)
+            if not runner.image.startswith('/'):
+                # Looks like an icon name, verify it exists
+                display = Gdk.Display.get_default()
+                if display:
+                    icon_theme = Gtk.IconTheme.get_for_display(display)
+                    if icon_theme.has_icon(runner.image):
+                        return runner.image
+
+        # Fall back to detecting icon from command
+        if runner and runner.command:
+            command_icon = self._get_icon_from_command(runner.command)
+            if command_icon:
+                return command_icon
+
         # Try to match beginning of runner name to known icons
         for key, icon in self.runner_icon_map.items():
             if runner_id.lower().startswith(key):
@@ -505,6 +528,74 @@ class DataHandler:
 
         # Default icon for unknown runners
         return "application-x-executable-symbolic"
+
+    def _get_runner_by_id(self, runner_id: str) -> Optional[Runner]:
+        """Get a runner object by ID"""
+        try:
+            runner_file = self.runners_dir / f"{runner_id}.yaml"
+            if runner_file.exists():
+                with open(runner_file, "r") as f:
+                    runner_data = yaml.safe_load(f)
+
+                # Create runner object
+                runner = Runner(
+                    id=runner_id,
+                    title=runner_data.get("title", runner_id),
+                    command=runner_data.get("command", ""),
+                    image=runner_data.get("image"),
+                    platforms=[Platforms.from_string(p) for p in runner_data.get("platforms", [])],
+                    launcher_type=runner_data.get("launcher_type", []),
+                    install_command=runner_data.get("install_command"),
+                    uninstall_command=runner_data.get("uninstall_command")
+                )
+                return runner
+        except Exception as e:
+            logger.debug(f"Error loading runner {runner_id}: {e}")
+            return None
+
+        return None
+
+    def _get_icon_from_command(self, command: str) -> Optional[str]:
+        """Extract icon name from a command, handling Flatpak and protocol-based commands"""
+        if not command:
+            return None
+
+        display = Gdk.Display.get_default()
+        if not display:
+            return None
+
+        icon_theme = Gtk.IconTheme.get_for_display(display)
+
+        # Handle Flatpak commands: "flatpak run org.flycast.Flycast ..."
+        if command.startswith("flatpak run "):
+            parts = command.split()
+            if len(parts) >= 3:
+                app_id = parts[2]
+                # Check if this app ID exists as an icon
+                if icon_theme.has_icon(app_id):
+                    return app_id
+
+        # Handle xdg-open protocol commands: "xdg-open steam://run/"
+        elif command.startswith("xdg-open "):
+            parts = command.split()
+            if len(parts) >= 2:
+                url_or_path = parts[1]
+                if "://" in url_or_path:
+                    protocol = url_or_path.split("://")[0].lower()
+
+                    # Try different icon name variations for the protocol
+                    icon_candidates = [
+                        protocol,                    # "steam"
+                        f"{protocol}-symbolic",     # "steam-symbolic"
+                        f"{protocol}.desktop",      # "steam.desktop"
+                        f"application-{protocol}"   # "application-steam"
+                    ]
+
+                    for candidate in icon_candidates:
+                        if icon_theme.has_icon(candidate):
+                            return candidate
+
+        return None
 
     def load_game_image(self, game: Game, width: int = 200, height: int = 260) -> Optional[GdkPixbuf.Pixbuf]:
         """
@@ -539,11 +630,6 @@ class DataHandler:
         Returns:
             A paintable that can be used with GtkPicture widgets
         """
-        import gi
-        gi.require_version('Gtk', '4.0')
-        gi.require_version('Gdk', '4.0')
-        from gi.repository import Gtk, Gdk
-
         display = Gdk.Display.get_default()
         icon_theme = Gtk.IconTheme.get_for_display(display)
         # The empty list is for icon sizes, 1 is scale factor, Gtk.TextDirection.LTR is text direction
