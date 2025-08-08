@@ -104,10 +104,13 @@ class DirectoryScanner(SourceScanner):
         existing_games_by_path = {}
         for game in self.data_handler.load_games():
             if game.source == source.id:
-                # Extract the path if it's in the title or description
-                # This is a simple approach - in a more advanced implementation,
-                # we might store the original file path separately
-                existing_games_by_path[game.title] = game
+                # Use installation directory and files as the key for identification
+                # This is more robust than using title which can be changed by users
+                if hasattr(game, 'installation_directory') and hasattr(game, 'installation_files') and game.installation_directory and game.installation_files:
+                    # Create a unique key based on directory and files
+                    files_key = "|".join(sorted(game.installation_files)) if isinstance(game.installation_files, list) else str(game.installation_files)
+                    path_key = f"{game.installation_directory}::{files_key}"
+                    existing_games_by_path[path_key] = game
 
         # Process each game entry
         index = 0
@@ -124,8 +127,10 @@ class DirectoryScanner(SourceScanner):
 
                 title = entry["title"]
 
-                # Check if we already have this game from this source
-                if title in existing_games_by_path:
+                # Check if we already have this game from this source using installation path
+                files_key = "|".join(sorted(entry["files"])) if isinstance(entry["files"], list) else str(entry["files"])
+                path_key = f"{entry['directory']}::{files_key}"
+                if path_key in existing_games_by_path:
                     # Game already exists, skip it
                     continue
 
